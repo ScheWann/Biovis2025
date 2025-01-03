@@ -1,2 +1,4 @@
 Backend/venv
 Frontend/node_modules
+Data
+.DS_Store
