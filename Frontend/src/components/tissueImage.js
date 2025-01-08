@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { RollbackOutlined } from "@ant-design/icons";
+import { RollbackOutlined, SelectOutlined } from "@ant-design/icons";
 import { Button, Select } from "antd";
 import { Map, View } from 'ol';
 import 'ol/ol.css';
@@ -13,12 +13,15 @@ import Point from 'ol/geom/Point';
 import Style from 'ol/style/Style';
 import CircleStyle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
+import Draw from 'ol/interaction/Draw';
 import hireImage from '../data/tissue_hires_image.png';
 import scaleFactor from '../data/scalefactors_json.json';
 
 export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize }) => {
     const mapRef = useRef(null);
     const [imageSize, setImageSize] = useState([]);
+    const [lassoToggleStatus, setLassoToggleStatus] = useState(false);
+    const [selectedRegion, setSelectedRegion] = useState(null);
     const [view, setView] = useState(null);
     const [map, setMap] = useState(null);
 
@@ -30,6 +33,11 @@ export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize
 
     const handleChange = (value) => {
         setKmeansSize(value);
+    };
+
+    const lassoChange = () => {
+        setLassoToggleStatus(!lassoToggleStatus);
+        setSelectedRegion(null);
     };
 
     useEffect(() => {
@@ -71,6 +79,31 @@ export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize
             return () => olMap.setTarget(null);
         }
     }, [imageSize]);
+
+    useEffect(() => {
+        if (map && lassoToggleStatus) {
+            // 创建一个 Draw 交互工具，用于绘制多边形
+            const drawInteraction = new Draw({
+                source: new VectorSource(), // 用于存储绘制的区域
+                type: 'Polygon', // 指定几何类型为多边形
+            });
+    
+            // 添加到地图中
+            map.addInteraction(drawInteraction);
+    
+            // 监听绘制完成事件
+            drawInteraction.on('drawend', (event) => {
+                const geometry = event.feature.getGeometry();
+                console.log(geometry);
+                setSelectedRegion(geometry); // 保存选中的区域
+            });
+    
+            // 清理交互工具
+            return () => {
+                map.removeInteraction(drawInteraction);
+            };
+        }
+    }, [map, lassoToggleStatus]);
 
     useEffect(() => {
         if (map && imageSize.length > 0) {
@@ -146,6 +179,11 @@ export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize
                     onChange={handleChange}
                     options={kmeansOptions}
                 />
+                <Button
+                    onClick={lassoChange}
+                    icon={<SelectOutlined />}
+                >
+                </Button>
                 <Button
                     onClick={resetZoom}
                     icon={<RollbackOutlined />}
