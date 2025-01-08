@@ -1,17 +1,61 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RollbackOutlined } from "@ant-design/icons";
-import { Button } from "antd";
+import { Button, Select } from "antd";
 import { Map, View } from 'ol';
-
+import 'ol/ol.css';
+import "../styles/tissueImage.css";
 import ImageLayer from 'ol/layer/Image';
 import ImageStatic from 'ol/source/ImageStatic';
-
-import 'ol/ol.css';
 import hireImage from '../data/tissue_hires_image.png';
 
-export const TissueImage = () => {
+
+export const TissueImage = ({kmeansSize, setKmeansSize}) => {
     const mapRef = useRef(null);
     const [view, setView] = useState(null);
+
+    // Kmeans number options
+    const kmeansOptions = [
+        {
+            value: 2,
+            label: '2',
+        },
+        {
+            value: 3,
+            label: '3',
+        },
+        {
+            value: 4,
+            label: '4',
+        },
+        {
+            value: 5,
+            label: '5',
+        },
+        {
+            value: 6,
+            label: '6',
+        },
+        {
+            value: 7,
+            label: '7',
+        },
+        {
+            value: 8,
+            label: '8',
+        },
+        {
+            value: 9,
+            label: '9',
+        },
+        {
+            value: 10,
+            label: '10',
+        },
+    ];
+
+    const handleChange = (value) => {
+        setKmeansSize(value);
+    };
 
     useEffect(() => {
         const extent = [0, 0, 4000, 4000];
@@ -50,22 +94,21 @@ export const TissueImage = () => {
     return (
         <div style={{ position: 'relative', height: '100%', width: '50%' }}>
             <div ref={mapRef} style={{ height: '100%', width: '100%' }} />
-            <Button
-                onClick={resetZoom}
-                style={{
-                    position: 'absolute',
-                    top: '10px',
-                    right: '10px',
-                    zIndex: 10,
-                    padding: '10px 15px',
-                    color: '#666',
-                    borderRadius: '5px',
-                    border: '1px solid #d9d9d9',
-                    cursor: 'pointer',
-                }}
-                icon={<RollbackOutlined />}
-            >
-            </Button>
+            <div className="controlButtonGroup">
+                <Select
+                    value={kmeansSize}
+                    style={{
+                        width: 120,
+                    }}
+                    onChange={handleChange}
+                    options={kmeansOptions}
+                />
+                <Button
+                    onClick={resetZoom}
+                    icon={<RollbackOutlined />}
+                >
+                </Button>
+            </div>
         </div>
     );
 };
