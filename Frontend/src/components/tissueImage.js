@@ -6,87 +6,130 @@ import 'ol/ol.css';
 import "../styles/tissueImage.css";
 import ImageLayer from 'ol/layer/Image';
 import ImageStatic from 'ol/source/ImageStatic';
+import VectorLayer from 'ol/layer/Vector';
+import VectorSource from 'ol/source/Vector';
+import Feature from 'ol/Feature';
+import Point from 'ol/geom/Point';
+import Style from 'ol/style/Style';
+import CircleStyle from 'ol/style/Circle';
+import Fill from 'ol/style/Fill';
 import hireImage from '../data/tissue_hires_image.png';
+import scaleFactor from '../data/scalefactors_json.json';
 
-
-export const TissueImage = ({kmeansSize, setKmeansSize}) => {
+export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize }) => {
     const mapRef = useRef(null);
+    const [imageSize, setImageSize] = useState([]);
     const [view, setView] = useState(null);
+    const [map, setMap] = useState(null);
 
     // Kmeans number options
-    const kmeansOptions = [
-        {
-            value: 2,
-            label: '2',
-        },
-        {
-            value: 3,
-            label: '3',
-        },
-        {
-            value: 4,
-            label: '4',
-        },
-        {
-            value: 5,
-            label: '5',
-        },
-        {
-            value: 6,
-            label: '6',
-        },
-        {
-            value: 7,
-            label: '7',
-        },
-        {
-            value: 8,
-            label: '8',
-        },
-        {
-            value: 9,
-            label: '9',
-        },
-        {
-            value: 10,
-            label: '10',
-        },
-    ];
+    const kmeansOptions = Array.from({ length: 9 }, (_, i) => ({
+        value: i + 2,
+        label: `${i + 2}`,
+    }));
 
     const handleChange = (value) => {
         setKmeansSize(value);
     };
 
     useEffect(() => {
-        const extent = [0, 0, 4000, 4000];
-
-        const mapView = new View({
-            center: [2000, 2000],
-            zoom: 1,
-            extent,
-        });
-
-        const map = new Map({
-            target: mapRef.current,
-            layers: [
-                new ImageLayer({
-                    source: new ImageStatic({
-                        url: hireImage,
-                        imageExtent: extent,
-                    }),
-                }),
-            ],
-            view: mapView,
-        });
-
-        setView(mapView);
-
-        return () => map.setTarget(null);
+        fetch("/get_hires_image_size", {
+            method: "GET",
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                setImageSize(data);
+            });
     }, []);
+
+    useEffect(() => {
+        if (imageSize.length > 0) {
+            const extent = [0, 0, imageSize[0], imageSize[1]];
+
+            const mapView = new View({
+                center: [imageSize[0] / 2, imageSize[1] / 2],
+                zoom: 1,
+                extent,
+            });
+
+            const olMap = new Map({
+                target: mapRef.current,
+                layers: [
+                    new ImageLayer({
+                        source: new ImageStatic({
+                            url: hireImage,
+                            imageExtent: extent,
+                        }),
+                    }),
+                ],
+                view: mapView,
+            });
+
+            setMap(olMap);
+            setView(mapView);
+
+            return () => olMap.setTarget(null);
+        }
+    }, [imageSize]);
+
+    useEffect(() => {
+        if (map && imageSize.length > 0) {
+            const clusterColors = {
+                1: 'rgba(255, 0, 0, 0.7)',
+                2: 'rgba(0, 255, 0, 0.7)',
+                3: 'rgba(0, 0, 255, 0.7)',
+                4: 'rgba(255, 255, 0, 0.7)',
+                5: 'rgba(0, 255, 255, 0.7)',
+                6: 'rgba(255, 0, 255, 0.7)',
+                7: 'rgba(128, 0, 128, 0.7)',
+                8: 'rgba(255, 165, 0, 0.7)',
+                9: 'rgba(128, 128, 128, 0.7)',
+                10: 'rgba(0, 0, 0, 0.7)',
+            };
+
+            // vector layer
+            const vectorSource = new VectorSource();
+
+            positionWithClusterData.forEach((point) => {
+                const { x, y, cluster } = point;
+
+                const adjustedX = x * scaleFactor.tissue_hires_scalef;
+                const adjustedY = imageSize[1] - y * scaleFactor.tissue_hires_scalef;
+
+                const feature = new Feature({
+                    geometry: new Point([adjustedX, adjustedY]),
+                });
+
+                const color = clusterColors[cluster] || 'rgba(255, 255, 255, 0.7)';
+                feature.setStyle(
+                    new Style({
+                        image: new CircleStyle({
+                            radius: 1,
+                            fill: new Fill({ color }),
+                        }),
+                    })
+                );
+
+                vectorSource.addFeature(feature);
+            });
+
+            const vectorLayer = new VectorLayer({
+                source: vectorSource,
+            });
+
+            // clear old vector layers
+            map.getLayers().forEach((layer) => {
+                if (layer instanceof VectorLayer) {
+                    map.removeLayer(layer);
+                }
+            });
+            map.addLayer(vectorLayer);
+        }
+    }, [map, positionWithClusterData, imageSize]);
 
     const resetZoom = () => {
         if (view) {
-            view.setCenter([2000, 2000]);
+            view.setCenter([imageSize[0] / 2, imageSize[1] / 2]);
             view.setZoom(1);
         }
     };

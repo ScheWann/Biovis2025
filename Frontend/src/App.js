@@ -12,7 +12,7 @@ function App() {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ kmeans: 8 })
+      body: JSON.stringify({ kmeans: kmeansSize })
     })
       .then((response) => response.json())
       .then((data) => {
@@ -29,6 +29,7 @@ function App() {
       <TissueImage
         kmeansSize={kmeansSize}
         setKmeansSize={setKmeansSize}
+        positionWithClusterData={positionWithClusterData}
       />
     </div>
   );
