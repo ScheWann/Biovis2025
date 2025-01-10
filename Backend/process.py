@@ -25,11 +25,15 @@ def get_hires_image_size():
 # Positions and clusters for 008um
 def get_um_008_positions_with_clusters(kmeans):
     kmeans_n_df = pd.read_csv(f"../Data/square_008um/analysis/clustering/gene_expression_kmeans_{kmeans}_clusters/clusters.csv")
+    scale_df = pd.read_json("../Data/square_008um/spatial/scalefactors_json.json", typ="series")
+
     # GET ONLY CELLS IN TISSUE
     position_df_filtered = position_df[position_df["in_tissue"] == 1]
 
     merged_df = pd.merge(position_df_filtered, kmeans_n_df, left_on="barcode", right_on="Barcode")
     merged_df = merged_df.drop(columns=["in_tissue", "array_row", "array_col", "Barcode"])
     merged_df = merged_df.rename(columns={"pxl_row_in_fullres": "y", "pxl_col_in_fullres": "x", "Cluster": "cluster"})
+    merged_df["x"] = merged_df["x"] * scale_df.tissue_hires_scalef
+    merged_df["y"] = merged_df["y"] * scale_df.tissue_hires_scalef
 
     return merged_df

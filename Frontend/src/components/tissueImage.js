@@ -6,13 +6,10 @@ import 'ol/ol.css';
 import "../styles/tissueImage.css";
 import ImageLayer from 'ol/layer/Image';
 import ImageStatic from 'ol/source/ImageStatic';
-import VectorImageLayer from 'ol/layer/VectorImage';
 import VectorSource from 'ol/source/Vector';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
-import { Icon, Style } from 'ol/style';
-import CircleStyle from 'ol/style/Circle';
-import Fill from 'ol/style/Fill';
+import WebGLVectorLayer from 'ol/layer/WebGLVector';
 import Draw from 'ol/interaction/Draw';
 import hireImage from '../data/tissue_hires_image.png';
 import scaleFactor from '../data/scalefactors_json.json';
@@ -126,37 +123,33 @@ export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize
             positionWithClusterData.forEach((point) => {
                 const { x, y, cluster } = point;
 
-                const adjustedX = x * scaleFactor.tissue_hires_scalef;
-                const adjustedY = imageSize[1] - y * scaleFactor.tissue_hires_scalef;
+                const adjustedX = x;
+                const adjustedY = imageSize[1] - y;
 
                 const feature = new Feature({
                     geometry: new Point([adjustedX, adjustedY]),
                 });
 
-                const color = clusterColors[cluster] || 'rgba(255, 255, 255, 0.7)';
-                feature.setStyle(
-                    new Style({
-                        image: new CircleStyle({
-                            radius: 1,
-                            fill: new Fill({ color }),
-                        }),
-                    })
-                );
+                feature.set('cluster', clusterColors[cluster]);
 
                 vectorSource.addFeature(feature);
             });
 
-            const vectorImageLayer = new VectorImageLayer({
+            const webGLVectorLayer = new WebGLVectorLayer({
                 source: vectorSource,
+                style: {
+                    'circle-radius': 1,
+                    'circle-fill-color': ['get', 'cluster'],
+                },
             });
 
             // clear old vector layers
             map.getLayers().forEach((layer) => {
-                if (layer instanceof VectorImageLayer) {
+                if (layer instanceof WebGLVectorLayer) {
                     map.removeLayer(layer);
                 }
             });
-            map.addLayer(vectorImageLayer);
+            map.addLayer(webGLVectorLayer);
         }
     }, [map, positionWithClusterData, imageSize]);
 
