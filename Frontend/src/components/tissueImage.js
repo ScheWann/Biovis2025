@@ -10,9 +10,13 @@ import VectorSource from 'ol/source/Vector';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
 import WebGLVectorLayer from 'ol/layer/WebGLVector';
+import VectorLayer from 'ol/layer/Vector';
 import Draw from 'ol/interaction/Draw';
+import Style from 'ol/style/Style';
+import Fill from 'ol/style/Fill';
+import Stroke from 'ol/style/Stroke';
 import hireImage from '../data/tissue_hires_image.png';
-import scaleFactor from '../data/scalefactors_json.json';
+
 
 export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize }) => {
     const mapRef = useRef(null);
@@ -79,24 +83,41 @@ export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize
 
     useEffect(() => {
         if (map && lassoToggleStatus) {
-            // 创建一个 Draw 交互工具，用于绘制多边形
-            const drawInteraction = new Draw({
-                source: new VectorSource(), // 用于存储绘制的区域
-                type: 'Polygon', // 指定几何类型为多边形
+            const vectorSource = new VectorSource();
+            const vectorLayer = new VectorLayer({
+                source: vectorSource,
             });
 
-            // 添加到地图中
+            map.addLayer(vectorLayer);
+
+            const drawInteraction = new Draw({
+                source: vectorSource,
+                type: 'Polygon',
+            });
+
             map.addInteraction(drawInteraction);
 
-            // 监听绘制完成事件
             drawInteraction.on('drawend', (event) => {
                 const geometry = event.feature.getGeometry();
                 console.log(geometry);
-                setSelectedRegion(geometry); // 保存选中的区域
+                setSelectedRegion(geometry);
+
+                // The drawn region
+                const regionStyle = new Style({
+                    fill: new Fill({
+                        color: 'rgba(0, 191, 255, 0.3)',
+                    }),
+                    stroke: new Stroke({
+                        color: 'rgba(0, 191, 255, 1)',
+                        width: 2,
+                    }),
+                });
+
+                event.feature.setStyle(regionStyle);
             });
 
-            // 清理交互工具
             return () => {
+                map.removeLayer(vectorLayer);
                 map.removeInteraction(drawInteraction);
             };
         }
