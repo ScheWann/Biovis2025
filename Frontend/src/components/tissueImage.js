@@ -6,11 +6,11 @@ import 'ol/ol.css';
 import "../styles/tissueImage.css";
 import ImageLayer from 'ol/layer/Image';
 import ImageStatic from 'ol/source/ImageStatic';
-import VectorLayer from 'ol/layer/Vector';
+import VectorImageLayer from 'ol/layer/VectorImage';
 import VectorSource from 'ol/source/Vector';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
-import Style from 'ol/style/Style';
+import { Icon, Style } from 'ol/style';
 import CircleStyle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
 import Draw from 'ol/interaction/Draw';
@@ -87,17 +87,17 @@ export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize
                 source: new VectorSource(), // 用于存储绘制的区域
                 type: 'Polygon', // 指定几何类型为多边形
             });
-    
+
             // 添加到地图中
             map.addInteraction(drawInteraction);
-    
+
             // 监听绘制完成事件
             drawInteraction.on('drawend', (event) => {
                 const geometry = event.feature.getGeometry();
                 console.log(geometry);
                 setSelectedRegion(geometry); // 保存选中的区域
             });
-    
+
             // 清理交互工具
             return () => {
                 map.removeInteraction(drawInteraction);
@@ -146,17 +146,17 @@ export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize
                 vectorSource.addFeature(feature);
             });
 
-            const vectorLayer = new VectorLayer({
+            const vectorImageLayer = new VectorImageLayer({
                 source: vectorSource,
             });
 
             // clear old vector layers
             map.getLayers().forEach((layer) => {
-                if (layer instanceof VectorLayer) {
+                if (layer instanceof VectorImageLayer) {
                     map.removeLayer(layer);
                 }
             });
-            map.addLayer(vectorLayer);
+            map.addLayer(vectorImageLayer);
         }
     }, [map, positionWithClusterData, imageSize]);
 
