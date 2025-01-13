@@ -182,27 +182,29 @@ export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize
     };
 
     return (
-        <div style={{ position: 'relative', height: '100%', width: '50%' }}>
-            <div ref={mapRef} style={{ height: '100%', width: '100%' }} />
-            <div className="controlButtonGroup">
-                <Select
-                    value={kmeansSize}
-                    style={{
-                        width: 120,
-                    }}
-                    onChange={handleChange}
-                    options={kmeansOptions}
-                />
-                <Button
-                    onClick={lassoChange}
-                    icon={<SelectOutlined />}
-                >
-                </Button>
-                <Button
-                    onClick={resetZoom}
-                    icon={<RollbackOutlined />}
-                >
-                </Button>
+        <div style={{ height: '100%', width: '50%' }}>
+            <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+                <div ref={mapRef} style={{ height: '100%', width: '100%' }} />
+                <div className="controlButtonGroup">
+                    <Select
+                        value={kmeansSize}
+                        style={{
+                            width: 120,
+                        }}
+                        onChange={handleChange}
+                        options={kmeansOptions}
+                    />
+                    <Button
+                        onClick={lassoChange}
+                        icon={<SelectOutlined />}
+                    >
+                    </Button>
+                    <Button
+                        onClick={resetZoom}
+                        icon={<RollbackOutlined />}
+                    >
+                    </Button>
+                </div>
             </div>
         </div>
     );
