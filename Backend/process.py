@@ -19,7 +19,6 @@ um_008_feature_df = um_008_adata.to_df()
 
 def get_tissue_positions(bin_size):
     position_df = pd.read_parquet(f"../Data/square_{bin_size}um/spatial/tissue_positions.parquet")
-    position_df = position_df.rename(columns={"barcode": "Barcode"})
     position_df_filtered = position_df[position_df["in_tissue"] == 1]
     position_df_filtered = position_df_filtered.drop(columns=["in_tissue", "array_row", "array_col"])
     position_df_filtered = position_df_filtered.rename(columns={"pxl_row_in_fullres": "y", "pxl_col_in_fullres": "x"})
@@ -30,9 +29,17 @@ def get_scale_factors(bin_size):
     scale_df = pd.read_json(f"../Data/square_{bin_size}um/spatial/scalefactors_json.json", typ="series")
     return scale_df
 
+
 def current_kmeans(bin_size, kmeans):
     kmeans_n_df = pd.read_csv(f"../Data/square_{bin_size}um/analysis/clustering/gene_expression_kmeans_{kmeans}_clusters/clusters.csv")
+    kmeans_n_df = kmeans_n_df.rename(columns={"Barcode": "barcode", "Cluster": "cluster"})
     return kmeans_n_df
+
+
+def get_umap_positions(bin_size):
+    umap_df = pd.read_csv(f"../Data/square_{bin_size}um/analysis/umap/gene_expression_2_components/projection.csv")
+    umap_df = umap_df.rename(columns={"Barcode": "barcode"})
+    return umap_df
 
 
 # Hires image size
@@ -47,18 +54,17 @@ def get_um_positions_with_clusters(bin_size, kmeans):
     kmeans_n_df = current_kmeans(bin_size, kmeans)
     scale_df = get_scale_factors(bin_size)
 
-    merged_df = pd.merge(position_df, kmeans_n_df, on="Barcode")
-    merged_df = merged_df.rename(columns={"Cluster": "cluster"})
+    merged_df = pd.merge(position_df, kmeans_n_df, on="barcode")
     merged_df["x"] = merged_df["x"] * scale_df.tissue_hires_scalef
     merged_df["y"] = merged_df["y"] * scale_df.tissue_hires_scalef
 
     return merged_df
 
 
-def get_umap_positions(bin_size, kmeans):
-    umap_df = pd.read_csv(f"../Data/square_{bin_size}um/analysis/umap/gene_expression_2_components/projection.csv")
+def get_umap_positions_with_clusters(bin_size, kmeans):
+    umap_df = get_umap_positions(bin_size)
     kmeans_n_df = current_kmeans(bin_size, kmeans)
-    umap_kmeans_merged_df = pd.merge(umap_df, kmeans_n_df, on="Barcode")
+    umap_kmeans_merged_df = pd.merge(umap_df, kmeans_n_df, on="barcode")
 
     return umap_kmeans_merged_df
 

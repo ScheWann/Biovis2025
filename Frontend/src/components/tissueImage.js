@@ -42,7 +42,7 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
     const [selectedRegion, setSelectedRegion] = useState(null);
     const [view, setView] = useState(null);
     const [map, setMap] = useState(null);
-    const [secondOptions, setSecondOptions] = useState([]);
+    const [secondOptions, setSecondOptions] = useState(kmeansOptions);
     const [specificGeneData, setSpecificGeneData] = useState([]);
 
     const fetchSpecificGeneData = (geneName) => {
@@ -264,7 +264,7 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
                         options={modeOptions}
                     />
                     <Select
-                        // mode={mode === 'genes' ? 'tags' : 'default'}
+                        mode={mode === 'genes' ? 'tags' : 'default'}
                         showSearch={mode === 'genes'}
                         value={mode === 'genes' ? geneName : kmeansSize}
                         style={{

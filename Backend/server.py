@@ -3,7 +3,7 @@ import re
 from process import (
     get_um_positions_with_clusters, 
     get_hires_image_size,
-    get_umap_positions,
+    get_umap_positions_with_clusters,
     get_gene_list,
     get_specific_gene_expression
 )
@@ -32,7 +32,7 @@ def get_um_positions_with_clusters_route():
 def get_umap_positions_route():
     bin_size = request.json['bin_size']
     kmeans = request.json['kmeans']
-    return jsonify(get_umap_positions(bin_size, kmeans).to_dict(orient='records'))
+    return jsonify(get_umap_positions_with_clusters(bin_size, kmeans).to_dict(orient='records'))
 
 
 @app.route('/get_full_gene_list', methods=['GET'])

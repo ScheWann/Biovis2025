@@ -24,7 +24,7 @@ export const Umap = ({ umapPositionWithClusterData }) => {
                 [144, 238, 144],
                 [238, 130, 238],
             ];
-            return colors[d.Cluster % colors.length];
+            return colors[d.cluster % colors.length];
         },
         getRadius: 1000,
         pickable: true,
@@ -54,8 +54,8 @@ export const Umap = ({ umapPositionWithClusterData }) => {
                             border: '1px solid gray',
                         }}
                     >
-                        <div>{`Barcode: ${hoverInfo.object.Barcode}`}</div>
-                        <div>{`Cluster: ${hoverInfo.object.Cluster}`}</div>
+                        <div>{`Barcode: ${hoverInfo.object.barcode}`}</div>
+                        <div>{`Cluster: ${hoverInfo.object.clusterluster}`}</div>
                         <div>{`UMAP-1: ${hoverInfo.object['UMAP-1'].toFixed(2)}`}</div>
                         <div>{`UMAP-2: ${hoverInfo.object['UMAP-2'].toFixed(2)}`}</div>
                     </div>
