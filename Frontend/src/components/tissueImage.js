@@ -264,7 +264,7 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
                         options={modeOptions}
                     />
                     <Select
-                        mode={mode === 'genes' ? 'tags' : 'default'}
+                        // mode={mode === 'genes' ? 'tags' : 'default'}
                         showSearch={mode === 'genes'}
                         value={mode === 'genes' ? geneName : kmeansSize}
                         style={{

@@ -19,8 +19,10 @@ um_008_feature_df = um_008_adata.to_df()
 
 def get_tissue_positions(bin_size):
     position_df = pd.read_parquet(f"../Data/square_{bin_size}um/spatial/tissue_positions.parquet")
+    position_df = position_df.rename(columns={"barcode": "Barcode"})
     position_df_filtered = position_df[position_df["in_tissue"] == 1]
     position_df_filtered = position_df_filtered.drop(columns=["in_tissue", "array_row", "array_col"])
+    position_df_filtered = position_df_filtered.rename(columns={"pxl_row_in_fullres": "y", "pxl_col_in_fullres": "x"})
     return position_df_filtered
 
 
@@ -45,9 +47,8 @@ def get_um_positions_with_clusters(bin_size, kmeans):
     kmeans_n_df = current_kmeans(bin_size, kmeans)
     scale_df = get_scale_factors(bin_size)
 
-    merged_df = pd.merge(position_df, kmeans_n_df, left_on="barcode", right_on="Barcode")
-    merged_df = merged_df.drop(columns=["Barcode"])
-    merged_df = merged_df.rename(columns={"pxl_row_in_fullres": "y", "pxl_col_in_fullres": "x", "Cluster": "cluster"})
+    merged_df = pd.merge(position_df, kmeans_n_df, on="Barcode")
+    merged_df = merged_df.rename(columns={"Cluster": "cluster"})
     merged_df["x"] = merged_df["x"] * scale_df.tissue_hires_scalef
     merged_df["y"] = merged_df["y"] * scale_df.tissue_hires_scalef
 
