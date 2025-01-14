@@ -26,11 +26,13 @@ def get_um_positions_with_clusters_route():
     kmeans = request.json['kmeans']
     return jsonify(get_um_positions_with_clusters(bin_size, kmeans).to_dict(orient='records'))
 
+
 @app.route('/get_umap_positions', methods=['POST'])
 def get_umap_positions_route():
     bin_size = request.json['bin_size']
     kmeans = request.json['kmeans']
     return jsonify(get_umap_positions(bin_size, kmeans).to_dict(orient='records'))
+
 
 @app.route('/get_gene_name_search')
 def get_gene_name_search():
@@ -40,12 +42,12 @@ def get_gene_name_search():
     # Return the full list if no query is provided
     if not query:
         return jsonify(gene_list)
-    
-    # Use regex for case-insensitive search
+
     pattern = re.compile(re.escape(query), re.IGNORECASE)
     results = [item for item in gene_list if pattern.search(item)]
     
     return jsonify(results)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
