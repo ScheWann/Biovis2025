@@ -26,7 +26,7 @@ export const Umap = ({ umapPositionWithClusterData }) => {
             ];
             return colors[d.Cluster % colors.length];
         },
-        getRadius: 500,
+        getRadius: 1000,
         pickable: true,
         onHover: info => setHoverInfo(info),
     });

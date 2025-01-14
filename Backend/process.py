@@ -6,6 +6,16 @@ import scanpy as sc
 from scipy.optimize import fsolve
 from PIL import Image
 
+# um_002_adata = sc.read_10x_h5(f"../Data/square_002um/filtered_feature_bc_matrix.h5")
+um_008_adata = sc.read_10x_h5(f"../Data/square_008um/filtered_feature_bc_matrix.h5")
+# um_016_adata = sc.read_10x_h5(f"../Data/square_016um/filtered_feature_bc_matrix.h5")
+
+# um_002_adata.var_names_make_unique()
+um_008_adata.var_names_make_unique()
+# um_016_adata.var_names_make_unique()
+
+um_008_feature_df = um_008_adata.to_df()
+
 
 def current_kmeans(bin_size, kmeans):
     kmeans_n_df = pd.read_csv(f"../Data/square_{bin_size}um/analysis/clustering/gene_expression_kmeans_{kmeans}_clusters/clusters.csv")
@@ -21,8 +31,6 @@ def get_hires_image_size():
 # Positions and clusters for 008um
 def get_um_positions_with_clusters(bin_size, kmeans):
     position_df = pd.read_parquet(f"../Data/square_{bin_size}um/spatial/tissue_positions.parquet")
-    um_adata = sc.read_10x_h5(f"../Data/square_{bin_size}um/filtered_feature_bc_matrix.h5")
-    um_adata.var_names_make_unique()
 
     kmeans_n_df = current_kmeans(bin_size, kmeans)
     scale_df = pd.read_json(f"../Data/square_{bin_size}um/spatial/scalefactors_json.json", typ="series")
@@ -44,3 +52,11 @@ def get_umap_positions(bin_size, kmeans):
     kmeans_n_df = current_kmeans(bin_size, kmeans)
     umap_kmeans_merged_df = pd.merge(umap_df, kmeans_n_df, on="Barcode")
     return umap_kmeans_merged_df
+
+
+def get_gene_list():
+    # if bin_size == '008':
+    #     gene_list = um_008_feature_df.columns.tolist()
+    #     return gene_list
+    gene_list = um_008_feature_df.columns.tolist()
+    return gene_list
