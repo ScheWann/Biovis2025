@@ -78,9 +78,11 @@ def get_specific_gene_expression(bin_size, gene_name):
     position_df = get_tissue_positions(bin_size)
     scale_df = get_scale_factors(bin_size)
 
-    gene_expression = um_008_feature_df[gene_name]
+    gene_expression = um_008_feature_df[gene_name[0]]
     gene_expression = gene_expression.reset_index()
     gene_expression = gene_expression.rename(columns={'index': 'barcode'})
+    gene_expression["max"] = gene_expression[gene_name[0]].max()
+    gene_expression["min"] = gene_expression[gene_name[0]].min()
     gene_expression = pd.merge(position_df, gene_expression, on="barcode")
     gene_expression["x"] = gene_expression["x"] * scale_df.tissue_hires_scalef
     gene_expression["y"] = gene_expression["y"] * scale_df.tissue_hires_scalef

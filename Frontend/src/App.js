@@ -7,9 +7,9 @@ import { Umap } from './components/umap';
 function App() {
   const [kmeansSize, setKmeansSize] = useState(8);
   const [binSize, setBinSize] = useState('008');
-  const [positionWithClusterData, setPositionWithClusterData] = useState([]);
+  const [tissueData, setTissueData] = useState([]);
   const [umapPositionWithClusterData, setUmapPositionWithClusterData] = useState([]);
-  const [geneName, setGeneName] = useState('');
+  const [geneName, setGeneName] = useState([]);
   const [mode, setMode] = useState('kmeans');
 
   const fetchPositions_with_clusters_data = () => {
@@ -22,7 +22,7 @@ function App() {
     })
       .then((response) => response.json())
       .then((data) => {
-        setPositionWithClusterData(data);
+        setTissueData(data);
       })
   };
 
@@ -56,7 +56,8 @@ function App() {
           binSize={binSize}
           kmeansSize={kmeansSize}
           setKmeansSize={setKmeansSize}
-          positionWithClusterData={positionWithClusterData}
+          tissueData={tissueData}
+          setTissueData={setTissueData}
         />
         <Umap
           kmeansSize={kmeansSize}

@@ -2,6 +2,7 @@ import React, { use, useEffect, useRef, useState } from 'react';
 import { RollbackOutlined, SelectOutlined } from "@ant-design/icons";
 import { Button, Select } from "antd";
 import { Map, View } from 'ol';
+import * as d3 from "d3";
 import 'ol/ol.css';
 import "../styles/tissueImage.css";
 import ImageLayer from 'ol/layer/Image';
@@ -35,7 +36,7 @@ const kmeansOptions = Array.from({ length: 9 }, (_, i) => ({
 }));
 
 
-export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kmeansSize, setKmeansSize, positionWithClusterData }) => {
+export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kmeansSize, setKmeansSize, tissueData, setTissueData }) => {
     const mapRef = useRef(null);
     const [imageSize, setImageSize] = useState([]);
     const [lassoToggleStatus, setLassoToggleStatus] = useState(false);
@@ -43,7 +44,6 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
     const [view, setView] = useState(null);
     const [map, setMap] = useState(null);
     const [secondOptions, setSecondOptions] = useState(kmeansOptions);
-    const [specificGeneData, setSpecificGeneData] = useState([]);
 
     const fetchSpecificGeneData = (geneName) => {
         fetch('/get_specific_gene_expression', {
@@ -55,8 +55,7 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
         })
             .then((response) => response.json())
             .then((data) => {
-                console.log(data, 'data');
-                setSpecificGeneData(data);
+                setTissueData(data);
             })
     }
 
@@ -97,11 +96,13 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
     };
 
     const handleChange = (value) => {
-        if(mode === 'kmeans') {
+        if (mode === 'kmeans') {
             setKmeansSize(value);
         } else {
-            setGeneName(value);
-            fetchSpecificGeneData(value);
+            if (value.length > 0) {
+                setGeneName(value);
+                fetchSpecificGeneData(value);
+            }
         }
     };
 
@@ -110,6 +111,7 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
         setSelectedRegion(null);
     };
 
+    // get hire image size(width, height)
     useEffect(() => {
         fetch("/get_hires_image_size", {
             method: "GET",
@@ -120,6 +122,7 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
             });
     }, []);
 
+    // create map
     useEffect(() => {
         if (imageSize.length > 0) {
             const extent = [0, 0, imageSize[0], imageSize[1]];
@@ -150,6 +153,7 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
         }
     }, [imageSize]);
 
+    // lasso selection
     useEffect(() => {
         if (map && lassoToggleStatus) {
             const vectorSource = new VectorSource();
@@ -193,7 +197,8 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
     }, [map, lassoToggleStatus]);
 
     useEffect(() => {
-        if (map && imageSize.length > 0 && mode === 'kmeans') {
+        if (!map || imageSize.length <= 0) return;
+        if (mode === 'kmeans') {
             const clusterColors = {
                 1: 'rgba(255, 0, 0, 0.7)',
                 2: 'rgba(0, 255, 0, 0.7)',
@@ -210,7 +215,7 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
             // vector layer
             const vectorSource = new VectorSource();
 
-            positionWithClusterData.forEach((point) => {
+            tissueData.forEach((point) => {
                 const { x, y, cluster } = point;
 
                 const adjustedX = x;
@@ -241,7 +246,45 @@ export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kme
             });
             map.addLayer(webGLVectorLayer);
         }
-    }, [map, positionWithClusterData, imageSize, mode]);
+        if (mode === 'genes' && geneName.length > 0) {
+            const maxGeneValue = tissueData[0]['max'];
+            const minGeneValue = tissueData[0]['min'];
+            
+            const colorScale = d3.scaleSequential(d3.interpolateOranges).domain([minGeneValue, maxGeneValue]);
+            const vectorSource = new VectorSource();
+
+            tissueData.forEach((point) => {
+                const { x, y } = point;
+                const geneValue = point[geneName];
+                const color = colorScale(geneValue)
+
+                const adjustedX = x;
+                const adjustedY = imageSize[1] - y;
+
+                const feature = new Feature({
+                    geometry: new Point([adjustedX, adjustedY]),
+                });
+
+                feature.set('color', color);
+                vectorSource.addFeature(feature);
+            });
+
+            const webGLVectorLayer = new WebGLVectorLayer({
+                source: vectorSource,
+                style: {
+                    'circle-radius': 1,
+                    'circle-fill-color': ['get', 'color'],
+                },
+            });
+
+            map.getLayers().forEach((layer) => {
+                if (layer instanceof WebGLVectorLayer) {
+                    map.removeLayer(layer);
+                }
+            });
+            map.addLayer(webGLVectorLayer);
+        }
+    }, [map, imageSize, mode, tissueData]);
 
     const resetZoom = () => {
         if (view) {
