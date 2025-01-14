@@ -4,7 +4,8 @@ from process import (
     get_um_positions_with_clusters, 
     get_hires_image_size,
     get_umap_positions,
-    get_gene_list
+    get_gene_list,
+    get_specific_gene_expression
 )
 
 app = Flask(__name__)
@@ -34,6 +35,11 @@ def get_umap_positions_route():
     return jsonify(get_umap_positions(bin_size, kmeans).to_dict(orient='records'))
 
 
+@app.route('/get_full_gene_list', methods=['GET'])
+def get_full_gene_list():
+    return jsonify(get_gene_list())
+
+
 @app.route('/get_gene_name_search')
 def get_gene_name_search():
     query = request.args.get('q', '').strip().lower()
@@ -48,6 +54,11 @@ def get_gene_name_search():
     
     return jsonify(results)
 
+@app.route('/get_specific_gene_expression', methods=['POST'])
+def get_specific_gene_expression_route():
+    bin_size = request.json['bin_size']
+    gene_name = request.json['gene_name']
+    return jsonify(get_specific_gene_expression(bin_size, gene_name).to_dict(orient='records'))
 
 if __name__ == "__main__":
     app.run(debug=True)

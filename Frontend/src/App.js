@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import './App.css';
-import { Select } from 'antd';
 import { TissueImage } from './components/tissueImage';
 import { Umap } from './components/umap';
+
 
 function App() {
   const [kmeansSize, setKmeansSize] = useState(8);
@@ -10,27 +10,7 @@ function App() {
   const [positionWithClusterData, setPositionWithClusterData] = useState([]);
   const [umapPositionWithClusterData, setUmapPositionWithClusterData] = useState([]);
   const [geneName, setGeneName] = useState('');
-  const [geneNameList, setGeneNameList] = useState([]);
-
-  const geneNameSearch = value => {
-    fetchGeneNameBySearch(value);
-  }
-
-  const geneNameChange = value => {
-      setGeneName(value);
-  };
-
-  const fetchGeneNameBySearch = async (query = '') => {
-    const response = await fetch(`/get_gene_name_search?q=${encodeURIComponent(query || '')}`);
-    const data = await response.json();
-  
-    const geneOptions = data.map(item => ({
-      label: item,
-      value: item,
-    }));
-  
-    setGeneNameList(geneOptions);
-  };
+  const [mode, setMode] = useState('kmeans');
 
   const fetchPositions_with_clusters_data = () => {
     fetch('/get_um_positions_with_clusters', {
@@ -61,7 +41,6 @@ function App() {
   };
 
   useEffect(() => {
-    fetchGeneNameBySearch();
     fetchPositions_with_clusters_data();
     fetchUmapPositions_with_clusters_data();
   }, [kmeansSize, binSize]);
@@ -70,21 +49,14 @@ function App() {
     <div className="App">
       <div className='content'>
         <TissueImage
+          mode={mode}
+          setMode={setMode}
+          geneName={geneName}
+          setGeneName={setGeneName}
+          binSize={binSize}
           kmeansSize={kmeansSize}
           setKmeansSize={setKmeansSize}
           positionWithClusterData={positionWithClusterData}
-        />
-        <Select
-          showSearch
-          value={geneName}
-          size="small"
-          style={{
-            width: "10%",
-            marginRight: 20,
-          }}
-          onChange={geneNameChange}
-          onSearch={geneNameSearch}
-          options={geneNameList}
         />
         <Umap
           kmeansSize={kmeansSize}

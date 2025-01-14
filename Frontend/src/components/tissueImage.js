@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { use, useEffect, useRef, useState } from 'react';
 import { RollbackOutlined, SelectOutlined } from "@ant-design/icons";
 import { Button, Select } from "antd";
 import { Map, View } from 'ol';
@@ -18,22 +18,91 @@ import Stroke from 'ol/style/Stroke';
 import hireImage from '../data/tissue_hires_image.png';
 
 
-export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize }) => {
+const modeOptions = [
+    {
+        value: 'kmeans',
+        label: 'Kmeans',
+    },
+    {
+        value: 'genes',
+        label: 'Genes',
+    },
+]
+
+const kmeansOptions = Array.from({ length: 9 }, (_, i) => ({
+    value: i + 2,
+    label: `${i + 2}`,
+}));
+
+
+export const TissueImage = ({ mode, setMode, geneName, setGeneName, binSize, kmeansSize, setKmeansSize, positionWithClusterData }) => {
     const mapRef = useRef(null);
     const [imageSize, setImageSize] = useState([]);
     const [lassoToggleStatus, setLassoToggleStatus] = useState(false);
     const [selectedRegion, setSelectedRegion] = useState(null);
     const [view, setView] = useState(null);
     const [map, setMap] = useState(null);
+    const [secondOptions, setSecondOptions] = useState([]);
+    const [specificGeneData, setSpecificGeneData] = useState([]);
 
-    // Kmeans number options
-    const kmeansOptions = Array.from({ length: 9 }, (_, i) => ({
-        value: i + 2,
-        label: `${i + 2}`,
-    }));
+    const fetchSpecificGeneData = (geneName) => {
+        fetch('/get_specific_gene_expression', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ gene_name: geneName, bin_size: binSize })
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                console.log(data, 'data');
+                setSpecificGeneData(data);
+            })
+    }
+
+    const fetchfullGeneList = () => {
+        fetch('/get_full_gene_list', {
+            method: 'GET',
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                const geneOptions = data.map(item => ({
+                    label: item,
+                    value: item,
+                }));
+
+                setSecondOptions(geneOptions);
+            })
+    }
+
+    const fetchGeneNameBySearch = async (query = '') => {
+        const response = await fetch(`/get_gene_name_search?q=${encodeURIComponent(query || '')}`);
+        const data = await response.json();
+
+        const geneOptions = data.map(item => ({
+            label: item,
+            value: item,
+        }));
+
+        setSecondOptions(geneOptions);
+    };
+
+    const modeChange = (value) => {
+        setMode(value);
+        if (value === 'kmeans') {
+            setSecondOptions(kmeansOptions);
+        } else if (value === 'genes') {
+            fetchfullGeneList();
+        }
+    };
 
     const handleChange = (value) => {
-        setKmeansSize(value);
+        if(mode === 'kmeans') {
+            setKmeansSize(value);
+        } else {
+            setGeneName(value);
+            fetchSpecificGeneData(value);
+        }
     };
 
     const lassoChange = () => {
@@ -124,7 +193,7 @@ export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize
     }, [map, lassoToggleStatus]);
 
     useEffect(() => {
-        if (map && imageSize.length > 0) {
+        if (map && imageSize.length > 0 && mode === 'kmeans') {
             const clusterColors = {
                 1: 'rgba(255, 0, 0, 0.7)',
                 2: 'rgba(0, 255, 0, 0.7)',
@@ -172,7 +241,7 @@ export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize
             });
             map.addLayer(webGLVectorLayer);
         }
-    }, [map, positionWithClusterData, imageSize]);
+    }, [map, positionWithClusterData, imageSize, mode]);
 
     const resetZoom = () => {
         if (view) {
@@ -187,12 +256,23 @@ export const TissueImage = ({ positionWithClusterData, kmeansSize, setKmeansSize
                 <div ref={mapRef} style={{ height: '100%', width: '100%' }} />
                 <div className="controlButtonGroup">
                     <Select
-                        value={kmeansSize}
+                        value={mode}
+                        style={{
+                            width: 120,
+                        }}
+                        onChange={modeChange}
+                        options={modeOptions}
+                    />
+                    <Select
+                        mode={mode === 'genes' ? 'tags' : 'default'}
+                        showSearch={mode === 'genes'}
+                        value={mode === 'genes' ? geneName : kmeansSize}
                         style={{
                             width: 120,
                         }}
                         onChange={handleChange}
-                        options={kmeansOptions}
+                        options={secondOptions}
+                        onSearch={mode === 'genes' ? fetchGeneNameBySearch : false}
                     />
                     <Button
                         onClick={lassoChange}
