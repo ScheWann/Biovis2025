@@ -1,90 +1,40 @@
-import pandas as pd
-from scipy.io import mmread
-from scipy import sparse
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import anndata as ad
 import scanpy as sc
-from scipy.optimize import fsolve
 from PIL import Image
+import tifffile as tifi
+import squidpy as sq
 
-# um_002_adata = sc.read_10x_h5(f"../Data/square_002um/filtered_feature_bc_matrix.h5")
-um_008_adata = sc.read_10x_h5(f"../Data/square_008um/filtered_feature_bc_matrix.h5")
-# um_016_adata = sc.read_10x_h5(f"../Data/square_016um/filtered_feature_bc_matrix.h5")
+skin_TXK6Z4X_A1_adata_path = "../Data/skin_TXK6Z4X_A1_processed/tmap/weighted_by_area|celltypist_cells_adata.h5"
+skin_TXK6Z4X_D1_adata_path = "../Data/skin_TXK6Z4X_D1_processed/tmap/weighted_by_area|celltypist_cells_adata.h5"
 
-# um_002_adata.var_names_make_unique()
-um_008_adata.var_names_make_unique()
-# um_016_adata.var_names_make_unique()
+skin_TXK6Z4X_A1_wsi_path = "../Data/skin_TXK6Z4X_A1_processed/tmap/wsi.tif"
+skin_TXK6Z4X_D1_wsi_path = "../Data/skin_TXK6Z4X_D1_processed/tmap/wsi.tif"
 
-um_008_feature_df = um_008_adata.to_df()
-
-
-def get_tissue_positions(bin_size):
-    position_df = pd.read_parquet(f"../Data/square_{bin_size}um/spatial/tissue_positions.parquet")
-    position_df_filtered = position_df[position_df["in_tissue"] == 1]
-    position_df_filtered = position_df_filtered.drop(columns=["in_tissue", "array_row", "array_col"])
-    position_df_filtered = position_df_filtered.rename(columns={"pxl_row_in_fullres": "y", "pxl_col_in_fullres": "x"})
-    return position_df_filtered
+skin_TXK6Z4X_A1_cells_layer_image_path = "../Data/skin_TXK6Z4X_A1_processed/cells_layer.png"
+skin_TXK6Z4X_D1_cells_layer_image_path = "../Data/skin_TXK6Z4X_D1_processed/cells_layer.png"
 
 
-def get_scale_factors(bin_size):
-    scale_df = pd.read_json(f"../Data/square_{bin_size}um/spatial/scalefactors_json.json", typ="series")
-    return scale_df
+# return tissue width and height size
+def get_hires_image_size(sample_id):
+    if sample_id == "skin_TXK6Z4X_A1":
+        image = Image.open(skin_TXK6Z4X_A1_wsi_path)
+    elif sample_id == "skin_TXK6Z4X_D1":
+        image = Image.open(skin_TXK6Z4X_D1_wsi_path)
 
-
-def current_kmeans(bin_size, kmeans):
-    kmeans_n_df = pd.read_csv(f"../Data/square_{bin_size}um/analysis/clustering/gene_expression_kmeans_{kmeans}_clusters/clusters.csv")
-    kmeans_n_df = kmeans_n_df.rename(columns={"Barcode": "barcode", "Cluster": "cluster"})
-    return kmeans_n_df
-
-
-def get_umap_positions(bin_size):
-    umap_df = pd.read_csv(f"../Data/square_{bin_size}um/analysis/umap/gene_expression_2_components/projection.csv")
-    umap_df = umap_df.rename(columns={"Barcode": "barcode"})
-    return umap_df
-
-
-# Hires image size
-def get_hires_image_size():
-    image = Image.open("../Data/spatial/tissue_hires_image.png")
     return image.size
 
+# return cell type, and cell coordinates
+def get_cell_type_coordinates(sample_id):
+    if sample_id == "skin_TXK6Z4X_A1":
+        adata = sc.read_h5ad(skin_TXK6Z4X_A1_adata_path)
+    elif sample_id == "skin_TXK6Z4X_D1":
+        adata = sc.read_h5ad(skin_TXK6Z4X_D1_adata_path)
 
-# Positions and clusters for 008um
-def get_um_positions_with_clusters(bin_size, kmeans):
-    position_df = get_tissue_positions(bin_size)
-    kmeans_n_df = current_kmeans(bin_size, kmeans)
-    scale_df = get_scale_factors(bin_size)
-
-    merged_df = pd.merge(position_df, kmeans_n_df, on="barcode")
-    merged_df["x"] = merged_df["x"] * scale_df.tissue_hires_scalef
-    merged_df["y"] = merged_df["y"] * scale_df.tissue_hires_scalef
-
-    return merged_df
-
-
-def get_umap_positions_with_clusters(bin_size, kmeans):
-    umap_df = get_umap_positions(bin_size)
-    kmeans_n_df = current_kmeans(bin_size, kmeans)
-    umap_kmeans_merged_df = pd.merge(umap_df, kmeans_n_df, on="barcode")
-
-    return umap_kmeans_merged_df
-
-
-def get_gene_list():
-    gene_list = um_008_feature_df.columns.tolist()
-
-    return gene_list
-
-def get_specific_gene_expression(bin_size, gene_name):
-    position_df = get_tissue_positions(bin_size)
-    scale_df = get_scale_factors(bin_size)
-
-    gene_expression = um_008_feature_df[gene_name[0]]
-    gene_expression = gene_expression.reset_index()
-    gene_expression = gene_expression.rename(columns={'index': 'barcode'})
-    gene_expression["max"] = gene_expression[gene_name[0]].max()
-    gene_expression["min"] = gene_expression[gene_name[0]].min()
-    gene_expression = pd.merge(position_df, gene_expression, on="barcode")
-    gene_expression["x"] = gene_expression["x"] * scale_df.tissue_hires_scalef
-    gene_expression["y"] = gene_expression["y"] * scale_df.tissue_hires_scalef
-
-    return gene_expression
+    df = adata.obsm["spatial"].copy()
+    df["cell_type"] = adata.obs["cell_type"]
+    return df

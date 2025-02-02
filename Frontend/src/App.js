@@ -5,63 +5,33 @@ import { Umap } from './components/umap';
 
 
 function App() {
-  const [kmeansSize, setKmeansSize] = useState(8);
-  const [binSize, setBinSize] = useState('008');
-  const [tissueData, setTissueData] = useState([]);
-  const [umapPositionWithClusterData, setUmapPositionWithClusterData] = useState([]);
-  const [geneName, setGeneName] = useState([]);
-  const [mode, setMode] = useState('kmeans');
+  const [cellTypeCoordinatesData, setCellTypeCoordinatesData] = useState([]);
+  const [sampleId, setSampleId] = useState("skin_TXK6Z4X_A1");
 
-  const fetchPositions_with_clusters_data = () => {
-    fetch('/get_um_positions_with_clusters', {
+  const fetch_Cell_Type_With_Coordinates_Data = () => {
+    fetch('/get_cell_type_coordinates', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ kmeans: kmeansSize, bin_size: binSize })
+      body: JSON.stringify({ sample_id: sampleId })
     })
       .then((response) => response.json())
       .then((data) => {
-        setTissueData(data);
-      })
-  };
-
-  const fetchUmapPositions_with_clusters_data = () => {
-    fetch('/get_umap_positions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ kmeans: kmeansSize, bin_size: binSize })
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        setUmapPositionWithClusterData(data);
+        setCellTypeCoordinatesData(data);
       })
   };
 
   useEffect(() => {
-    fetchPositions_with_clusters_data();
-    fetchUmapPositions_with_clusters_data();
-  }, [kmeansSize, binSize]);
+    fetch_Cell_Type_With_Coordinates_Data();
+  }, [sampleId]);
 
   return (
     <div className="App">
       <div className='content'>
         <TissueImage
-          mode={mode}
-          setMode={setMode}
-          geneName={geneName}
-          setGeneName={setGeneName}
-          binSize={binSize}
-          kmeansSize={kmeansSize}
-          setKmeansSize={setKmeansSize}
-          tissueData={tissueData}
-          setTissueData={setTissueData}
-        />
-        <Umap
-          kmeansSize={kmeansSize}
-          umapPositionWithClusterData={umapPositionWithClusterData}
+          sampleId={sampleId}
+          cellTypeCoordinatesData={cellTypeCoordinatesData}
         />
       </div>
     </div>

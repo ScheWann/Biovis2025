@@ -1,11 +1,12 @@
 from flask import Flask, request, jsonify
 import re
 from process import (
-    get_um_positions_with_clusters, 
+    # get_um_positions_with_clusters, 
     get_hires_image_size,
-    get_umap_positions_with_clusters,
-    get_gene_list,
-    get_specific_gene_expression
+    get_cell_type_coordinates,
+    # get_umap_positions_with_clusters,
+    # get_gene_list,
+    # get_specific_gene_expression
 )
 
 app = Flask(__name__)
@@ -16,11 +17,19 @@ def get_helloword():
     return 'Hello World!'
 
 
-@app.route('/get_hires_image_size', methods=['GET'])
+@app.route('/get_hires_image_size', methods=['POST'])
 def get_hires_image_size_route():
-    return jsonify(get_hires_image_size())
+    sample_id = request.json['sample_id']
+    return jsonify(get_hires_image_size(sample_id))
 
 
+@app.route('/get_cell_type_coordinates', methods=['POST'])
+def get_cell_type_coordinates_route():
+    sample_id = request.json['sample_id']
+    return jsonify(get_cell_type_coordinates(sample_id).to_dict(orient='records'))
+
+
+#################### OLD CODE ####################
 @app.route('/get_um_positions_with_clusters', methods=['POST'])
 def get_um_positions_with_clusters_route():
     bin_size = request.json['bin_size']
