@@ -1,9 +1,10 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import re
 from process import (
     # get_um_positions_with_clusters, 
     get_hires_image_size,
     get_cell_type_coordinates,
+    get_tif_tiles,
     # get_umap_positions_with_clusters,
     # get_gene_list,
     # get_specific_gene_expression
@@ -21,6 +22,17 @@ def get_helloword():
 def get_hires_image_size_route():
     sample_id = request.json['sample_id']
     return jsonify(get_hires_image_size(sample_id))
+
+
+@app.route('/get_tiles', methods=['POST'])
+def get_tiles():
+    sample_id = request.json['sample_id']
+    return jsonify(get_tif_tiles(sample_id))
+
+
+@app.route('/tiles/<filename>', methods=['GET'])
+def serve_tile(filename):
+    return send_from_directory("../Data/skin_TXK6Z4X_A1_processed/skin_TXK6Z4X_A1_processed_tiles", filename)
 
 
 @app.route('/get_cell_type_coordinates', methods=['POST'])
@@ -70,4 +82,4 @@ def get_specific_gene_expression_route():
     return jsonify(get_specific_gene_expression(bin_size, gene_name).to_dict(orient='records'))
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, threaded=True)
