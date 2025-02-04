@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import './App.css';
-import { TissueImage } from './components/tissueImage';
-import { Umap } from './components/umap';
+import { TissueViewer } from './components/tissueViewer';
+// import { Umap } from './components/umap';
 
 
 function App() {
@@ -29,10 +29,11 @@ function App() {
   return (
     <div className="App">
       <div className='content'>
-        <TissueImage
+        <TissueViewer
           sampleId={sampleId}
           cellTypeCoordinatesData={cellTypeCoordinatesData}
         />
+        <div style={{ height: '100%', width: '50%' }}>123</div>
       </div>
     </div>
   );

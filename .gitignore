@@ -3,4 +3,5 @@ Backend/__pycache__
 Frontend/node_modules
 Data
 .DS_Store
-enact-pipeline
+/enact-pipeline
+/Spacia
