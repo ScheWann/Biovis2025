@@ -3,6 +3,10 @@ import DeckGL from '@deck.gl/react';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { TileLayer } from '@deck.gl/geo-layers';
+import {
+    EditableGeoJsonLayer,
+    DrawPolygonMode
+} from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
 import maskUrl from '../data/cells_layer.png';
 
@@ -10,6 +14,9 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
     const viewerRef = useRef(null);
     const [imageSize, setImageSize] = useState([]);
     const [tileSize] = useState(256);
+    const [features, setFeatures] = useState({ type: 'FeatureCollection', features: [] });
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedFeatureIndexes] = useState([]);
 
     useEffect(() => {
         fetch("/get_hires_image_size", {
@@ -24,6 +31,16 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
                 setImageSize(data);
             });
     }, [sampleId]);
+
+    const editLayer = new EditableGeoJsonLayer({
+        data: features,
+        mode: DrawPolygonMode,
+        selectedFeatureIndexes,
+        onEdit: ({ updatedData }) => {
+            setFeatures(updatedData);
+        },
+        visible: selectionMode,
+    });
 
     const tileLayer = imageSize.length > 0 && new TileLayer({
         id: 'tif-tiles-layer',
@@ -98,6 +115,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
             getFillColor: (d) => (d.cell_type === 'type1' ? [255, 0, 0] : [0, 0, 255]),
             pickable: true,
         }),
+        editLayer,
     ].filter(Boolean);
 
     const view = new OrthographicView({
@@ -106,9 +124,9 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
     });
 
     return (
-        <div ref={viewerRef} style={{ height: '100%', width: '50%' }}>
+        <div ref={viewerRef} style={{ height: '100%', width: '50%', position: 'relative' }}>
             <DeckGL
-                style={{ width: '50%', height: '100%' }}
+                style={{ width: '100%', height: '100%' }}
                 layers={layers}
                 views={view}
                 initialViewState={{
@@ -118,7 +136,28 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
                     minZoom: -5,
                 }}
                 controller={true}
+                getCursor={({ isDragging }) =>
+                    selectionMode ? 'crosshair' : isDragging ? 'grabbing' : 'grab'
+                }
             />
+            <div className='controls' style={{
+                position: 'absolute',
+                top: 10,
+                right: 10,
+                zIndex: 1
+            }}>
+                <button
+                    onClick={() => setSelectionMode(!selectionMode)}
+                    style={{
+                        padding: '8px 12px',
+                        background: selectionMode ? '#2196F3' : '#fff',
+                        border: '1px solid #ccc',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Polygon
+                </button>
+            </div>
         </div>
     );
 };
