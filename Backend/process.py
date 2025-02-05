@@ -32,7 +32,7 @@ def get_hires_image_size(sample_id):
 
     return image.size
 
-
+# return tissue image tiles
 def get_tif_tiles(sample_id):
     if sample_id == "skin_TXK6Z4X_A1":
         tiles = [f"/tiles/{file}" for file in os.listdir(skin_TXK6Z4X_A1_wsi_tiles_dir) if file.endswith('.tif')]
@@ -41,6 +41,15 @@ def get_tif_tiles(sample_id):
         tiles = [f"/tiles/{file}" for file in os.listdir(skin_TXK6Z4X_D1_wsi_tiles_dir) if file.endswith('.tif')]
         return tiles
 
+
+# return unique cell types
+def get_unique_cell_types(sample_id):
+    if sample_id == "skin_TXK6Z4X_A1":
+        adata = sc.read_h5ad(skin_TXK6Z4X_A1_adata_path)
+    elif sample_id == "skin_TXK6Z4X_D1":
+        adata = sc.read_h5ad(skin_TXK6Z4X_D1_adata_path)
+
+    return adata.obs["cell_type"].unique().tolist()
 
 # return cell type, and cell coordinates
 def get_cell_type_coordinates(sample_id):

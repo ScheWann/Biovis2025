@@ -4,6 +4,7 @@ import os
 from process import (
     # get_um_positions_with_clusters, 
     get_hires_image_size,
+    get_unique_cell_types,
     get_cell_type_coordinates,
     get_tif_tiles,
     # get_umap_positions_with_clusters,
@@ -25,10 +26,10 @@ def get_hires_image_size_route():
     return jsonify(get_hires_image_size(sample_id))
 
 
-@app.route('/get_tiles', methods=['POST'])
-def get_tiles():
+@app.route('/get_unique_cell_types', methods=['POST'])
+def get_unique_cell_types_route():
     sample_id = request.json['sample_id']
-    return jsonify(get_tif_tiles(sample_id))
+    return jsonify(get_unique_cell_types(sample_id))
 
 
 @app.route('/get_tile', methods=['GET'])
