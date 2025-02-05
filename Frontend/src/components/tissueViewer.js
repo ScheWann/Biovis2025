@@ -1,94 +1,17 @@
-import React, { useRef, useMemo, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import DeckGL from '@deck.gl/react';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { TileLayer } from '@deck.gl/geo-layers';
 import { fromBlob } from 'geotiff';
 import maskUrl from '../data/cells_layer.png';
 
 export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
     const viewerRef = useRef(null);
-    const [tifImages, setTifImages] = useState([]);
     const [imageSize, setImageSize] = useState([]);
-    const [tileUrls, setTileUrls] = useState([]);
+    const [tileSize] = useState(256); // 假设每个切片是256x256
 
-    useEffect(() => {
-        fetch("/get_tiles", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ sample_id: sampleId })
-        })
-            .then((response) => response.json())
-            .then((data) => {
-                console.log(data, 'iopiopiop');
-                setTileUrls(data);
-            });
-    }, []);
-
-    // Loading TIF image
-    useEffect(() => {
-        const loadTifs = async () => {
-            const MAX_CONCURRENT_REQUESTS = 500;
-
-            const loadTile = async (tileUrl) => {
-                const response = await fetch(tileUrl);
-                const blob = await response.blob();
-                const tiff = await fromBlob(blob);
-                const image = await tiff.getImage();
-                const width = image.getWidth();
-                const height = image.getHeight();
-                const rgba = await image.readRasters({ interleave: true });
-
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.translate(width, 0);
-                ctx.scale(-1, 1);
-
-                const imageData = new ImageData(new Uint8ClampedArray(rgba), width, height);
-                ctx.putImageData(imageData, 0, 0);
-
-                const tileName = tileUrl.split('/').pop();
-                const match = tileName.match(/^tile_(\d+)_(\d+)\.tif$/);
-                if (match) {
-                    const x = parseInt(match[1], 10);
-                    const y = parseInt(match[2], 10);
-
-                    const bounds = [
-                        [x, y + 256],
-                        [x, y],
-                        [x + 256, y],
-                        [x + 256, y + 256]
-                    ];
-
-                    return {
-                        image: canvas,
-                        bounds: bounds,
-                    };
-                }
-                return null;
-            };
-
-            const results = [];
-            for (let i = 0; i < tileUrls.length; i += MAX_CONCURRENT_REQUESTS) {
-                const chunk = tileUrls.slice(i, i + MAX_CONCURRENT_REQUESTS);
-                const chunkResults = await Promise.all(
-                    chunk.map(loadTile)
-                );
-                results.push(...chunkResults.filter(Boolean));
-            }
-
-            setTifImages(results);
-        };
-
-        if (tileUrls.length > 0) {
-            loadTifs();
-        }
-    }, [tileUrls, imageSize]);
-
-    // Get image size(width, height)
+    // 获取高分辨率图像尺寸
     useEffect(() => {
         fetch("/get_hires_image_size", {
             method: 'POST',
@@ -103,22 +26,71 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
             });
     }, [sampleId]);
 
-    useEffect(() => {
-        console.log("tifImages updated:", tifImages);
-    }, [tifImages]);
+    const tileLayer = imageSize.length > 0 && new TileLayer({
+        id: 'tif-tiles-layer',
+        tileSize,
+        extent: [0, 0, imageSize[0], imageSize[1]],
+        maxZoom: Math.ceil(Math.log2(Math.max(imageSize[0], imageSize[1]) / tileSize)),
+        minZoom: 0,
+
+        getTileData: async ({ index }) => {
+            try {
+                const { x, y } = index;
+                const maxX = Math.floor(imageSize[0] / tileSize);
+                const maxY = Math.floor(imageSize[1] / tileSize);
+
+                if (x < 0 || x >= maxX || y < 0 || y >= maxY) {
+                    console.warn(`Tile (${x}, ${y}) out of range, skipping.`);
+                    return null;
+                }
+
+                const bounds = [
+                    [x * tileSize, (y + 1) * tileSize],
+                    [x * tileSize, y * tileSize],
+                    [(x + 1) * tileSize, y * tileSize],
+                    [(x + 1) * tileSize, (y + 1) * tileSize]
+                ];
+
+                const tileUrl = `/get_tile?sample_id=${sampleId}&x=${x}&y=${y}`;
+                const response = await fetch(tileUrl);
+                const blob = await response.blob();
+                const tiff = await fromBlob(blob);
+                const image = await tiff.getImage();
+                const rgba = await image.readRasters({ interleave: true });
+
+                const canvas = document.createElement('canvas');
+                [canvas.width, canvas.height] = [image.getWidth(), image.getHeight()];
+                const ctx = canvas.getContext('2d');
+
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+
+                const imageData = new ImageData(new Uint8ClampedArray(rgba), canvas.width, canvas.height);
+                ctx.putImageData(imageData, 0, 0);
+
+                return { image: canvas, bounds };
+            } catch (error) {
+                console.error('加载切片失败:', error);
+                return null;
+            }
+        },
+
+        renderSubLayers: (props) => {
+            const { data, tile, ...rest } = props;
+
+            if (!data) return null;
+
+            return new BitmapLayer(rest, {
+                image: data.image,
+                opacity: 1,
+                bounds: data.bounds
+            });
+        }
+    });
 
     const layers = [
-        // TIF tissue image layer
-        ...tifImages.map(({ image, bounds }, index) =>
-            new BitmapLayer({
-                id: `tif-layer-${index}`,
-                image,
-                bounds,
-                opacity: 1,
-            })
-        ),
+        tileLayer,
 
-        // Cell boundary mask layer
         imageSize.length > 0 && new BitmapLayer({
             id: 'mask-layer',
             image: maskUrl,
@@ -126,7 +98,6 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
             opacity: 0.05,
         }),
 
-        // Nucleus layer
         imageSize.length > 0 && cellTypeCoordinatesData &&
         new ScatterplotLayer({
             id: 'cell-layer',
