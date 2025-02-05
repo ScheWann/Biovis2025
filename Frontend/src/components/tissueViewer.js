@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
-import { Collapse, Button, Input, ColorPicker } from "antd";
+import { Collapse, Button, Input, ColorPicker, Checkbox } from "antd";
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { booleanPointInPolygon } from '@turf/turf';
@@ -16,20 +16,32 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir })
     const [features, setFeatures] = useState({ type: 'FeatureCollection', features: [] });
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedCells, setSelectedCells] = useState([]);
+    const [visibleCellTypes, setVisibleCellTypes] = useState({});
     const [selectedFeatureIndexes] = useState([]);
     const [searchText, setSearchText] = useState('');
-    const [editingType, setEditingType] = useState(null);
     const [colorMap, setColorMap] = useState({});
 
-    // inital color map
+    // intialize color map
     useEffect(() => {
         const initialColorMap = {};
+        const initialVisibility = {};
+
         cellTypeDir?.forEach((cellType, index) => {
             const hue = (index * 360) / cellTypeDir.length;
             initialColorMap[cellType] = hslToRgb(hue, 100, 50);
+            initialVisibility[cellType] = true;
         });
+
         setColorMap(initialColorMap);
+        setVisibleCellTypes(initialVisibility);
     }, [cellTypeDir]);
+
+    // visible cell data
+    const visibleCellData = useMemo(() => {
+        return cellTypeCoordinatesData?.filter(cell =>
+            visibleCellTypes[cell.cell_type]
+        ) || [];
+    }, [cellTypeCoordinatesData, visibleCellTypes]);
 
     // filter cell types
     const filteredTypes = useMemo(() => {
@@ -161,9 +173,9 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir })
             bounds: [0, imageSize[1], imageSize[0], 0],
             opacity: 0.05,
         }),
-        imageSize.length > 0 && cellTypeCoordinatesData && new ScatterplotLayer({
+        imageSize.length > 0 && visibleCellData && new ScatterplotLayer({
             id: 'cell-layer',
-            data: cellTypeCoordinatesData,
+            data: visibleCellData,
             getPosition: d => [d.cell_x, d.cell_y],
             getRadius: 2,
             getFillColor: d => colorMap[d.cell_type] || [0, 0, 0],
@@ -214,44 +226,48 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir })
                                     style={{ marginBottom: 12 }}
                                 />
 
-                                {filteredTypes.map(cellType => (
-                                    <div key={cellType} style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        padding: '8px 0',
-                                        borderBottom: '1px solid #f0f0f0'
-                                    }}>
-                                        <ColorPicker
-                                            size='small'
-                                            style={{
-                                                cursor: 'pointer',
-                                                position: 'relative'
-                                            }}
-                                            value={`rgb(${colorMap[cellType].join(',')})`}
-                                            onChange={color => {
-                                                const rgb = color.toRgb();
-                                                setColorMap(prev => ({
-                                                    ...prev,
-                                                    [cellType]: [rgb.r, rgb.g, rgb.b]
-                                                }));
-                                            }}
-                                            onClose={() => setEditingType(null)}
-                                        />
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: 12 }}>{cellType}</div>
-                                            <div style={{ fontSize: 12, color: '#666' }}>
-                                                {cellTypeCounts[cellType] || 0} cells
+                                {filteredTypes.map(cellType => {
+                                    const rgbColor = colorMap[cellType] || [0, 0, 0];
+                                    return (
+                                        <div key={cellType} style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            padding: '8px 0',
+                                            borderBottom: '1px solid #f0f0f0'
+                                        }}>
+                                            <Checkbox
+                                                checked={visibleCellTypes[cellType] ?? true}
+                                                onChange={(e) => {
+                                                    setVisibleCellTypes(prev => ({
+                                                        ...prev,
+                                                        [cellType]: e.target.checked
+                                                    }));
+                                                }}
+                                                style={{ marginRight: 8 }}
+                                            />
+
+                                            <ColorPicker
+                                                size="small"
+                                                value={`rgb(${rgbColor.join(',')})`}
+                                                onChange={color => {
+                                                    const rgb = color.toRgb();
+                                                    setColorMap(prev => ({
+                                                        ...prev,
+                                                        [cellType]: [rgb.r, rgb.g, rgb.b]
+                                                    }));
+                                                }}
+                                                style={{ marginRight: 12 }}
+                                            />
+
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontSize: 12 }}>{cellType}</div>
+                                                <div style={{ fontSize: 12, color: '#666' }}>
+                                                    {cellTypeCounts[cellType] || 0} cells
+                                                </div>
                                             </div>
                                         </div>
-                                        <Button
-                                            type="text"
-                                            size="small"
-                                            onClick={() => setEditingType(editingType === cellType ? null : cellType)}
-                                        >
-                                            Edit
-                                        </Button>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )
                     }]}
