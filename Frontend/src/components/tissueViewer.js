@@ -213,7 +213,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir })
 
                 <Collapse
                     size='small'
-                    defaultActiveKey={['legend']}
+                    defaultActiveKey={[]}
                     items={[{
                         key: 'legend',
                         label: <span style={{ fontWeight: 500 }}>Cell Types ({filteredTypes.length})</span>,
