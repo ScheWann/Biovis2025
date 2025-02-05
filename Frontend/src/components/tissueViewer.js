@@ -9,9 +9,8 @@ import maskUrl from '../data/cells_layer.png';
 export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
     const viewerRef = useRef(null);
     const [imageSize, setImageSize] = useState([]);
-    const [tileSize] = useState(256); // 假设每个切片是256x256
+    const [tileSize] = useState(256);
 
-    // 获取高分辨率图像尺寸
     useEffect(() => {
         fetch("/get_hires_image_size", {
             method: 'POST',
@@ -30,19 +29,12 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
         id: 'tif-tiles-layer',
         tileSize,
         extent: [0, 0, imageSize[0], imageSize[1]],
-        maxZoom: Math.ceil(Math.log2(Math.max(imageSize[0], imageSize[1]) / tileSize)),
+        maxZoom: 0,
         minZoom: 0,
 
         getTileData: async ({ index }) => {
             try {
                 const { x, y } = index;
-                const maxX = Math.floor(imageSize[0] / tileSize);
-                const maxY = Math.floor(imageSize[1] / tileSize);
-
-                if (x < 0 || x >= maxX || y < 0 || y >= maxY) {
-                    console.warn(`Tile (${x}, ${y}) out of range, skipping.`);
-                    return null;
-                }
 
                 const bounds = [
                     [x * tileSize, (y + 1) * tileSize],
@@ -70,14 +62,13 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
 
                 return { image: canvas, bounds };
             } catch (error) {
-                console.error('加载切片失败:', error);
+                console.error('loading tile failed:', error);
                 return null;
             }
         },
 
         renderSubLayers: (props) => {
             const { data, tile, ...rest } = props;
-
             if (!data) return null;
 
             return new BitmapLayer(rest, {

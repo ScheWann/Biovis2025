@@ -44,7 +44,7 @@ def serve_tile():
 
     processed_sample_id = f"{sample_id}_processed"
     tile_dir = os.path.join("../Data", processed_sample_id, "skin_TXK6Z4X_A1_processed_tiles")
-    print(f"Requested x={x}, y={y}", filename)
+
     return send_from_directory(tile_dir, filename)
 
 
