@@ -113,7 +113,9 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
                 views={view}
                 initialViewState={{
                     target: [imageSize[0] / 2, imageSize[1] / 2, 0],
-                    zoom: 1,
+                    zoom: -2,
+                    maxZoom: 1,
+                    minZoom: -5,
                 }}
                 controller={true}
             />
