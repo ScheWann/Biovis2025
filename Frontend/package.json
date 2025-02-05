@@ -4,7 +4,9 @@
   "private": true,
   "proxy": "http://localhost:5000",
   "dependencies": {
+    "@deck.gl-community/editable-layers": "^9.0.3",
     "@loaders.gl/geotiff": "^4.3.3",
+    "@turf/turf": "^7.2.0",
     "antd": "^5.23.0",
     "cra-template": "1.2.0",
     "d3": "^7.9.0",

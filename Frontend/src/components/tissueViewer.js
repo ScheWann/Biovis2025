@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import DeckGL from '@deck.gl/react';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { booleanPointInPolygon } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import {
     EditableGeoJsonLayer,
@@ -16,6 +17,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
     const [tileSize] = useState(256);
     const [features, setFeatures] = useState({ type: 'FeatureCollection', features: [] });
     const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedCells, setSelectedCells] = useState([]);
     const [selectedFeatureIndexes] = useState([]);
 
     useEffect(() => {
@@ -36,11 +38,29 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
         data: features,
         mode: DrawPolygonMode,
         selectedFeatureIndexes,
-        onEdit: ({ updatedData }) => {
+        onEdit: ({ updatedData, editType }) => {
             setFeatures(updatedData);
+
+            if (editType === 'addFeature') {
+                const lastFeature = updatedData.features[updatedData.features.length - 1];
+                filterCellsInPolygon(lastFeature);
+            }
         },
         visible: selectionMode,
     });
+
+    const filterCellsInPolygon = (polygonFeature) => {
+        if (!polygonFeature || !cellTypeCoordinatesData) return;
+
+        const polygon = polygonFeature.geometry;
+        const filtered = cellTypeCoordinatesData.filter(cell => {
+            const point = [cell.cell_x, cell.cell_y];
+            return booleanPointInPolygon(point, polygon);
+        });
+
+        setSelectedCells(filtered);
+        console.log('Selected cells:', filtered);
+    };
 
     const tileLayer = imageSize.length > 0 && new TileLayer({
         id: 'tif-tiles-layer',
