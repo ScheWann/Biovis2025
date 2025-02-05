@@ -4,10 +4,7 @@ import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { booleanPointInPolygon } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
-import {
-    EditableGeoJsonLayer,
-    DrawPolygonMode
-} from '@deck.gl-community/editable-layers';
+import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
 import maskUrl from '../data/cells_layer.png';
 
