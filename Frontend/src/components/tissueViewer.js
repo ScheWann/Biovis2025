@@ -4,7 +4,6 @@ import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { fromBlob } from 'geotiff';
 import maskUrl from '../data/cells_layer.png';
-import tifUrl from '../data/wsi.tif';
 
 export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
     const viewerRef = useRef(null);
@@ -31,7 +30,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
     useEffect(() => {
         const loadTifs = async () => {
             const MAX_CONCURRENT_REQUESTS = 500;
-    
+
             const loadTile = async (tileUrl) => {
                 const response = await fetch(tileUrl);
                 const blob = await response.blob();
@@ -40,38 +39,38 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
                 const width = image.getWidth();
                 const height = image.getHeight();
                 const rgba = await image.readRasters({ interleave: true });
-    
+
                 const canvas = document.createElement('canvas');
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.translate(width, 0);
-                ctx.scale(-1, 1);    
+                ctx.scale(-1, 1);
 
                 const imageData = new ImageData(new Uint8ClampedArray(rgba), width, height);
                 ctx.putImageData(imageData, 0, 0);
 
                 const tileName = tileUrl.split('/').pop();
                 const match = tileName.match(/^tile_(\d+)_(\d+)\.tif$/);
-            if (match) {
-                const x = parseInt(match[1], 10);
-                const y = parseInt(match[2], 10);
+                if (match) {
+                    const x = parseInt(match[1], 10);
+                    const y = parseInt(match[2], 10);
 
-                const bounds = [
-                    [x, y + 256],
-                    [x, y],
-                    [x + 256, y],
-                    [x + 256, y + 256]
-                ];
+                    const bounds = [
+                        [x, y + 256],
+                        [x, y],
+                        [x + 256, y],
+                        [x + 256, y + 256]
+                    ];
 
-                return {
-                    image: canvas,
-                    bounds: bounds,
-                };
-            }
+                    return {
+                        image: canvas,
+                        bounds: bounds,
+                    };
+                }
                 return null;
             };
-    
+
             const results = [];
             for (let i = 0; i < tileUrls.length; i += MAX_CONCURRENT_REQUESTS) {
                 const chunk = tileUrls.slice(i, i + MAX_CONCURRENT_REQUESTS);
@@ -80,10 +79,10 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
                 );
                 results.push(...chunkResults.filter(Boolean));
             }
-    
+
             setTifImages(results);
         };
-    
+
         if (tileUrls.length > 0) {
             loadTifs();
         }
@@ -119,24 +118,24 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
             })
         ),
 
-        // // Cell boundary mask layer
-        // imageSize.length > 0 && new BitmapLayer({
-        //     id: 'mask-layer',
-        //     image: maskUrl,
-        //     bounds: [0, imageSize[1], imageSize[0], 0],
-        //     opacity: 0.05,
-        // }),
+        // Cell boundary mask layer
+        imageSize.length > 0 && new BitmapLayer({
+            id: 'mask-layer',
+            image: maskUrl,
+            bounds: [0, imageSize[1], imageSize[0], 0],
+            opacity: 0.05,
+        }),
 
-        // // Nucleus layer
-        // imageSize.length > 0 && cellTypeCoordinatesData &&
-        // new ScatterplotLayer({
-        //     id: 'cell-layer',
-        //     data: cellTypeCoordinatesData,
-        //     getPosition: (d) => [d.cell_x, d.cell_y],
-        //     getRadius: 2,
-        //     getFillColor: (d) => (d.cell_type === 'type1' ? [255, 0, 0] : [0, 0, 255]),
-        //     pickable: true,
-        // }),
+        // Nucleus layer
+        imageSize.length > 0 && cellTypeCoordinatesData &&
+        new ScatterplotLayer({
+            id: 'cell-layer',
+            data: cellTypeCoordinatesData,
+            getPosition: (d) => [d.cell_x, d.cell_y],
+            getRadius: 2,
+            getFillColor: (d) => (d.cell_type === 'type1' ? [255, 0, 0] : [0, 0, 255]),
+            pickable: true,
+        }),
     ].filter(Boolean);
 
     const view = new OrthographicView({
