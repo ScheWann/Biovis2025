@@ -62,6 +62,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
         console.log('Selected cells:', filtered);
     };
 
+    // Background tif images
     const tileLayer = imageSize.length > 0 && new TileLayer({
         id: 'tif-tiles-layer',
         tileSize,
@@ -119,6 +120,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
     const layers = [
         tileLayer,
 
+        // Mask layer
         imageSize.length > 0 && new BitmapLayer({
             id: 'mask-layer',
             image: maskUrl,
@@ -126,6 +128,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
             opacity: 0.05,
         }),
 
+        // nucleus dot layer
         imageSize.length > 0 && cellTypeCoordinatesData &&
         new ScatterplotLayer({
             id: 'cell-layer',
@@ -135,6 +138,8 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
             getFillColor: (d) => (d.cell_type === 'type1' ? [255, 0, 0] : [0, 0, 255]),
             pickable: true,
         }),
+
+        // Selected cells layer
         editLayer,
     ].filter(Boolean);
 
@@ -144,7 +149,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData }) => {
     });
 
     return (
-        <div ref={viewerRef} style={{ height: '100%', width: '50%', position: 'relative' }}>
+        <div ref={viewerRef} style={{ height: '100%', width: '70%', position: 'relative' }}>
             <DeckGL
                 style={{ width: '100%', height: '100%' }}
                 layers={layers}
