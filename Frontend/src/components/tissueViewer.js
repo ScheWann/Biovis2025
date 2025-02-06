@@ -235,7 +235,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
     ].filter(Boolean);
 
     return (
-        <div ref={viewerRef} style={{ height: '100%', width: '70%', position: 'relative' }}>
+        <div ref={viewerRef} style={{ height: '100%', width: '70%', position: 'relative', border: '1px solid #f0f0f0' }}>
             <DeckGL
                 layers={layers}
                 views={new OrthographicView({ id: 'ortho-view', controller: true })}
