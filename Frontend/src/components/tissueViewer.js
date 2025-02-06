@@ -3,8 +3,8 @@ import DeckGL from '@deck.gl/react';
 import { Collapse, Button, Input, ColorPicker, Checkbox, message } from "antd";
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
-import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
-import { booleanPointInPolygon } from '@turf/turf';
+import { BitmapLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
+import { booleanPointInPolygon, centroid } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
@@ -76,6 +76,12 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
         return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
     };
 
+    // generate random area color
+    const generateColor = () => {
+        const hue = Math.floor(Math.random() * 360);
+        return hslToRgb(hue, 70, 50);
+    };
+
     // visible cell data
     const visibleCellData = useMemo(() => {
         return cellTypeCoordinatesData?.filter(cell =>
@@ -111,16 +117,27 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
         }
 
         if (!selectionMode) {
+            const newColor = generateColor();
+            setTempRegion(prev => ({ ...prev, color: newColor }));
             setSelectionMode(true);
         } else {
             setSelectionMode(false);
             if (tempRegion.data.length > 0) {
+                const lastFeature = features.features[features.features.length - 1];
+                const center = centroid(lastFeature.geometry).geometry.coordinates;
                 setRegions(prev => [...prev, {
                     ...tempRegion,
-                    feature: features.features[features.features.length - 1]
+                    feature: {
+                        ...lastFeature,
+                        properties: {
+                            color: tempRegion.color,
+                            name: tempRegion.name
+                        }
+                    },
+                    center: center
                 }]);
             }
-            setTempRegion({ name: '', data: [] });
+            setTempRegion({ name: '', data: [], color: null });
             setFeatures({ ...features, features: [] });
         }
     };
@@ -181,7 +198,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
     });
 
     // editable layer
-    const editLayer = new EditableGeoJsonLayer({
+    const editLayer = useMemo(() => new EditableGeoJsonLayer({
         data: features,
         mode: DrawPolygonMode,
         selectedFeatureIndexes,
@@ -193,7 +210,11 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
             }
         },
         visible: selectionMode,
-    });
+        getLineColor: tempRegion.color ? [...tempRegion.color, 200] : [255, 0, 0, 200],
+        getFillColor: tempRegion.color ? [...tempRegion.color, 50] : [255, 255, 0, 50],
+        getEditHandleColor: () => tempRegion.color ? [...tempRegion.color, 200] : [255, 0, 0, 200],
+        lineWidthMinPixels: 2
+    }), [features, selectionMode, tempRegion.color]);
 
     const regionsLayer = regions?.length > 0
         ? new EditableGeoJsonLayer({
@@ -206,12 +227,25 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
             selectedFeatureIndexes: [],
             pickable: true,
             visible: true,
-            getLineColor: [255, 0, 0],
-            getFillColor: [255, 255, 0, 100],
+            getLineColor: d => [...d.properties.color, 200],
+            getFillColor: d => [...d.properties.color, 50],
             lineWidthMinPixels: 2
         })
         : null;
 
+    const textLayers = useMemo(() => regions.map(region =>
+        new TextLayer({
+            id: `text-layer-${region.name}`,
+            data: [{
+                position: region.center,
+                text: region.name
+            }],
+            getColor: [0, 0, 0, 255],
+            getSize: 16,
+            getTextAnchor: 'middle',
+            getAlignmentBaseline: 'center'
+        })
+    ), [regions]);
 
     // layers
     const layers = [
@@ -230,6 +264,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
             getFillColor: d => colorMap[d.cell_type] || [0, 0, 0],
             pickable: true,
         }),
+        ...textLayers,
         regionsLayer,
         editLayer,
     ].filter(Boolean);
@@ -316,9 +351,9 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
                     background: '#ffffff',
                     borderRadius: 8,
                     boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    position: 'absolute', 
-                    top: 10, 
-                    left: 10, 
+                    position: 'absolute',
+                    top: 10,
+                    left: 10,
                     zIndex: 1
                 }}
                 bordered={false}
