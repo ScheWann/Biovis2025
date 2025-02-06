@@ -50,7 +50,7 @@ function App() {
           cellTypeDir={cellTypeDir}
           cellTypeCoordinatesData={cellTypeCoordinatesData}
         />
-        <div style={{ height: '100%', width: '50%' }}>123</div>
+        <div style={{ height: '100%', width: '30%' }}>123</div>
       </div>
     </div>
   );
