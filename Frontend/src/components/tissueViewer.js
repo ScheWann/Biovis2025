@@ -369,7 +369,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
                             background: selectionMode ? '#1890ff' : '#fff',
                         }}
                     >
-                        {selectionMode ? 'Confirm' : 'Draw Region'}
+                        {selectionMode ? 'Confirm' : 'Draw'}
                     </Button>
                 </div>
 
