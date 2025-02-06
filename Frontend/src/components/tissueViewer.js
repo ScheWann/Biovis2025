@@ -21,6 +21,7 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
     const [selectedFeatureIndexes] = useState([]);
     const [searchText, setSearchText] = useState('');
     const [colorMap, setColorMap] = useState({});
+    const [hoveredCell, setHoveredCell] = useState(null);
 
     // intialize color map
     useEffect(() => {
@@ -85,7 +86,8 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
     // visible cell data
     const visibleCellData = useMemo(() => {
         return cellTypeCoordinatesData?.filter(cell =>
-            visibleCellTypes[cell.cell_type]
+            visibleCellTypes[cell.cell_type] &&
+            cell.hasOwnProperty('cell_type')
         ) || [];
     }, [cellTypeCoordinatesData, visibleCellTypes]);
 
@@ -263,6 +265,14 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
             getRadius: 2,
             getFillColor: d => colorMap[d.cell_type] || [0, 0, 0],
             pickable: true,
+            pickableInfo: d => ({
+                cell_type: d.cell_type,
+                x: d.cell_x,
+                y: d.cell_y
+            }),
+            parameters: {
+                depthTest: false
+            }
         }),
         ...textLayers,
         regionsLayer,
@@ -279,6 +289,17 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
                     zoom: -2,
                     maxZoom: 1,
                     minZoom: -5
+                }}
+                onHover={info => {
+                    if (info.object && info.object.cell_type) {
+                        setHoveredCell({
+                            ...info.object,
+                            x: info.x,
+                            y: info.y
+                        });
+                    } else {
+                        setHoveredCell(null);
+                    }
                 }}
                 controller={true}
                 getCursor={({ isDragging }) => selectionMode ? 'crosshair' : isDragging ? 'grabbing' : 'grab'}
@@ -408,6 +429,27 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, r
                     }]}
                 />
             </div>
+
+            {hoveredCell?.cell_type && (
+                <div style={{
+                    position: 'absolute',
+                    left: hoveredCell.x,
+                    top: hoveredCell.y - 40,
+                    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                    color: 'rgba(0, 0, 0)',
+                    padding: '6px 12px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    pointerEvents: 'none',
+                    transform: 'translateX(-50%)',
+                    zIndex: 100,
+                    transition: 'all 0.1s ease-out',
+                    cursor: 'pointer'
+                }}>
+                    <div>Cell Type: {hoveredCell.cell_type}</div>
+                </div>
+            )}
         </div>
     );
 };
