@@ -8,6 +8,7 @@ function App() {
   const [cellTypeCoordinatesData, setCellTypeCoordinatesData] = useState([]);
   const [sampleId, setSampleId] = useState("skin_TXK6Z4X_A1");
   const [cellTypeDir, setCellTypeDir] = useState([]);
+  const [regions, setRegions] = useState([]);
 
   const fetch_Cell_Type_With_Coordinates_Data = () => {
     fetch('/get_cell_type_coordinates', {
@@ -48,6 +49,8 @@ function App() {
         <TissueViewer
           sampleId={sampleId}
           cellTypeDir={cellTypeDir}
+          regions={regions}
+          setRegions={setRegions}
           cellTypeCoordinatesData={cellTypeCoordinatesData}
         />
         <div style={{ height: '100%', width: '30%' }}>123</div>

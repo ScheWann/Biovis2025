@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
-import { Collapse, Button, Input, ColorPicker, Checkbox } from "antd";
+import { Collapse, Button, Input, ColorPicker, Checkbox, message } from "antd";
+import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { booleanPointInPolygon } from '@turf/turf';
@@ -9,13 +10,13 @@ import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editab
 import { fromBlob } from 'geotiff';
 import maskUrl from '../data/cells_layer.png';
 
-export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir }) => {
+export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir, regions, setRegions }) => {
     const viewerRef = useRef(null);
     const [imageSize, setImageSize] = useState([]);
     const [tileSize] = useState(256);
     const [features, setFeatures] = useState({ type: 'FeatureCollection', features: [] });
+    const [tempRegion, setTempRegion] = useState({ name: '', data: [] });
     const [selectionMode, setSelectionMode] = useState(false);
-    const [selectedCells, setSelectedCells] = useState([]);
     const [visibleCellTypes, setVisibleCellTypes] = useState({});
     const [selectedFeatureIndexes] = useState([]);
     const [searchText, setSearchText] = useState('');
@@ -36,28 +37,18 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir })
         setVisibleCellTypes(initialVisibility);
     }, [cellTypeDir]);
 
-    // visible cell data
-    const visibleCellData = useMemo(() => {
-        return cellTypeCoordinatesData?.filter(cell =>
-            visibleCellTypes[cell.cell_type]
-        ) || [];
-    }, [cellTypeCoordinatesData, visibleCellTypes]);
-
-    // filter cell types
-    const filteredTypes = useMemo(() => {
-        return cellTypeDir?.filter(type =>
-            type.toLowerCase().includes(searchText.toLowerCase())
-        ) || [];
-    }, [cellTypeDir, searchText]);
-
-    // cell type counts
-    const cellTypeCounts = useMemo(() => {
-        const counts = {};
-        cellTypeCoordinatesData?.forEach(cell => {
-            counts[cell.cell_type] = (counts[cell.cell_type] || 0) + 1;
-        });
-        return counts;
-    }, [cellTypeCoordinatesData]);
+    // get image sizes
+    useEffect(() => {
+        fetch("/get_hires_image_size", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ sample_id: sampleId })
+        })
+            .then((response) => response.json())
+            .then((data) => setImageSize(data));
+    }, [sampleId]);
 
     // hsl to rgb
     const hslToRgb = (h, s, l) => {
@@ -85,33 +76,54 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir })
         return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
     };
 
-    // get image sizes
-    useEffect(() => {
-        fetch("/get_hires_image_size", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ sample_id: sampleId })
-        })
-            .then((response) => response.json())
-            .then((data) => setImageSize(data));
-    }, [sampleId]);
+    // visible cell data
+    const visibleCellData = useMemo(() => {
+        return cellTypeCoordinatesData?.filter(cell =>
+            visibleCellTypes[cell.cell_type]
+        ) || [];
+    }, [cellTypeCoordinatesData, visibleCellTypes]);
 
-    // editable layer
-    const editLayer = new EditableGeoJsonLayer({
-        data: features,
-        mode: DrawPolygonMode,
-        selectedFeatureIndexes,
-        onEdit: ({ updatedData, editType }) => {
-            setFeatures(updatedData);
-            if (editType === 'addFeature') {
-                const lastFeature = updatedData.features[updatedData.features.length - 1];
-                filterCellsInPolygon(lastFeature);
+    // filter cell types
+    const filteredTypes = useMemo(() => {
+        return cellTypeDir?.filter(type =>
+            type.toLowerCase().includes(searchText.toLowerCase())
+        ) || [];
+    }, [cellTypeDir, searchText]);
+
+    // cell type counts
+    const cellTypeCounts = useMemo(() => {
+        const counts = {};
+        cellTypeCoordinatesData?.forEach(cell => {
+            counts[cell.cell_type] = (counts[cell.cell_type] || 0) + 1;
+        });
+        return counts;
+    }, [cellTypeCoordinatesData]);
+
+    // set region name
+    const regionNameChange = (e) => {
+        setTempRegion((prev) => ({ ...prev, name: e.target.value }));
+    }
+
+    const regionFunction = () => {
+        if (!tempRegion.name.trim()) {
+            message.error('Please name the region before drawing');
+            return;
+        }
+
+        if (!selectionMode) {
+            setSelectionMode(true);
+        } else {
+            setSelectionMode(false);
+            if (tempRegion.data.length > 0) {
+                setRegions(prev => [...prev, {
+                    ...tempRegion,
+                    feature: features.features[features.features.length - 1]
+                }]);
             }
-        },
-        visible: selectionMode,
-    });
+            setTempRegion({ name: '', data: [] });
+            setFeatures({ ...features, features: [] });
+        }
+    };
 
     // filter cells in polygon
     const filterCellsInPolygon = (polygonFeature) => {
@@ -120,7 +132,11 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir })
         const filtered = cellTypeCoordinatesData.filter(cell =>
             booleanPointInPolygon([cell.cell_x, cell.cell_y], polygon)
         );
-        setSelectedCells(filtered);
+        setTempRegion((prev) => ({ ...prev, data: filtered }));
+    };
+
+    const deleteRegion = (index) => {
+        setRegions(prev => prev.filter((_, i) => i !== index));
     };
 
     // tiles layer
@@ -164,6 +180,39 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir })
         })
     });
 
+    // editable layer
+    const editLayer = new EditableGeoJsonLayer({
+        data: features,
+        mode: DrawPolygonMode,
+        selectedFeatureIndexes,
+        onEdit: ({ updatedData, editType }) => {
+            setFeatures(updatedData);
+            if (editType === 'addFeature') {
+                const lastFeature = updatedData.features[updatedData.features.length - 1];
+                filterCellsInPolygon(lastFeature);
+            }
+        },
+        visible: selectionMode,
+    });
+
+    const regionsLayer = regions?.length > 0
+        ? new EditableGeoJsonLayer({
+            id: 'saved-regions',
+            data: {
+                type: 'FeatureCollection',
+                features: regions.map(r => r.feature)
+            },
+            mode: DrawPolygonMode,
+            selectedFeatureIndexes: [],
+            pickable: true,
+            visible: true,
+            getLineColor: [255, 0, 0],
+            getFillColor: [255, 255, 0, 100],
+            lineWidthMinPixels: 2
+        })
+        : null;
+
+
     // layers
     const layers = [
         tileLayer,
@@ -181,11 +230,12 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir })
             getFillColor: d => colorMap[d.cell_type] || [0, 0, 0],
             pickable: true,
         }),
+        regionsLayer,
         editLayer,
     ].filter(Boolean);
 
     return (
-        <div ref={viewerRef} style={{ height: '100%', width: '75%', position: 'relative' }}>
+        <div ref={viewerRef} style={{ height: '100%', width: '70%', position: 'relative' }}>
             <DeckGL
                 layers={layers}
                 views={new OrthographicView({ id: 'ortho-view', controller: true })}
@@ -200,84 +250,127 @@ export const TissueViewer = ({ sampleId, cellTypeCoordinatesData, cellTypeDir })
                 style={{ width: '100%', height: '100%' }}
             />
 
+            <Collapse
+                size='small'
+                defaultActiveKey={[]}
+                items={[{
+                    key: 'legend',
+                    label: <span style={{ fontWeight: 500 }}>Cell Types ({filteredTypes.length})</span>,
+                    children: (
+                        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                            <Input.Search
+                                placeholder="Search cell types"
+                                value={searchText}
+                                onChange={e => setSearchText(e.target.value)}
+                                style={{ marginBottom: 12 }}
+                            />
+
+                            {filteredTypes.map(cellType => {
+                                const rgbColor = colorMap[cellType] || [0, 0, 0];
+                                return (
+                                    <div key={cellType} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '8px 0',
+                                        borderBottom: '1px solid #f0f0f0'
+                                    }}>
+                                        <Checkbox
+                                            checked={visibleCellTypes[cellType] ?? true}
+                                            onChange={(e) => {
+                                                setVisibleCellTypes(prev => ({
+                                                    ...prev,
+                                                    [cellType]: e.target.checked
+                                                }));
+                                            }}
+                                            style={{ marginRight: 8 }}
+                                        />
+
+                                        <ColorPicker
+                                            size="small"
+                                            value={`rgb(${rgbColor.join(',')})`}
+                                            onChange={color => {
+                                                const rgb = color.toRgb();
+                                                setColorMap(prev => ({
+                                                    ...prev,
+                                                    [cellType]: [rgb.r, rgb.g, rgb.b]
+                                                }));
+                                            }}
+                                            style={{ marginRight: 12 }}
+                                        />
+
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: 12 }}>{cellType}</div>
+                                            <div style={{ fontSize: 12, color: '#666' }}>
+                                                {cellTypeCounts[cellType] || 0} cells
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )
+                }]}
+                style={{
+                    opacity: 0.7,
+                    width: 280,
+                    background: '#ffffff',
+                    borderRadius: 8,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    position: 'absolute', 
+                    top: 10, 
+                    left: 10, 
+                    zIndex: 1
+                }}
+                bordered={false}
+            />
             <div className="controls" style={{ position: 'absolute', top: 10, right: 10, zIndex: 1 }}>
-                <Button
-                    onClick={() => setSelectionMode(!selectionMode)}
-                    style={{
-                        background: selectionMode ? '#1890ff' : '#fff',
-                        marginBottom: 10
-                    }}
-                >
-                    {selectionMode ? 'Exit Selection' : 'Draw Polygon'}
-                </Button>
+                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 5 }}>
+                    <span style={{ fontSize: 15, color: '#333' }}>Region: </span>
+                    <Input value={tempRegion.name} onChange={regionNameChange} />
+                    <Button
+                        onClick={regionFunction}
+                        style={{
+                            opacity: 0.7,
+                            background: selectionMode ? '#1890ff' : '#fff',
+                        }}
+                    >
+                        {selectionMode ? 'Confirm' : 'Draw Region'}
+                    </Button>
+                </div>
 
                 <Collapse
                     size='small'
-                    defaultActiveKey={[]}
+                    style={{ background: '#ffffff', marginTop: 5, opacity: 0.7 }}
                     items={[{
-                        key: 'legend',
-                        label: <span style={{ fontWeight: 500 }}>Cell Types ({filteredTypes.length})</span>,
+                        key: 'regions',
+                        label: <span style={{ fontWeight: 500 }}>Regions ({regions.length})</span>,
                         children: (
                             <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                                <Input.Search
-                                    placeholder="Search cell types"
-                                    value={searchText}
-                                    onChange={e => setSearchText(e.target.value)}
-                                    style={{ marginBottom: 12 }}
-                                />
-
-                                {filteredTypes.map(cellType => {
-                                    const rgbColor = colorMap[cellType] || [0, 0, 0];
-                                    return (
-                                        <div key={cellType} style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            padding: '8px 0',
-                                            borderBottom: '1px solid #f0f0f0'
-                                        }}>
-                                            <Checkbox
-                                                checked={visibleCellTypes[cellType] ?? true}
-                                                onChange={(e) => {
-                                                    setVisibleCellTypes(prev => ({
-                                                        ...prev,
-                                                        [cellType]: e.target.checked
-                                                    }));
-                                                }}
-                                                style={{ marginRight: 8 }}
-                                            />
-
-                                            <ColorPicker
-                                                size="small"
-                                                value={`rgb(${rgbColor.join(',')})`}
-                                                onChange={color => {
-                                                    const rgb = color.toRgb();
-                                                    setColorMap(prev => ({
-                                                        ...prev,
-                                                        [cellType]: [rgb.r, rgb.g, rgb.b]
-                                                    }));
-                                                }}
-                                                style={{ marginRight: 12 }}
-                                            />
-
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ fontSize: 12 }}>{cellType}</div>
-                                                <div style={{ fontSize: 12, color: '#666' }}>
-                                                    {cellTypeCounts[cellType] || 0} cells
-                                                </div>
+                                {regions.map((region, index) => (
+                                    <div key={index} style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        padding: '8px 0',
+                                        borderBottom: '1px solid #f0f0f0'
+                                    }}>
+                                        <div>
+                                            <div style={{ fontSize: 12 }}>{region.name}</div>
+                                            <div style={{ fontSize: 12, color: '#666' }}>
+                                                {region.data.length} cells
                                             </div>
                                         </div>
-                                    );
-                                })}
+                                        <Button
+                                            danger
+                                            size="small"
+                                            onClick={() => deleteRegion(index)}
+                                            icon={<CloseOutlined />}
+                                        />
+                                    </div>
+                                ))}
                             </div>
                         )
                     }]}
-                    style={{
-                        width: 280,
-                        background: '#ffffff',
-                        borderRadius: 8,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                    }}
-                    bordered={false}
                 />
             </div>
         </div>

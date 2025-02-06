@@ -1,3 +1,7 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
 .App {
   text-align: center;
   height: calc(100vh - 16px);
@@ -8,4 +12,8 @@
   display: flex;
   width: 100%;
   height: 100%;
+}
+
+.ant-collapse-header {
+  padding: 5px 12px 5px 8px !important;
 }
