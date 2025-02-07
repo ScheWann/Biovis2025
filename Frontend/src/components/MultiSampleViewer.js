@@ -68,6 +68,8 @@ export const MultiSampleViewer = ({
     const [regionColor, setRegionColor] = useState(generateRandomColor());
     const [globalDrawingMode, setGlobalDrawingMode] = useState(false);
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
+    const [currentZoom, setCurrentZoom] = useState(-2);
+    const TILE_LOAD_ZOOM_THRESHOLD = -2;
 
     // intialize color map and visible cell types for each sample
     useEffect(() => {
@@ -132,7 +134,7 @@ export const MultiSampleViewer = ({
             const offset = sampleOffsets[sample.id] || [0, 0];
             return new TileLayer({
                 id: `tif-tiles-${sample.id}`,
-                visible: visibleSamples[sample.id],
+                visible: visibleSamples[sample.id] && currentZoom >= TILE_LOAD_ZOOM_THRESHOLD,
                 tileSize,
                 extent: [
                     offset[0],
@@ -182,8 +184,23 @@ export const MultiSampleViewer = ({
                 })
             });
         }).filter(Boolean);
-    }, [samples, imageSizes, tileSize, visibleSamples, sampleOffsets]);
+    }, [samples, imageSizes, tileSize, visibleSamples, sampleOffsets, currentZoom]);
 
+    const generateWholePngLayers = useCallback(() => {
+        return samples.map(sample => {
+            const imageSize = imageSizes[sample.id];
+            const offset = sampleOffsets[sample.id] || [0, 0];
+            if (!imageSize || imageSize.length < 2) return null;
+            return new BitmapLayer({
+                id: `png-replacement-${sample.id}`,
+                visible: visibleSamples[sample.id] && currentZoom < TILE_LOAD_ZOOM_THRESHOLD,
+                image: `/${sample.id}_full.jpg`,
+                bounds: [offset[0], offset[1] + imageSize[1], offset[0] + imageSize[0], offset[1]],
+                opacity: 1,
+                parameters: { depthTest: false }
+            });
+        }).filter(Boolean);
+    }, [samples, imageSizes, visibleSamples, sampleOffsets, currentZoom]);
 
     // cell boundaries image layers
     const generateMarkerImageLayers = useCallback(() => {
@@ -400,6 +417,7 @@ export const MultiSampleViewer = ({
             sizeUnits: 'pixels'
         });
         return [
+            ...generateWholePngLayers(),
             ...generateTileLayers(),
             ...generateMarkerImageLayers(),
             ...generateCellLayers(),
@@ -431,7 +449,15 @@ export const MultiSampleViewer = ({
             }),
             regionLabelLayer
         ].filter(Boolean);
-    }, [generateTileLayers, generateCellLayers, generateMarkerImageLayers, generateEditLayers, regions, sampleOffsets]);
+    }, [
+        generateWholePngLayers,
+        generateTileLayers,
+        generateMarkerImageLayers,
+        generateCellLayers,
+        generateEditLayers,
+        regions,
+        sampleOffsets
+    ]);
 
     return (
         <div style={{ height: '100vh', display: 'flex' }}>
@@ -496,6 +522,9 @@ export const MultiSampleViewer = ({
                         zoom: -2,
                         maxZoom: 1,
                         minZoom: -5
+                    }}
+                    onViewStateChange={({ viewState }) => {
+                        setCurrentZoom(viewState.zoom);
                     }}
                     onHover={info => {
                         if (info.object && info.layer.id.startsWith('cells-')) {
