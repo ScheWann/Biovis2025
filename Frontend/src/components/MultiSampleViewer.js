@@ -35,7 +35,6 @@ const hslToRgb = (h, s, l) => {
     return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 };
 
-
 // generate random color, call this function after saving region to update the color for next drawing
 const generateRandomColor = () => {
     return hslToRgb(Math.floor(Math.random() * 360), 100, 50);
@@ -202,13 +201,13 @@ export const MultiSampleViewer = ({
     // save region, save region name and region color, and update region color to new random color
     const handleSaveRegion = () => {
         if (!regionName) {
-            message.error('请填写区域名称');
+            message.error('Please enter a region name');
             return;
         }
         const sampleId = activeSample;
         const feature = features[sampleId]?.features?.[features[sampleId].features.length - 1];
         if (!feature) {
-            message.error('没有可保存的区域');
+            message.error('No region available to save');
             return;
         }
         const newRegion = {
@@ -223,7 +222,7 @@ export const MultiSampleViewer = ({
         setRegions(prev => [...prev, newRegion]);
         setFeatures(prev => ({ ...prev, [sampleId]: { type: 'FeatureCollection', features: [] } }));
         setTempRegions(prev => ({ ...prev, [sampleId]: null }));
-        message.success('区域保存成功');
+        message.success('Region saved successfully');
         setRegionName('');
         setSelectionMode(null);
         // update region color to new random color
@@ -296,7 +295,6 @@ export const MultiSampleViewer = ({
             getSize: 16,
             sizeUnits: 'pixels'
         });
-
         return [
             ...generateTileLayers(),
             ...generateMarkerImageLayers(),
@@ -354,8 +352,8 @@ export const MultiSampleViewer = ({
                             <Collapse style={{ marginTop: 16 }}>
                                 <Collapse.Panel key={`cell-types-${sample.id}`} header="Cell Types">
                                     <CellTypeSettings
-                                        sampleId={sample.id}
                                         cellTypes={cellTypeDir}
+                                        cellData={cellTypeCoordinatesData[sample.id]}
                                         colorMap={colorMaps[sample.id] || {}}
                                         visibleMap={visibleCellTypes[sample.id] || {}}
                                         onColorChange={(type, color) => {
@@ -433,6 +431,8 @@ export const MultiSampleViewer = ({
                     {/* region drawing controls */}
                     <div style={{ background: 'rgba(255,255,255,0.8)', padding: '10px', borderRadius: '10px', display: 'flex', flexDirection: 'column' }}>
                         <Input
+                            size='small'
+                            allowClear
                             placeholder="New region name"
                             value={regionName}
                             onChange={e => setRegionName(e.target.value)}
@@ -449,7 +449,7 @@ export const MultiSampleViewer = ({
                                 style={{ marginBottom: 8 }}
                             />
                             <Button size='small' variant="outlined" onClick={toggleDrawingMode} block>
-                                {selectionMode ? 'Save' : 'Draw'}
+                                {selectionMode && regionName ? 'Save' : 'Draw'}
                             </Button>
                         </div>
                     </div>
@@ -470,8 +470,10 @@ export const MultiSampleViewer = ({
                                             fontSize: '12px',
                                             color: '#555'
                                         }}>
-                                            <div>
-                                                ID: {region.id} | Sample: {sampleId} | Cells: {cellCount}
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
+                                                <span style={{ fontSize: 14, marginBottom: 10 }}>{region.name}</span>
+                                                    <span style={{fontSize: 10, color: "#666"}}>Sample: {sampleId}</span>
+                                                    <span style={{fontSize: 10, color: "#666"}}>Cells: {cellCount}</span>
                                             </div>
                                             <CloseOutlined
                                                 onClick={(e) => { e.stopPropagation(); handleDeleteRegion(region.id); }}
@@ -491,10 +493,10 @@ export const MultiSampleViewer = ({
     );
 };
 
-// cell type setting component
+// CellTypeSettings component with cell count display
 const CellTypeSettings = ({
-    sampleId,
     cellTypes,
+    cellData,
     colorMap,
     visibleMap,
     onColorChange,
@@ -515,30 +517,36 @@ const CellTypeSettings = ({
                 onChange={e => setSearchText(e.target.value)}
                 style={{ marginBottom: 12 }}
             />
-            {filteredTypes.map(type => (
-                <div key={type} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '8px 0',
-                    borderBottom: '1px solid #f0f0f0'
-                }}>
-                    <Checkbox
-                        checked={visibleMap[type] ?? true}
-                        onChange={e => onVisibilityChange(type, e.target.checked)}
-                        style={{ marginRight: 8 }}
-                    />
-                    <ColorPicker
-                        size="small"
-                        value={`rgb(${(colorMap[type] || [0, 0, 0]).join(',')})`}
-                        onChange={color => {
-                            const rgb = color.toRgb();
-                            onColorChange(type, [rgb.r, rgb.g, rgb.b]);
-                        }}
-                        style={{ marginRight: 12 }}
-                    />
-                    <span style={{ fontSize: 14 }}>{type}</span>
-                </div>
-            ))}
+            {filteredTypes.map(type => {
+                const count = (cellData || []).filter(cell => cell.cell_type === type).length;
+                return (
+                    <div key={type} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '8px 0',
+                        borderBottom: '1px solid #f0f0f0'
+                    }}>
+                        <Checkbox
+                            checked={visibleMap[type] ?? true}
+                            onChange={e => onVisibilityChange(type, e.target.checked)}
+                            style={{ marginRight: 8 }}
+                        />
+                        <ColorPicker
+                            size="small"
+                            value={`rgb(${(colorMap[type] || [0, 0, 0]).join(',')})`}
+                            onChange={color => {
+                                const rgb = color.toRgb();
+                                onColorChange(type, [rgb.r, rgb.g, rgb.b]);
+                            }}
+                            style={{ marginRight: 12 }}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                            <span style={{ fontSize: 14 }}>{type}</span>
+                            <span style={{ fontSize: 12, color: '#666' }}>{count}</span>
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 };
