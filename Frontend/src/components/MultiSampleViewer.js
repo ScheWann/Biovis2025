@@ -264,46 +264,73 @@ export const MultiSampleViewer = ({
             message.error('Please enter a region name');
             return;
         }
-        if (!activeDrawingSample) {
-            message.error('No active drawing sample');
+
+        let drawnFeature = null;
+        for (const sample of samples) {
+            if (features[sample.id]?.features?.length > 0) {
+                drawnFeature = features[sample.id].features[features[sample.id].features.length - 1];
+                break;
+            }
+        }
+
+        if (!drawnFeature) {
+            message.error('No region available to save');
             return;
         }
-        const sampleFeatures = features[activeDrawingSample]?.features;
-        if (!sampleFeatures || sampleFeatures.length === 0) {
-            message.error('No region available to save for the active sample');
+
+        const centroidFeature = centroid(drawnFeature);
+        const [cx, cy] = centroidFeature.geometry.coordinates;
+
+        let targetSampleId = null;
+        for (const sample of samples) {
+            const offset = sampleOffsets[sample.id] || [0, 0];
+            const size = imageSizes[sample.id];
+            if (size && size.length === 2) {
+                const [w, h] = size;
+                if (cx >= offset[0] && cx <= offset[0] + w && cy >= offset[1] && cy <= offset[1] + h) {
+                    targetSampleId = sample.id;
+                    break;
+                }
+            }
+        }
+
+        if (!targetSampleId) {
+            message.error('Drawn region does not fall within any sample');
             return;
         }
-        const offset = sampleOffsets[activeDrawingSample] || [0, 0];
-        const feature = sampleFeatures[sampleFeatures.length - 1];
+
+        const targetOffset = sampleOffsets[targetSampleId] || [0, 0];
         const localFeature = {
-            ...feature,
+            ...drawnFeature,
             geometry: {
-                ...feature.geometry,
-                coordinates: feature.geometry.coordinates.map(ring =>
-                    ring.map(([x, y]) => [x - offset[0], y - offset[1]])
+                ...drawnFeature.geometry,
+                coordinates: drawnFeature.geometry.coordinates.map(ring =>
+                    ring.map(([x, y]) => [x - targetOffset[0], y - targetOffset[1]])
                 )
             }
         };
+
         const newRegion = {
-            id: `${activeDrawingSample}-${regionName}-${Date.now()}`,
+            id: `${targetSampleId}-${regionName}-${Date.now()}`,
             name: regionName,
             color: regionColor,
-            sampleId: activeDrawingSample,
+            sampleId: targetSampleId,
             feature: {
                 type: 'FeatureCollection',
                 features: [localFeature]
             }
         };
+
         setRegions(prev => [...prev, newRegion]);
-        setFeatures(prev => ({
-            ...prev,
-            [activeDrawingSample]: { type: 'FeatureCollection', features: [] }
-        }));
+        const newFeatures = {};
+        samples.forEach(sample => {
+            newFeatures[sample.id] = { type: 'FeatureCollection', features: [] };
+        });
+        setFeatures(newFeatures);
         setGlobalDrawingMode(false);
         message.success('Region saved successfully');
         setRegionName('');
         setRegionColor(generateRandomColor());
-        setActiveDrawingSample(null);
     };
 
     // generate EditableGeoJsonLayer: only make the layer of the current activeDrawingSample visible
