@@ -56,7 +56,6 @@ export const MultiSampleViewer = ({
         }), {})
     );
     const [tempRegions, setTempRegions] = useState({});
-    const [selectionMode, setSelectionMode] = useState(null);
     const [visibleCellTypes, setVisibleCellTypes] = useState({});
     const [colorMaps, setColorMaps] = useState({});
     const [hoveredCell, setHoveredCell] = useState(null);
@@ -66,8 +65,9 @@ export const MultiSampleViewer = ({
         samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
     );
     const [regionName, setRegionName] = useState('');
-    // default region color is random color, after saving region, it will update to new random color
     const [regionColor, setRegionColor] = useState(generateRandomColor());
+    const [globalDrawingMode, setGlobalDrawingMode] = useState(false);
+    const [activeDrawingSample, setActiveDrawingSample] = useState(null);
 
     // intialize color map and visible cell types for each sample
     useEffect(() => {
@@ -124,16 +124,7 @@ export const MultiSampleViewer = ({
         );
     }, [imageSizes, samples]);
 
-    useEffect(() => {
-        if (samples && samples.length > 0) {
-            setActiveSample(samples[samples.length - 1].id);
-            if (selectionMode) {
-                setSelectionMode(samples[samples.length - 1].id);
-            }
-        }
-    }, [samples]);
-
-    // generate tile layers for each sample
+    // TileLayer
     const generateTileLayers = useCallback(() => {
         return samples.map(sample => {
             const imageSize = imageSizes[sample.id];
@@ -263,6 +254,7 @@ export const MultiSampleViewer = ({
                     )
                 }
             }));
+            setActiveDrawingSample(sampleId);
         }
     };
 
@@ -272,19 +264,17 @@ export const MultiSampleViewer = ({
             message.error('Please enter a region name');
             return;
         }
-        // 使用 selectionMode，因为它在绘制开始时已经记录了当前绘制的样本 ID
-        const sampleId = selectionMode;
-        if (!sampleId) {
-            message.error('No sample selected for drawing');
+        if (!activeDrawingSample) {
+            message.error('No active drawing sample');
             return;
         }
-        const offset = sampleOffsets[sampleId] || [0, 0];
-        const feature = features[sampleId]?.features?.[features[sampleId].features.length - 1];
-        if (!feature) {
-            message.error('No region available to save');
+        const sampleFeatures = features[activeDrawingSample]?.features;
+        if (!sampleFeatures || sampleFeatures.length === 0) {
+            message.error('No region available to save for the active sample');
             return;
         }
-
+        const offset = sampleOffsets[activeDrawingSample] || [0, 0];
+        const feature = sampleFeatures[sampleFeatures.length - 1];
         const localFeature = {
             ...feature,
             geometry: {
@@ -294,12 +284,11 @@ export const MultiSampleViewer = ({
                 )
             }
         };
-
         const newRegion = {
-            id: `${sampleId}-${regionName}-${Date.now()}`,
+            id: `${activeDrawingSample}-${regionName}-${Date.now()}`,
             name: regionName,
             color: regionColor,
-            sampleId,
+            sampleId: activeDrawingSample,
             feature: {
                 type: 'FeatureCollection',
                 features: [localFeature]
@@ -308,22 +297,16 @@ export const MultiSampleViewer = ({
         setRegions(prev => [...prev, newRegion]);
         setFeatures(prev => ({
             ...prev,
-            [sampleId]: { type: 'FeatureCollection', features: [] }
+            [activeDrawingSample]: { type: 'FeatureCollection', features: [] }
         }));
-        setTempRegions(prev => ({ ...prev, [sampleId]: null }));
+        setGlobalDrawingMode(false);
         message.success('Region saved successfully');
         setRegionName('');
-        setSelectionMode(null);
         setRegionColor(generateRandomColor());
+        setActiveDrawingSample(null);
     };
 
-    // delete region
-    const handleDeleteRegion = (regionId) => {
-        setRegions(prev => prev.filter(region => region.id !== regionId));
-        message.success('Region deleted!');
-    };
-
-    // generate editable layers for each sample
+    // generate EditableGeoJsonLayer: only make the layer of the current activeDrawingSample visible
     const generateEditLayers = useCallback(() => {
         return samples.map(sample => {
             const tempRegion = tempRegions[sample.id] || {};
@@ -332,16 +315,18 @@ export const MultiSampleViewer = ({
                 data: features[sample.id] || { type: 'FeatureCollection', features: [] },
                 mode: DrawPolygonMode,
                 selectedFeatureIndexes: [],
-                onEdit: ({ updatedData }) => handleRegionUpdate(sample.id, updatedData),
-                visible: selectionMode === sample.id,
+                onEdit: ({ updatedData }) => {
+                    handleRegionUpdate(sample.id, updatedData);
+                },
+                visible: globalDrawingMode && sample.id === activeDrawingSample,
                 getLineColor: tempRegion.color ? [...tempRegion.color, 200] : [255, 0, 0, 200],
                 getFillColor: tempRegion.color ? [...tempRegion.color, 50] : [255, 255, 0, 50],
                 lineWidthMinPixels: 2
             });
         });
-    }, [samples, features, tempRegions, selectionMode]);
+    }, [samples, features, tempRegions, globalDrawingMode, activeDrawingSample]);
 
-    // calculate cell count for a region
+    // Calculate the number of cells in the region
     const getCellCount = (region) => {
         if (!region.feature || !Array.isArray(region.feature.features) || region.feature.features.length === 0) {
             return 0;
@@ -353,7 +338,11 @@ export const MultiSampleViewer = ({
         ).length;
     };
 
-    // all layers including tile layers, cell layers, marker image layers, edit layers, and region label layers
+    const handleDeleteRegion = (regionId) => {
+        setRegions(prev => prev.filter(region => region.id !== regionId));
+        message.success('Region deleted!');
+    };
+
     const layers = useMemo(() => {
         const regionLabelLayer = new TextLayer({
             id: 'region-labels',
@@ -415,23 +404,14 @@ export const MultiSampleViewer = ({
             }),
             regionLabelLayer
         ].filter(Boolean);
-    }, [generateTileLayers, generateCellLayers, generateMarkerImageLayers, generateEditLayers, regions]);
-
-    // toggle drawing mode
-    const toggleDrawingMode = () => {
-        if (!selectionMode) {
-            setSelectionMode(activeSample);
-        } else {
-            handleSaveRegion();
-        }
-    };
+    }, [generateTileLayers, generateCellLayers, generateMarkerImageLayers, generateEditLayers, regions, sampleOffsets]);
 
     return (
         <div style={{ height: '100vh', display: 'flex' }}>
             <div className="controls" style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
                 <Collapse style={{ background: '#ffffff', width: 300, opacity: 0.8 }}>
                     {samples.map(sample => (
-                        <Collapse.Panel key={sample.id} header={sample.name} onClick={() => setActiveSample(sample.id)}>
+                        <Collapse.Panel key={sample.id} header={sample.name}>
                             <Button
                                 block
                                 onClick={() => setVisibleSamples(prev => ({
@@ -477,11 +457,9 @@ export const MultiSampleViewer = ({
                         target: (() => {
                             const firstSample = samples[0];
                             if (!firstSample) return [0, 0, 0];
-
                             const sampleId = firstSample.id;
                             const offset = sampleOffsets[sampleId] ?? [0, 0];
                             const size = imageSizes[sampleId] ?? [0, 0];
-
                             return [
                                 offset[0] + size[0] / 2,
                                 offset[1] + size[1] / 2,
@@ -559,8 +537,24 @@ export const MultiSampleViewer = ({
                                 }}
                                 style={{ marginBottom: 8 }}
                             />
-                            <Button size='small' variant="outlined" onClick={toggleDrawingMode} block>
-                                {selectionMode && regionName ? 'Save' : 'Draw'}
+                            <Button
+                                size='small'
+                                variant="outlined"
+                                onClick={() => {
+                                    if (!globalDrawingMode) {
+                                        setActiveDrawingSample(activeSample);
+                                        setFeatures(prev => ({
+                                            ...prev,
+                                            [activeSample]: { type: 'FeatureCollection', features: [] }
+                                        }));
+                                        setGlobalDrawingMode(true);
+                                    } else {
+                                        handleSaveRegion();
+                                    }
+                                }}
+                                block
+                            >
+                                {globalDrawingMode && regionName ? 'Save' : 'Draw'}
                             </Button>
                         </div>
                     </div>
@@ -570,7 +564,7 @@ export const MultiSampleViewer = ({
                         <Collapse.Panel header={`Selected Region (${regions.length})`} key="selected-region">
                             {regions.length > 0 ? (
                                 regions.map(region => {
-                                    const sampleId = region.id.split('-')[0];
+                                    const sampleId = region.sampleId;
                                     const cellCount = getCellCount(region);
                                     return (
                                         <div key={region.id} style={{
