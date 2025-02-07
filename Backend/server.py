@@ -49,7 +49,8 @@ def serve_tile():
     filename = f"tile_{x*256}_{y*256}.tif"
 
     processed_sample_id = f"{sample_id}_processed"
-    tile_dir = os.path.join("../Data", processed_sample_id, "skin_TXK6Z4X_A1_processed_tiles")
+    processed_sample_tiles = f"{sample_id}_processed_tiles"
+    tile_dir = os.path.join("../Data", processed_sample_id, processed_sample_tiles)
 
     return send_from_directory(tile_dir, filename)
 
