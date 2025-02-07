@@ -98,22 +98,20 @@ function App() {
   return (
     <div className="App">
       <div className="content">
-        <div>
-          <Select
-            size='small'
-            mode="multiple"
-            placeholder="Select samples"
-            value={selectedSamples}
-            onChange={setSelectedSamples}
-            options={samples.map(sample => ({
-              label: sample.name,
-              value: sample.id
-            }))}
-            style={{ width: '100%', margin: 8 }}
-            maxTagCount="responsive"
-            loading={loading}
-          />
-        </div>
+        <Select
+          size='small'
+          mode="multiple"
+          placeholder="Select samples"
+          value={selectedSamples}
+          onChange={setSelectedSamples}
+          options={samples.map(sample => ({
+            label: sample.name,
+            value: sample.id
+          }))}
+          style={{ width: '100%', margin: 8 }}
+          maxTagCount="responsive"
+          loading={loading}
+        />
 
         {/* main view */}
         <Spin spinning={loading}>

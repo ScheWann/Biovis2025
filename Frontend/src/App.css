@@ -23,7 +23,7 @@ body {
 }
 
 .ant-spin-nested-loading {
-  height: 100%;
+  height: calc(100% - 40px);
 }
 
 .ant-spin-container {

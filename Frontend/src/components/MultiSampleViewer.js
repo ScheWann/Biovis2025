@@ -68,7 +68,7 @@ export const MultiSampleViewer = ({
     const [regionColor, setRegionColor] = useState(generateRandomColor());
     const [globalDrawingMode, setGlobalDrawingMode] = useState(false);
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
-    const [currentZoom, setCurrentZoom] = useState(-2);
+    const [currentZoom, setCurrentZoom] = useState(-3);
     const TILE_LOAD_ZOOM_THRESHOLD = -2;
 
     // intialize color map and visible cell types for each sample
@@ -460,7 +460,7 @@ export const MultiSampleViewer = ({
     ]);
 
     return (
-        <div style={{ height: '100vh', display: 'flex' }}>
+        <div style={{ height: '100%', display: 'flex' }}>
             <div className="controls" style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
                 <Collapse style={{ background: '#ffffff', width: 300, opacity: 0.8 }}>
                     {samples.map(sample => (
@@ -519,11 +519,12 @@ export const MultiSampleViewer = ({
                                 0
                             ];
                         })(),
-                        zoom: -2,
+                        zoom: -3,
                         maxZoom: 1,
                         minZoom: -5
                     }}
                     onViewStateChange={({ viewState }) => {
+                        console.log(viewState.zoom);
                         setCurrentZoom(viewState.zoom);
                     }}
                     onHover={info => {
