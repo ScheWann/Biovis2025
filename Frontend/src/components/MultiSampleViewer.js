@@ -119,7 +119,19 @@ export const MultiSampleViewer = ({
             });
             setSampleOffsets(newOffsets);
         }
+        setVisibleSamples(
+            samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
+        );
     }, [imageSizes, samples]);
+
+    useEffect(() => {
+        if (samples && samples.length > 0) {
+            setActiveSample(samples[samples.length - 1].id);
+            if (selectionMode) {
+                setSelectionMode(samples[samples.length - 1].id);
+            }
+        }
+    }, [samples]);
 
     // generate tile layers for each sample
     const generateTileLayers = useCallback(() => {
@@ -147,7 +159,7 @@ export const MultiSampleViewer = ({
 
                         const relativeX = x - tileOriginX;
                         const relativeY = y - tileOriginY;
-                
+
                         const response = await fetch(`/get_tile?sample_id=${sample.id}&x=${relativeX}&y=${relativeY}`);
                         const blob = await response.blob();
                         const tiff = await fromBlob(blob);
@@ -223,7 +235,7 @@ export const MultiSampleViewer = ({
     // update current region data
     const handleRegionUpdate = (sampleId, updatedData) => {
         if (!updatedData || !Array.isArray(updatedData.features)) {
-            console.error('Invalid GeoJSON data:', updatedData);
+            console.error('Invalid data:', updatedData);
             return;
         }
         setFeatures(prev => ({
@@ -232,12 +244,22 @@ export const MultiSampleViewer = ({
         }));
         const lastFeature = updatedData.features[updatedData.features.length - 1];
         if (lastFeature) {
+            const offset = sampleOffsets[sampleId] || [0, 0];
+            const localFeature = {
+                ...lastFeature,
+                geometry: {
+                    ...lastFeature.geometry,
+                    coordinates: lastFeature.geometry.coordinates.map(ring =>
+                        ring.map(([x, y]) => [x - offset[0], y - offset[1]])
+                    )
+                }
+            };
             setTempRegions(prev => ({
                 ...prev,
                 [sampleId]: {
                     ...prev[sampleId],
                     data: cellTypeCoordinatesData?.[sampleId]?.filter(cell =>
-                        booleanPointInPolygon([cell.cell_x, cell.cell_y], lastFeature.geometry)
+                        booleanPointInPolygon([cell.cell_x, cell.cell_y], localFeature.geometry)
                     )
                 }
             }));
@@ -250,19 +272,37 @@ export const MultiSampleViewer = ({
             message.error('Please enter a region name');
             return;
         }
-        const sampleId = activeSample;
+        // 使用 selectionMode，因为它在绘制开始时已经记录了当前绘制的样本 ID
+        const sampleId = selectionMode;
+        if (!sampleId) {
+            message.error('No sample selected for drawing');
+            return;
+        }
+        const offset = sampleOffsets[sampleId] || [0, 0];
         const feature = features[sampleId]?.features?.[features[sampleId].features.length - 1];
         if (!feature) {
             message.error('No region available to save');
             return;
         }
+
+        const localFeature = {
+            ...feature,
+            geometry: {
+                ...feature.geometry,
+                coordinates: feature.geometry.coordinates.map(ring =>
+                    ring.map(([x, y]) => [x - offset[0], y - offset[1]])
+                )
+            }
+        };
+
         const newRegion = {
             id: `${sampleId}-${regionName}-${Date.now()}`,
             name: regionName,
             color: regionColor,
+            sampleId,
             feature: {
                 type: 'FeatureCollection',
-                features: [feature]
+                features: [localFeature]
             }
         };
         setRegions(prev => [...prev, newRegion]);
@@ -274,7 +314,6 @@ export const MultiSampleViewer = ({
         message.success('Region saved successfully');
         setRegionName('');
         setSelectionMode(null);
-        // update region color to new random color
         setRegionColor(generateRandomColor());
     };
 
@@ -307,7 +346,7 @@ export const MultiSampleViewer = ({
         if (!region.feature || !Array.isArray(region.feature.features) || region.feature.features.length === 0) {
             return 0;
         }
-        const sampleId = region.id.split('-')[0];
+        const sampleId = region.sampleId;
         const polygon = region.feature.features[0].geometry;
         return (cellTypeCoordinatesData[sampleId] || []).filter(cell =>
             booleanPointInPolygon([cell.cell_x, cell.cell_y], polygon)
@@ -320,10 +359,18 @@ export const MultiSampleViewer = ({
             id: 'region-labels',
             data: regions
                 .map(region => {
-                    if (!region.feature || !Array.isArray(region.feature.features) || region.feature.features.length === 0) {
-                        return null;
-                    }
-                    const center = centroid(region.feature.features[0]);
+                    if (!region.feature?.features) return null;
+                    const offset = sampleOffsets[region.sampleId] || [0, 0];
+                    const globalFeature = {
+                        ...region.feature.features[0],
+                        geometry: {
+                            ...region.feature.features[0].geometry,
+                            coordinates: region.feature.features[0].geometry.coordinates.map(ring =>
+                                ring.map(([x, y]) => [x + offset[0], y + offset[1]])
+                            )
+                        }
+                    };
+                    const center = centroid(globalFeature);
                     return {
                         position: center.geometry.coordinates,
                         text: region.name
@@ -341,18 +388,31 @@ export const MultiSampleViewer = ({
             ...generateMarkerImageLayers(),
             ...generateCellLayers(),
             ...generateEditLayers(),
-            ...regions.map(region =>
-                new GeoJsonLayer({
+            ...regions.map(region => {
+                const offset = sampleOffsets[region.sampleId] || [0, 0];
+                const globalFeature = {
+                    ...region.feature,
+                    features: region.feature.features.map(f => ({
+                        ...f,
+                        geometry: {
+                            ...f.geometry,
+                            coordinates: f.geometry.coordinates.map(ring =>
+                                ring.map(([x, y]) => [x + offset[0], y + offset[1]])
+                            )
+                        }
+                    }))
+                };
+                return new GeoJsonLayer({
                     id: `region-${region.id}`,
-                    data: region.feature,
+                    data: globalFeature,
                     stroked: true,
                     filled: true,
                     lineWidthMinPixels: 2,
                     getLineColor: () => [...region.color, 200],
                     getFillColor: () => [...region.color, 50],
                     pickable: false
-                })
-            ),
+                });
+            }),
             regionLabelLayer
         ].filter(Boolean);
     }, [generateTileLayers, generateCellLayers, generateMarkerImageLayers, generateEditLayers, regions]);
@@ -371,7 +431,7 @@ export const MultiSampleViewer = ({
             <div className="controls" style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
                 <Collapse style={{ background: '#ffffff', width: 300, opacity: 0.8 }}>
                     {samples.map(sample => (
-                        <Collapse.Panel key={sample.id} header={sample.name}>
+                        <Collapse.Panel key={sample.id} header={sample.name} onClick={() => setActiveSample(sample.id)}>
                             <Button
                                 block
                                 onClick={() => setVisibleSamples(prev => ({
