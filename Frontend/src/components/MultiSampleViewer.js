@@ -459,8 +459,8 @@ export const MultiSampleViewer = ({
                                         }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
                                                 <span style={{ fontSize: 14, marginBottom: 10 }}>{region.name}</span>
-                                                    <span style={{fontSize: 10, color: "#666"}}>Sample: {sampleId}</span>
-                                                    <span style={{fontSize: 10, color: "#666"}}>Cells: {cellCount}</span>
+                                                <span style={{ fontSize: 10, color: "#666" }}>Sample: {sampleId}</span>
+                                                <span style={{ fontSize: 10, color: "#666" }}>Cells: {cellCount}</span>
                                             </div>
                                             <CloseOutlined
                                                 onClick={(e) => { e.stopPropagation(); handleDeleteRegion(region.id); }}
