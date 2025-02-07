@@ -6,7 +6,7 @@ from process import (
     get_hires_image_size,
     get_unique_cell_types,
     get_cell_type_coordinates,
-    get_tif_tiles,
+    get_samples,
     # get_umap_positions_with_clusters,
     # get_gene_list,
     # get_specific_gene_expression
@@ -18,6 +18,11 @@ app = Flask(__name__)
 @app.route('/', methods=['GET'])
 def get_helloword():
     return 'Hello World!'
+
+
+@app.route('/get_available_samples', methods=['GET'])
+def get_available_samples():
+    return jsonify(get_samples())
 
 
 @app.route('/get_hires_image_size', methods=['POST'])

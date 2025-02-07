@@ -10,6 +10,11 @@ from PIL import Image
 import tifffile as tifi
 import squidpy as sq
 
+SAMPLES = [
+    {"id": "skin_TXK6Z4X_A1", "name": "skin_TXK6Z4X_A1"},
+    {"id": "skin_TXK6Z4X_D1", "name": "skin_TXK6Z4X_D1"}
+]
+
 skin_TXK6Z4X_A1_adata_path = "../Data/skin_TXK6Z4X_A1_processed/tmap/weighted_by_area|celltypist_cells_adata.h5"
 skin_TXK6Z4X_D1_adata_path = "../Data/skin_TXK6Z4X_D1_processed/tmap/weighted_by_area|celltypist_cells_adata.h5"
 
@@ -23,24 +28,19 @@ skin_TXK6Z4X_A1_cells_layer_image_path = "../Data/skin_TXK6Z4X_A1_processed/cell
 skin_TXK6Z4X_D1_cells_layer_image_path = "../Data/skin_TXK6Z4X_D1_processed/cells_layer.png"
 
 
+# return sample list
+def get_samples():
+    return SAMPLES
+
 # return tissue width and height size
 def get_hires_image_size(sample_id):
+    Image.MAX_IMAGE_PIXELS = None
     if sample_id == "skin_TXK6Z4X_A1":
         image = Image.open(skin_TXK6Z4X_A1_wsi_path)
     elif sample_id == "skin_TXK6Z4X_D1":
         image = Image.open(skin_TXK6Z4X_D1_wsi_path)
 
     return image.size
-
-# return tissue image tiles
-def get_tif_tiles(sample_id):
-    if sample_id == "skin_TXK6Z4X_A1":
-        tiles = [f"/tiles/{file}" for file in os.listdir(skin_TXK6Z4X_A1_wsi_tiles_dir) if file.endswith('.tif')]
-        return tiles
-    elif sample_id == "skin_TXK6Z4X_D1":
-        tiles = [f"/tiles/{file}" for file in os.listdir(skin_TXK6Z4X_D1_wsi_tiles_dir) if file.endswith('.tif')]
-        return tiles
-
 
 # return unique cell types
 def get_unique_cell_types(sample_id):
