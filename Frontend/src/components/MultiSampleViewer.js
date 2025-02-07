@@ -60,6 +60,13 @@ export const MultiSampleViewer = ({
     const [visibleCellTypes, setVisibleCellTypes] = useState({});
     const [colorMaps, setColorMaps] = useState({});
     const [hoveredCell, setHoveredCell] = useState(null);
+    const [sampleOffsets, setSampleOffsets] = useState(() => {
+        const offsets = {};
+        samples.forEach((sample, idx) => {
+            offsets[sample.id] = idx === 0 ? [0, 0] : [10000 * idx, 0];
+        });
+        return offsets;
+    });
     const [activeSample, setActiveSample] = useState(samples[0]?.id);
     const [visibleSamples, setVisibleSamples] = useState(
         samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
@@ -110,11 +117,12 @@ export const MultiSampleViewer = ({
         return samples.map(sample => {
             const imageSize = imageSizes[sample.id];
             if (!imageSize || imageSize.length < 2) return null;
+            const offset = sampleOffsets[sample.id] || [0, 0];
             return new TileLayer({
                 id: `tif-tiles-${sample.id}`,
                 visible: visibleSamples[sample.id],
                 tileSize,
-                extent: [0, 0, imageSize[0], imageSize[1]],
+                extent: [offset[0], offset[1], imageSize[0] + offset[0], imageSize[1] + offset[1]],
                 maxZoom: 0,
                 minZoom: 0,
                 getTileData: async ({ index }) => {
@@ -134,10 +142,10 @@ export const MultiSampleViewer = ({
                         return {
                             image: canvas,
                             bounds: [
-                                [x * tileSize, (y + 1) * tileSize],
-                                [x * tileSize, y * tileSize],
-                                [(x + 1) * tileSize, y * tileSize],
-                                [(x + 1) * tileSize, (y + 1) * tileSize]
+                                [x * tileSize + offset[0], (y + 1) * tileSize + offset[1]],
+                                [x * tileSize + offset[0], y * tileSize + offset[1]],
+                                [(x + 1) * tileSize + offset[0], y * tileSize + offset[1]],
+                                [(x + 1) * tileSize + offset[0], (y + 1) * tileSize + offset[1]]
                             ]
                         };
                     } catch (error) {
@@ -151,18 +159,20 @@ export const MultiSampleViewer = ({
                 })
             });
         }).filter(Boolean);
-    }, [samples, imageSizes, tileSize, visibleSamples]);
+    }, [samples, imageSizes, tileSize, visibleSamples, sampleOffsets]);
+
 
     // cell boundaries image layers
     const generateMarkerImageLayers = useCallback(() => {
         return samples.map(sample => {
             const imageSize = imageSizes[sample.id];
+            const offset = sampleOffsets[sample.id] || [0, 0];
             if (!imageSize || imageSize.length < 2) return null;
             return new BitmapLayer({
                 id: `marker-image-${sample.id}`,
                 visible: visibleSamples[sample.id],
                 image: `/${sample.id}_cells_layer.png`,
-                bounds: [0, imageSize[1], imageSize[0], 0],
+                bounds: [0, imageSize[1] + offset[1], imageSize[0] + offset[0], 0],
                 opacity: 0.05,
                 parameters: { depthTest: false }
             });
@@ -176,18 +186,19 @@ export const MultiSampleViewer = ({
                 visibleCellTypes[sample.id]?.[cell.cell_type] ?? true
             );
             if (!visibleData || visibleData.length === 0) return null;
+            const offset = sampleOffsets[sample.id] || [0, 0];
             return new ScatterplotLayer({
                 id: `cells-${sample.id}`,
                 visible: visibleSamples[sample.id],
                 data: visibleData,
-                getPosition: d => [d.cell_x, d.cell_y],
+                getPosition: d => [d.cell_x + offset[0], d.cell_y + offset[1]],
                 getRadius: 2,
                 getFillColor: d => colorMaps[sample.id]?.[d.cell_type] || [0, 0, 0],
                 pickable: true,
                 parameters: { depthTest: false }
             });
         }).filter(Boolean);
-    }, [samples, cellTypeCoordinatesData, visibleCellTypes, colorMaps, visibleSamples]);
+    }, [samples, cellTypeCoordinatesData, visibleCellTypes, colorMaps, visibleSamples, sampleOffsets]);
 
     // update current region data
     const handleRegionUpdate = (sampleId, updatedData) => {
