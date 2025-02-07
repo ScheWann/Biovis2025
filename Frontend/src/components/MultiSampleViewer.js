@@ -107,11 +107,12 @@ export const MultiSampleViewer = ({
 
     // generate tile layers for each sample
     const generateTileLayers = useCallback(() => {
-        return samples.filter(sample => visibleSamples[sample.id]).map(sample => {
+        return samples.map(sample => {
             const imageSize = imageSizes[sample.id];
             if (!imageSize || imageSize.length < 2) return null;
             return new TileLayer({
                 id: `tif-tiles-${sample.id}`,
+                visible: visibleSamples[sample.id],
                 tileSize,
                 extent: [0, 0, imageSize[0], imageSize[1]],
                 maxZoom: 0,
@@ -154,11 +155,12 @@ export const MultiSampleViewer = ({
 
     // cell boundaries image layers
     const generateMarkerImageLayers = useCallback(() => {
-        return samples.filter(sample => visibleSamples[sample.id]).map(sample => {
+        return samples.map(sample => {
             const imageSize = imageSizes[sample.id];
             if (!imageSize || imageSize.length < 2) return null;
             return new BitmapLayer({
                 id: `marker-image-${sample.id}`,
+                visible: visibleSamples[sample.id],
                 image: `/${sample.id}_cells_layer.png`,
                 bounds: [0, imageSize[1], imageSize[0], 0],
                 opacity: 0.05,
@@ -169,12 +171,14 @@ export const MultiSampleViewer = ({
 
     // nucleus coordinates scatterplot layers
     const generateCellLayers = useCallback(() => {
-        return samples.filter(sample => visibleSamples[sample.id]).map(sample => {
+        return samples.map(sample => {
             const visibleData = cellTypeCoordinatesData?.[sample.id]?.filter(cell =>
                 visibleCellTypes[sample.id]?.[cell.cell_type] ?? true
             );
-            return visibleData?.length > 0 && new ScatterplotLayer({
+            if (!visibleData || visibleData.length === 0) return null;
+            return new ScatterplotLayer({
                 id: `cells-${sample.id}`,
+                visible: visibleSamples[sample.id],
                 data: visibleData,
                 getPosition: d => [d.cell_x, d.cell_y],
                 getRadius: 2,
