@@ -60,13 +60,6 @@ export const MultiSampleViewer = ({
     const [visibleCellTypes, setVisibleCellTypes] = useState({});
     const [colorMaps, setColorMaps] = useState({});
     const [hoveredCell, setHoveredCell] = useState(null);
-    // const [sampleOffsets, setSampleOffsets] = useState(() => {
-    //     const offsets = {};
-    //     samples.forEach((sample, idx) => {
-    //         offsets[sample.id] = idx === 0 ? [0, 0] : [10000 * idx, 0];
-    //     });
-    //     return offsets;
-    // });
     const [sampleOffsets, setSampleOffsets] = useState({});
     const [activeSample, setActiveSample] = useState(samples[0]?.id);
     const [visibleSamples, setVisibleSamples] = useState(
@@ -109,7 +102,6 @@ export const MultiSampleViewer = ({
                 sizes[sample.id] = data;
             }));
             setImageSizes(sizes);
-            console.log(sizes, '////////')
         };
         if (samples.length) fetchImageSizes();
     }, [samples]);
@@ -139,13 +131,24 @@ export const MultiSampleViewer = ({
                 id: `tif-tiles-${sample.id}`,
                 visible: visibleSamples[sample.id],
                 tileSize,
-                extent: [0, 0, imageSize[0], imageSize[1]],
+                extent: [
+                    offset[0],
+                    offset[1],
+                    offset[0] + imageSize[0],
+                    offset[1] + imageSize[1]
+                ],
                 minZoom: 0,
                 maxZoom: 0,
                 getTileData: async ({ index }) => {
                     try {
                         const { x, y } = index;
-                        const response = await fetch(`/get_tile?sample_id=${sample.id}&x=${x}&y=${y}`);
+                        const tileOriginX = Math.floor(offset[0] / tileSize);
+                        const tileOriginY = Math.floor(offset[1] / tileSize);
+
+                        const relativeX = x - tileOriginX;
+                        const relativeY = y - tileOriginY;
+                
+                        const response = await fetch(`/get_tile?sample_id=${sample.id}&x=${relativeX}&y=${relativeY}`);
                         const blob = await response.blob();
                         const tiff = await fromBlob(blob);
                         const image = await tiff.getImage();
@@ -159,10 +162,10 @@ export const MultiSampleViewer = ({
                         return {
                             image: canvas,
                             bounds: [
-                                [x * tileSize + offset[0], (y + 1) * tileSize + offset[1]],
-                                [x * tileSize + offset[0], y * tileSize + offset[1]],
-                                [(x + 1) * tileSize + offset[0], y * tileSize + offset[1]],
-                                [(x + 1) * tileSize + offset[0], (y + 1) * tileSize + offset[1]]
+                                [relativeX * tileSize + offset[0], (relativeY + 1) * tileSize + offset[1]],
+                                [relativeX * tileSize + offset[0], relativeY * tileSize + offset[1]],
+                                [(relativeX + 1) * tileSize + offset[0], relativeY * tileSize + offset[1]],
+                                [(relativeX + 1) * tileSize + offset[0], (relativeY + 1) * tileSize + offset[1]]
                             ]
                         };
                     } catch (error) {
@@ -411,7 +414,20 @@ export const MultiSampleViewer = ({
                     layers={layers}
                     views={new OrthographicView({ controller: true })}
                     initialViewState={{
-                        target: [5000, 5000, 0],
+                        target: (() => {
+                            const firstSample = samples[0];
+                            if (!firstSample) return [0, 0, 0];
+
+                            const sampleId = firstSample.id;
+                            const offset = sampleOffsets[sampleId] ?? [0, 0];
+                            const size = imageSizes[sampleId] ?? [0, 0];
+
+                            return [
+                                offset[0] + size[0] / 2,
+                                offset[1] + size[1] / 2,
+                                0
+                            ];
+                        })(),
                         zoom: -2,
                         maxZoom: 1,
                         minZoom: -5
@@ -429,7 +445,13 @@ export const MultiSampleViewer = ({
                             setHoveredCell(null);
                         }
                     }}
-                    controller={true}
+                    controller={{
+                        inertia: true,
+                        scrollZoom: {
+                            speed: 0.05,
+                            smooth: true
+                        },
+                    }}
                 />
 
                 {/* tooltip */}
