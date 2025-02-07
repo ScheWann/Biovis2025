@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
-import { Collapse, Button, Input, ColorPicker, Checkbox, message, Spin } from "antd";
+import { Collapse, Button, Input, ColorPicker, Checkbox, message } from "antd";
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
@@ -320,19 +320,6 @@ export const MultiSampleViewer = ({
             handleSaveRegion();
         }
     };
-
-    if (!allDataLoaded) {
-        return (
-            <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100vh'
-            }}>
-                <Spin tip="Loading data..." size="large" />
-            </div>
-        );
-    }
 
     return (
         <div style={{ height: '100vh', display: 'flex' }}>
