@@ -60,13 +60,14 @@ export const MultiSampleViewer = ({
     const [visibleCellTypes, setVisibleCellTypes] = useState({});
     const [colorMaps, setColorMaps] = useState({});
     const [hoveredCell, setHoveredCell] = useState(null);
-    const [sampleOffsets, setSampleOffsets] = useState(() => {
-        const offsets = {};
-        samples.forEach((sample, idx) => {
-            offsets[sample.id] = idx === 0 ? [0, 0] : [10000 * idx, 0];
-        });
-        return offsets;
-    });
+    // const [sampleOffsets, setSampleOffsets] = useState(() => {
+    //     const offsets = {};
+    //     samples.forEach((sample, idx) => {
+    //         offsets[sample.id] = idx === 0 ? [0, 0] : [10000 * idx, 0];
+    //     });
+    //     return offsets;
+    // });
+    const [sampleOffsets, setSampleOffsets] = useState({});
     const [activeSample, setActiveSample] = useState(samples[0]?.id);
     const [visibleSamples, setVisibleSamples] = useState(
         samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
@@ -108,9 +109,25 @@ export const MultiSampleViewer = ({
                 sizes[sample.id] = data;
             }));
             setImageSizes(sizes);
+            console.log(sizes, '////////')
         };
         if (samples.length) fetchImageSizes();
     }, [samples]);
+
+    useEffect(() => {
+        if (Object.keys(imageSizes).length === samples.length) {
+            let currentX = 0;
+            const margin = 100;
+            const newOffsets = {};
+
+            samples.forEach(sample => {
+                const size = imageSizes[sample.id];
+                newOffsets[sample.id] = [currentX, 0];
+                currentX += size[0] + margin;
+            });
+            setSampleOffsets(newOffsets);
+        }
+    }, [imageSizes, samples]);
 
     // generate tile layers for each sample
     const generateTileLayers = useCallback(() => {
@@ -122,9 +139,9 @@ export const MultiSampleViewer = ({
                 id: `tif-tiles-${sample.id}`,
                 visible: visibleSamples[sample.id],
                 tileSize,
-                extent: [offset[0], offset[1], imageSize[0] + offset[0], imageSize[1] + offset[1]],
-                maxZoom: 0,
+                extent: [0, 0, imageSize[0], imageSize[1]],
                 minZoom: 0,
+                maxZoom: 0,
                 getTileData: async ({ index }) => {
                     try {
                         const { x, y } = index;
@@ -172,7 +189,7 @@ export const MultiSampleViewer = ({
                 id: `marker-image-${sample.id}`,
                 visible: visibleSamples[sample.id],
                 image: `/${sample.id}_cells_layer.png`,
-                bounds: [0, imageSize[1] + offset[1], imageSize[0] + offset[0], 0],
+                bounds: [offset[0], offset[1] + imageSize[1], offset[0] + imageSize[0], offset[1]],
                 opacity: 0.05,
                 parameters: { depthTest: false }
             });
