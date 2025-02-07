@@ -1,10 +1,10 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
-import { Collapse, Button, Input, ColorPicker, Checkbox, message, Tabs, Spin, Modal } from "antd";
+import { Collapse, Button, Input, ColorPicker, Checkbox, message, Spin } from "antd";
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
-import { BitmapLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
-import { booleanPointInPolygon, centroid } from '@turf/turf';
+import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { booleanPointInPolygon } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
@@ -36,7 +36,7 @@ const hslToRgb = (h, s, l) => {
 };
 
 export const MultiSampleViewer = ({
-    samples, // 改为接收样本数组
+    samples, // 样本数组
     cellTypeCoordinatesData,
     cellTypeDir,
     regions,
@@ -57,9 +57,8 @@ export const MultiSampleViewer = ({
     );
     const [regionName, setRegionName] = useState('');
     const [regionColor, setRegionColor] = useState([255, 0, 0]);
-    const [isModalVisible, setIsModalVisible] = useState(false);
 
-    // 初始化颜色映射和可见性
+    // 初始化颜色映射和细胞类型可见性
     useEffect(() => {
         const initialStates = samples.reduce((acc, sample) => {
             const initialColorMap = {};
@@ -160,9 +159,9 @@ export const MultiSampleViewer = ({
                 id: `marker-image-${sample.id}`,
                 image: `/${sample.id}_cells_layer.png`, // 根据实际路径调整
                 bounds: [0, imageSize[1], imageSize[0], 0],
-                opacity: 0.05, // 保持与之前相同的透明度
+                opacity: 0.05,
                 parameters: {
-                    depthTest: false // 确保在所有其他图层之上
+                    depthTest: false
                 }
             });
         }).filter(Boolean);
@@ -204,7 +203,7 @@ export const MultiSampleViewer = ({
         }
     };
 
-    // 保存区域
+    // 保存区域（不再使用 Modal，而是在右上角输入区域名称并控制绘制）
     const handleSaveRegion = () => {
         if (!regionName) {
             message.error('请填写区域名称');
@@ -232,7 +231,7 @@ export const MultiSampleViewer = ({
         setFeatures(prev => ({ ...prev, [sampleId]: { type: 'FeatureCollection', features: [] } }));
         setTempRegions(prev => ({ ...prev, [sampleId]: null }));
         setRegionName('');
-        setIsModalVisible(false);
+        setSelectionMode(null);
         message.success('区域保存成功');
     };
 
@@ -252,7 +251,7 @@ export const MultiSampleViewer = ({
                 mode: DrawPolygonMode,
                 selectedFeatureIndexes: [],
                 onEdit: ({ updatedData }) => handleRegionUpdate(sample.id, updatedData),
-                visible: selectionMode === sample.id,
+                visible: selectionMode === sample.id, // 只有当前激活样本的编辑图层可见
                 getLineColor: tempRegion.color ? [...tempRegion.color, 200] : [255, 0, 0, 200],
                 getFillColor: tempRegion.color ? [...tempRegion.color, 50] : [255, 255, 0, 50],
                 lineWidthMinPixels: 2
@@ -265,7 +264,8 @@ export const MultiSampleViewer = ({
             imageSizes[sample.id] &&
             cellTypeCoordinatesData[sample.id]
         ),
-        [samples, imageSizes, cellTypeCoordinatesData]);
+        [samples, imageSizes, cellTypeCoordinatesData]
+    );
 
     // 合并所有图层
     const layers = useMemo(() => [
@@ -283,6 +283,17 @@ export const MultiSampleViewer = ({
         )
     ].filter(Boolean), [generateTileLayers, generateCellLayers, generateMarkerImageLayers, generateEditLayers, regions]);
 
+    // 全局绘制模式控制：点击按钮时切换绘制状态
+    const toggleDrawingMode = () => {
+        if (!selectionMode) {
+            // 开始对当前激活样本绘制区域
+            setSelectionMode(activeSample);
+        } else {
+            // 保存当前绘制的区域
+            handleSaveRegion();
+        }
+    };
+
     if (!allDataLoaded) {
         return (
             <div style={{
@@ -295,100 +306,11 @@ export const MultiSampleViewer = ({
             </div>
         );
     }
+
     return (
         <div style={{ height: '100vh', display: 'flex' }}>
             {/* 左侧样本控制面板 */}
-            {/* <div style={{ width: 300, padding: 16, borderRight: '1px solid #f0f0f0' }}>
-                <Tabs
-                    activeKey={activeSample}
-                    onChange={setActiveSample}
-                    items={samples.map(sample => ({
-                        key: sample.id,
-                        label: sample.name,
-                        children: (
-                            <div style={{ marginTop: 16 }}>
-                                <Button
-                                    block
-                                    onClick={() => setVisibleSamples(prev => ({
-                                        ...prev,
-                                        [sample.id]: !prev[sample.id]
-                                    }))}
-                                >
-                                    {visibleSamples[sample.id] ? '隐藏样本' : '显示样本'}
-                                </Button>
-
-                                <Collapse
-                                    style={{ marginTop: 16 }}
-                                    items={[{
-                                        key: 'cell-types',
-                                        label: '细胞类型设置',
-                                        children: (
-                                            <CellTypeSettings
-                                                sampleId={sample.id}
-                                                cellTypes={cellTypeDir}
-                                                colorMap={colorMaps[sample.id] || {}}
-                                                visibleMap={visibleCellTypes[sample.id] || {}}
-                                                onColorChange={(type, color) => {
-                                                    setColorMaps(prev => ({
-                                                        ...prev,
-                                                        [sample.id]: { ...prev[sample.id], [type]: color }
-                                                    }));
-                                                }}
-                                                onVisibilityChange={(type, visible) => {
-                                                    setVisibleCellTypes(prev => ({
-                                                        ...prev,
-                                                        [sample.id]: { ...prev[sample.id], [type]: visible }
-                                                    }));
-                                                }}
-                                            />
-                                        )
-                                    }]}
-                                />
-
-                                <Button
-                                    block
-                                    style={{ marginTop: 16 }}
-                                    onClick={() => {
-                                        setSelectionMode(sample.id);
-                                        setIsModalVisible(true);
-                                    }}
-                                >
-                                    绘制区域
-                                </Button>
-
-                                <Collapse
-                                    style={{ marginTop: 16 }}
-                                    items={[{
-                                        key: 'regions',
-                                        label: '已保存区域',
-                                        children: (
-                                            <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                                                {regions.filter(region => region.id.startsWith(`${sample.id}-`)).map(region => (
-                                                    <div key={region.id} style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'space-between',
-                                                        padding: '8px 0',
-                                                        borderBottom: '1px solid #f0f0f0'
-                                                    }}>
-                                                        <span style={{ fontSize: 14 }}>{region.name}</span>
-                                                        <Button
-                                                            type="text"
-                                                            icon={<CloseOutlined />}
-                                                            onClick={() => handleDeleteRegion(region.id)}
-                                                        />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )
-                                    }]}
-                                />
-                            </div>
-                        )
-                    }))}
-                />
-            </div> */}
-            <div className="controls" style={{ position: 'absolute', top: 10, left: 10, zIndex: 1 }}>
+            <div className="controls" style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
                 <Collapse>
                     {samples.map(sample => (
                         <Collapse.Panel key={sample.id} header={sample.name}>
@@ -425,17 +347,6 @@ export const MultiSampleViewer = ({
                                 </Collapse.Panel>
                             </Collapse>
 
-                            <Button
-                                block
-                                style={{ marginTop: 16 }}
-                                onClick={() => {
-                                    setSelectionMode(sample.id);
-                                    setIsModalVisible(true);
-                                }}
-                            >
-                                绘制区域
-                            </Button>
-
                             <Collapse style={{ marginTop: 16 }}>
                                 <Collapse.Panel key={`regions-${sample.id}`} header="已保存区域">
                                     <div style={{ maxHeight: 200, overflowY: 'auto' }}>
@@ -462,6 +373,7 @@ export const MultiSampleViewer = ({
                     ))}
                 </Collapse>
             </div>
+
             {/* 主视图区域 */}
             <div style={{ flex: 1, position: 'relative' }}>
                 <DeckGL
@@ -505,29 +417,28 @@ export const MultiSampleViewer = ({
                         <div>细胞类型: {hoveredCell.cell_type}</div>
                     </div>
                 )}
-            </div>
 
-            {/* 保存区域模态框 */}
-            <Modal
-                title="保存区域"
-                visible={isModalVisible}
-                onOk={handleSaveRegion}
-                onCancel={() => setIsModalVisible(false)}
-            >
-                <Input
-                    placeholder="区域名称"
-                    value={regionName}
-                    onChange={e => setRegionName(e.target.value)}
-                    style={{ marginBottom: 16 }}
-                />
-                <ColorPicker
-                    value={`rgb(${regionColor.join(',')})`}
-                    onChange={color => {
-                        const rgb = color.toRgb();
-                        setRegionColor([rgb.r, rgb.g, rgb.b]);
-                    }}
-                />
-            </Modal>
+                {/* 右上角绘制控制面板：包含区域名称输入和控制按钮 */}
+                <div style={{
+                    position: 'absolute',
+                    top: 10,
+                    right: 10,
+                    zIndex: 20,
+                    background: 'rgba(255,255,255,0.8)',
+                    padding: '10px',
+                    borderRadius: '4px'
+                }}>
+                    <Input
+                        placeholder="区域名称"
+                        value={regionName}
+                        onChange={e => setRegionName(e.target.value)}
+                        style={{ marginBottom: 8 }}
+                    />
+                    <Button type="primary" onClick={toggleDrawingMode}>
+                        {selectionMode ? '保存区域' : '开始绘制区域'}
+                    </Button>
+                </div>
+            </div>
         </div>
     );
 };
