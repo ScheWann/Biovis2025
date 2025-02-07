@@ -9,7 +9,7 @@ import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
 
-// 工具函数：HSL 转 RGB
+// HSL to RGB
 const hslToRgb = (h, s, l) => {
     h /= 360;
     s /= 100;
@@ -35,13 +35,14 @@ const hslToRgb = (h, s, l) => {
     return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 };
 
-// 生成随机颜色，每次保存区域后调用以更新下一次绘制区域使用的颜色
+
+// generate random color, call this function after saving region to update the color for next drawing
 const generateRandomColor = () => {
     return hslToRgb(Math.floor(Math.random() * 360), 100, 50);
 };
 
 export const MultiSampleViewer = ({
-    samples, // 样本数组
+    samples,
     cellTypeCoordinatesData,
     cellTypeDir,
     regions,
@@ -61,10 +62,10 @@ export const MultiSampleViewer = ({
         samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
     );
     const [regionName, setRegionName] = useState('');
-    // 默认区域颜色使用随机颜色；保存区域后会更新为新的随机颜色
+    // default region color is random color, after saving region, it will update to new random color
     const [regionColor, setRegionColor] = useState(generateRandomColor());
 
-    // 初始化每个样本的颜色映射和细胞类型可见性
+    // intialize color map and visible cell types for each sample
     useEffect(() => {
         const initialStates = samples.reduce((acc, sample) => {
             const initialColorMap = {};
@@ -83,7 +84,7 @@ export const MultiSampleViewer = ({
         setVisibleCellTypes(initialStates.visibleCellTypes);
     }, [samples, cellTypeDir]);
 
-    // 获取所有样本的图片尺寸
+    // get image sizes for all samples
     useEffect(() => {
         const fetchImageSizes = async () => {
             const sizes = {};
@@ -101,7 +102,7 @@ export const MultiSampleViewer = ({
         if (samples.length) fetchImageSizes();
     }, [samples]);
 
-    // 生成样本瓦片图层
+    // generate tile layers for each sample
     const generateTileLayers = useCallback(() => {
         return samples.filter(sample => visibleSamples[sample.id]).map(sample => {
             const imageSize = imageSizes[sample.id];
@@ -148,14 +149,14 @@ export const MultiSampleViewer = ({
         }).filter(Boolean);
     }, [samples, imageSizes, tileSize, visibleSamples]);
 
-    // 生成 marker 图层（低透明度，用于背景参考）
+    // cell boundaries image layers
     const generateMarkerImageLayers = useCallback(() => {
         return samples.filter(sample => visibleSamples[sample.id]).map(sample => {
             const imageSize = imageSizes[sample.id];
             if (!imageSize || imageSize.length < 2) return null;
             return new BitmapLayer({
                 id: `marker-image-${sample.id}`,
-                image: `/${sample.id}_cells_layer.png`, // 根据实际路径调整
+                image: `/${sample.id}_cells_layer.png`,
                 bounds: [0, imageSize[1], imageSize[0], 0],
                 opacity: 0.05,
                 parameters: { depthTest: false }
@@ -163,7 +164,7 @@ export const MultiSampleViewer = ({
         }).filter(Boolean);
     }, [samples, imageSizes, visibleSamples]);
 
-    // 生成细胞图层
+    // nucleus coordinates scatterplot layers
     const generateCellLayers = useCallback(() => {
         return samples.filter(sample => visibleSamples[sample.id]).map(sample => {
             const visibleData = cellTypeCoordinatesData?.[sample.id]?.filter(cell =>
@@ -181,7 +182,7 @@ export const MultiSampleViewer = ({
         }).filter(Boolean);
     }, [samples, cellTypeCoordinatesData, visibleCellTypes, colorMaps, visibleSamples]);
 
-    // 区域编辑逻辑：更新当前绘制区域数据
+    // update current region data
     const handleRegionUpdate = (sampleId, updatedData) => {
         setFeatures(prev => ({ ...prev, [sampleId]: updatedData }));
         const lastFeature = updatedData.features?.[updatedData.features.length - 1];
@@ -198,7 +199,7 @@ export const MultiSampleViewer = ({
         }
     };
 
-    // 保存区域，同时保存区域名称和区域颜色，并更新区域颜色为新的随机颜色
+    // save region, save region name and region color, and update region color to new random color
     const handleSaveRegion = () => {
         if (!regionName) {
             message.error('请填写区域名称');
@@ -225,17 +226,17 @@ export const MultiSampleViewer = ({
         message.success('区域保存成功');
         setRegionName('');
         setSelectionMode(null);
-        // 保存后更新区域颜色为新的随机颜色，保证下次绘制时颜色不同
+        // update region color to new random color
         setRegionColor(generateRandomColor());
     };
 
-    // 删除区域
+    // delete region
     const handleDeleteRegion = (regionId) => {
         setRegions(prev => prev.filter(region => region.id !== regionId));
-        message.success('区域删除成功');
+        message.success('Region deleted!');
     };
 
-    // 生成编辑图层（用于绘制新区域）
+    // generate editable layers for each sample
     const generateEditLayers = useCallback(() => {
         return samples.map(sample => {
             const tempRegion = tempRegions[sample.id] || {};
@@ -245,7 +246,7 @@ export const MultiSampleViewer = ({
                 mode: DrawPolygonMode,
                 selectedFeatureIndexes: [],
                 onEdit: ({ updatedData }) => handleRegionUpdate(sample.id, updatedData),
-                visible: selectionMode === sample.id, // 只有当前激活样本的编辑图层可见
+                visible: selectionMode === sample.id, // only show the layer for the active sample
                 getLineColor: tempRegion.color ? [...tempRegion.color, 200] : [255, 0, 0, 200],
                 getFillColor: tempRegion.color ? [...tempRegion.color, 50] : [255, 255, 0, 50],
                 lineWidthMinPixels: 2
@@ -253,14 +254,14 @@ export const MultiSampleViewer = ({
         });
     }, [samples, features, tempRegions, selectionMode]);
 
-    // 辅助函数：计算区域内的细胞数量
+    // calculate cell count for a region
     const getCellCount = (region) => {
-        const sampleId = region.id.split('-')[0];
-        if (!cellTypeCoordinatesData[sampleId] || region.feature.features.length === 0) {
+        if (!region.feature || !Array.isArray(region.feature.features) || region.feature.features.length === 0) {
             return 0;
         }
+        const sampleId = region.id.split('-')[0];
         const polygon = region.feature.features[0].geometry;
-        return cellTypeCoordinatesData[sampleId].filter(cell =>
+        return (cellTypeCoordinatesData[sampleId] || []).filter(cell =>
             booleanPointInPolygon([cell.cell_x, cell.cell_y], polygon)
         ).length;
     };
@@ -273,13 +274,15 @@ export const MultiSampleViewer = ({
         [samples, imageSizes, cellTypeCoordinatesData]
     );
 
-    // 合并所有图层，同时增加一个 TextLayer 用于显示已保存区域的名称（在区域中心位置）
+    // all layers including tile layers, cell layers, marker image layers, edit layers, and region label layers
     const layers = useMemo(() => {
         const regionLabelLayer = new TextLayer({
             id: 'region-labels',
             data: regions
                 .map(region => {
-                    if (region.feature.features.length === 0) return null;
+                    if (!region.feature || !Array.isArray(region.feature.features) || region.feature.features.length === 0) {
+                        return null;
+                    }
                     const center = centroid(region.feature.features[0]);
                     return {
                         position: center.geometry.coordinates,
@@ -293,6 +296,7 @@ export const MultiSampleViewer = ({
             getSize: 16,
             sizeUnits: 'pixels'
         });
+
         return [
             ...generateTileLayers(),
             ...generateMarkerImageLayers(),
@@ -310,7 +314,7 @@ export const MultiSampleViewer = ({
         ].filter(Boolean);
     }, [generateTileLayers, generateCellLayers, generateMarkerImageLayers, generateEditLayers, regions]);
 
-    // 全局绘制模式控制：点击右上角按钮时切换绘制状态
+    // toggle drawing mode
     const toggleDrawingMode = () => {
         if (!selectionMode) {
             setSelectionMode(activeSample);
@@ -334,9 +338,8 @@ export const MultiSampleViewer = ({
 
     return (
         <div style={{ height: '100vh', display: 'flex' }}>
-            {/* 左侧面板：仅显示每个样本的“显示/隐藏样本”和“细胞类型设置” */}
             <div className="controls" style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
-                <Collapse>
+                <Collapse style={{ background: '#ffffff', width: 300, opacity: 0.8 }}>
                     {samples.map(sample => (
                         <Collapse.Panel key={sample.id} header={sample.name}>
                             <Button
@@ -346,10 +349,10 @@ export const MultiSampleViewer = ({
                                     [sample.id]: !prev[sample.id]
                                 }))}
                             >
-                                {visibleSamples[sample.id] ? '隐藏样本' : '显示样本'}
+                                {visibleSamples[sample.id] ? 'Hide Sample' : 'Show Sample'}
                             </Button>
                             <Collapse style={{ marginTop: 16 }}>
-                                <Collapse.Panel key={`cell-types-${sample.id}`} header="细胞类型设置">
+                                <Collapse.Panel key={`cell-types-${sample.id}`} header="Cell Types">
                                     <CellTypeSettings
                                         sampleId={sample.id}
                                         cellTypes={cellTypeDir}
@@ -375,7 +378,7 @@ export const MultiSampleViewer = ({
                 </Collapse>
             </div>
 
-            {/* 主视图区域 */}
+            {/* Main View */}
             <div style={{ flex: 1, position: 'relative' }}>
                 <DeckGL
                     layers={layers}
@@ -402,7 +405,7 @@ export const MultiSampleViewer = ({
                     controller={true}
                 />
 
-                {/* 悬浮提示 */}
+                {/* tooltip */}
                 {hoveredCell && (
                     <div style={{
                         position: 'absolute',
@@ -414,44 +417,45 @@ export const MultiSampleViewer = ({
                         boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                         transform: 'translateX(-50%)'
                     }}>
-                        <div>样本: {hoveredCell.sampleId}</div>
-                        <div>细胞类型: {hoveredCell.cell_type}</div>
+                        <div>Sample: {hoveredCell.sampleId}</div>
+                        <div>Cell Type: {hoveredCell.cell_type}</div>
                     </div>
                 )}
 
-                {/* 右上角控制面板：绘制区域控制和全局已保存区域 */}
+                {/* rightCornerControls: Saved regions and drawing controls */}
                 <div style={{
                     position: 'absolute',
                     top: 10,
                     right: 10,
                     zIndex: 20,
-                    background: 'rgba(255,255,255,0.8)',
-                    padding: '10px',
-                    borderRadius: '4px',
                     width: 220
                 }}>
-                    {/* 绘制区域控制部分 */}
-                    <div>
+                    {/* region drawing controls */}
+                    <div style={{ background: 'rgba(255,255,255,0.8)', padding: '10px', borderRadius: '10px', display: 'flex', flexDirection: 'column' }}>
                         <Input
-                            placeholder="区域名称"
+                            placeholder="New region name"
                             value={regionName}
                             onChange={e => setRegionName(e.target.value)}
                             style={{ marginBottom: 8 }}
                         />
-                        <ColorPicker
-                            value={`rgb(${regionColor.join(',')})`}
-                            onChange={color => {
-                                const rgb = color.toRgb();
-                                setRegionColor([rgb.r, rgb.g, rgb.b]);
-                            }}
-                            style={{ marginBottom: 8 }}
-                        />
-                        <Button type="primary" onClick={toggleDrawingMode} block>
-                            {selectionMode ? '保存区域' : '开始绘制区域'}
-                        </Button>
+                        <div style={{ display: "flex", gap: 5 }}>
+                            <ColorPicker
+                                size='small'
+                                value={`rgb(${regionColor.join(',')})`}
+                                onChange={color => {
+                                    const rgb = color.toRgb();
+                                    setRegionColor([rgb.r, rgb.g, rgb.b]);
+                                }}
+                                style={{ marginBottom: 8 }}
+                            />
+                            <Button size='small' variant="outlined" onClick={toggleDrawingMode} block>
+                                {selectionMode ? 'Save' : 'Draw'}
+                            </Button>
+                        </div>
                     </div>
-                    {/* 使用单个 Collapse.Panel 显示“Selected Region (N)” */}
-                    <Collapse style={{ marginTop: 10, background: 'rgba(255,255,255,0.9)', borderRadius: 4 }}>
+
+                    {/* saved regions */}
+                    <Collapse style={{ marginTop: 10, background: 'rgba(255,255,255,0.8)' }}>
                         <Collapse.Panel header={`Selected Region (${regions.length})`} key="selected-region">
                             {regions.length > 0 ? (
                                 regions.map(region => {
@@ -487,7 +491,7 @@ export const MultiSampleViewer = ({
     );
 };
 
-// 细胞类型设置子组件
+// cell type setting component
 const CellTypeSettings = ({
     sampleId,
     cellTypes,
@@ -505,7 +509,8 @@ const CellTypeSettings = ({
     return (
         <div style={{ maxHeight: 400, overflowY: 'auto' }}>
             <Input.Search
-                placeholder="搜索细胞类型"
+                size='small'
+                placeholder="Search cell types"
                 value={searchText}
                 onChange={e => setSearchText(e.target.value)}
                 style={{ marginBottom: 12 }}
