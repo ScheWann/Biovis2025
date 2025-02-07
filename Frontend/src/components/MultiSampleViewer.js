@@ -3,7 +3,7 @@ import DeckGL from '@deck.gl/react';
 import { Collapse, Button, Input, ColorPicker, Checkbox, message } from "antd";
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
-import { BitmapLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
+import { BitmapLayer, ScatterplotLayer, TextLayer, GeoJsonLayer } from '@deck.gl/layers';
 import { booleanPointInPolygon, centroid } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
@@ -47,10 +47,14 @@ export const MultiSampleViewer = ({
     regions,
     setRegions
 }) => {
-    const viewerRef = useRef(null);
     const [imageSizes, setImageSizes] = useState({});
     const [tileSize] = useState(256);
-    const [features, setFeatures] = useState({});
+    const [features, setFeatures] = useState(
+        samples.reduce((acc, sample) => ({
+            ...acc,
+            [sample.id]: { type: 'FeatureCollection', features: [] }
+        }), {})
+    );
     const [tempRegions, setTempRegions] = useState({});
     const [selectionMode, setSelectionMode] = useState(null);
     const [visibleCellTypes, setVisibleCellTypes] = useState({});
@@ -183,8 +187,15 @@ export const MultiSampleViewer = ({
 
     // update current region data
     const handleRegionUpdate = (sampleId, updatedData) => {
-        setFeatures(prev => ({ ...prev, [sampleId]: updatedData }));
-        const lastFeature = updatedData.features?.[updatedData.features.length - 1];
+        if (!updatedData || !Array.isArray(updatedData.features)) {
+            console.error('Invalid GeoJSON data:', updatedData);
+            return;
+        }
+        setFeatures(prev => ({
+            ...prev,
+            [sampleId]: updatedData
+        }));
+        const lastFeature = updatedData.features[updatedData.features.length - 1];
         if (lastFeature) {
             setTempRegions(prev => ({
                 ...prev,
@@ -220,7 +231,10 @@ export const MultiSampleViewer = ({
             }
         };
         setRegions(prev => [...prev, newRegion]);
-        setFeatures(prev => ({ ...prev, [sampleId]: { type: 'FeatureCollection', features: [] } }));
+        setFeatures(prev => ({
+            ...prev,
+            [sampleId]: { type: 'FeatureCollection', features: [] }
+        }));
         setTempRegions(prev => ({ ...prev, [sampleId]: null }));
         message.success('Region saved successfully');
         setRegionName('');
@@ -245,7 +259,7 @@ export const MultiSampleViewer = ({
                 mode: DrawPolygonMode,
                 selectedFeatureIndexes: [],
                 onEdit: ({ updatedData }) => handleRegionUpdate(sample.id, updatedData),
-                visible: selectionMode === sample.id, // only show the layer for the active sample
+                visible: selectionMode === sample.id,
                 getLineColor: tempRegion.color ? [...tempRegion.color, 200] : [255, 0, 0, 200],
                 getFillColor: tempRegion.color ? [...tempRegion.color, 50] : [255, 255, 0, 50],
                 lineWidthMinPixels: 2
@@ -264,14 +278,6 @@ export const MultiSampleViewer = ({
             booleanPointInPolygon([cell.cell_x, cell.cell_y], polygon)
         ).length;
     };
-
-    const allDataLoaded = useMemo(() =>
-        samples.every(sample =>
-            imageSizes[sample.id] &&
-            cellTypeCoordinatesData[sample.id]
-        ),
-        [samples, imageSizes, cellTypeCoordinatesData]
-    );
 
     // all layers including tile layers, cell layers, marker image layers, edit layers, and region label layers
     const layers = useMemo(() => {
@@ -301,11 +307,15 @@ export const MultiSampleViewer = ({
             ...generateCellLayers(),
             ...generateEditLayers(),
             ...regions.map(region =>
-                new EditableGeoJsonLayer({
+                new GeoJsonLayer({
                     id: `region-${region.id}`,
                     data: region.feature,
-                    getLineColor: [...region.color, 200],
-                    getFillColor: [...region.color, 50]
+                    stroked: true,
+                    filled: true,
+                    lineWidthMinPixels: 2,
+                    getLineColor: () => [...region.color, 200],
+                    getFillColor: () => [...region.color, 50],
+                    pickable: false
                 })
             ),
             regionLabelLayer
