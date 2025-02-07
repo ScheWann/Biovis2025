@@ -128,13 +128,17 @@ export const MultiSampleViewer = ({
 
     // TileLayer
     const generateTileLayers = useCallback(() => {
+        if (currentZoom < TILE_LOAD_ZOOM_THRESHOLD) {
+            return [];
+        }
+
         return samples.map(sample => {
             const imageSize = imageSizes[sample.id];
             if (!imageSize || imageSize.length < 2) return null;
             const offset = sampleOffsets[sample.id] || [0, 0];
             return new TileLayer({
                 id: `tif-tiles-${sample.id}`,
-                visible: visibleSamples[sample.id] && currentZoom >= TILE_LOAD_ZOOM_THRESHOLD,
+                visible: visibleSamples[sample.id],
                 tileSize,
                 extent: [
                     offset[0],
@@ -524,7 +528,6 @@ export const MultiSampleViewer = ({
                         minZoom: -5
                     }}
                     onViewStateChange={({ viewState }) => {
-                        console.log(viewState.zoom);
                         setCurrentZoom(viewState.zoom);
                     }}
                     onHover={info => {
