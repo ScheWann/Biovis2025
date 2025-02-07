@@ -331,7 +331,7 @@ export const MultiSampleViewer = ({
                 alignItems: 'center',
                 height: '100vh'
             }}>
-                <Spin tip="加载数据中..." size="large" />
+                <Spin tip="Loading data..." size="large" />
             </div>
         );
     }
