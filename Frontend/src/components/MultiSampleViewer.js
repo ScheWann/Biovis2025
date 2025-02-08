@@ -40,6 +40,16 @@ const generateRandomColor = () => {
     return hslToRgb(Math.floor(Math.random() * 360), 100, 50);
 };
 
+const debounce = (fn, delay) => {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+            fn(...args);
+        }, delay);
+    };
+};
+
 export const MultiSampleViewer = ({
     samples,
     cellTypeCoordinatesData,
@@ -123,7 +133,6 @@ export const MultiSampleViewer = ({
             let currentX = 0;
             const margin = 100;
             const newOffsets = {};
-
             samples.forEach(sample => {
                 const size = imageSizes[sample.id];
                 newOffsets[sample.id] = [currentX, 0];
@@ -136,12 +145,25 @@ export const MultiSampleViewer = ({
         );
     }, [imageSizes, samples]);
 
+    // save filtered cell data, only recalculate when dependencies change
+    const filteredCellData = useMemo(() => {
+        return samples.reduce((acc, sample) => {
+            const data = cellTypeCoordinatesData[sample.id] || [];
+            const filtered = data.filter(cell => visibleCellTypes[sample.id]?.[cell.cell_type] ?? true);
+            return { ...acc, [sample.id]: filtered };
+        }, {});
+    }, [samples, cellTypeCoordinatesData, visibleCellTypes]);
+
+    // debounce zoom level update
+    const debouncedSetZoom = useMemo(() => debounce((zoom) => {
+        setCurrentZoom(zoom);
+    }, 100), []);
+
     // TileLayer
     const generateTileLayers = useCallback(() => {
         if (currentZoom < TILE_LOAD_ZOOM_THRESHOLD) {
             return [];
         }
-
         return samples.map(sample => {
             const imageSize = imageSizes[sample.id];
             if (!imageSize || imageSize.length < 2) return null;
@@ -163,10 +185,8 @@ export const MultiSampleViewer = ({
                         const { x, y } = index;
                         const tileOriginX = Math.floor(offset[0] / tileSize);
                         const tileOriginY = Math.floor(offset[1] / tileSize);
-
                         const relativeX = x - tileOriginX;
                         const relativeY = y - tileOriginY;
-
                         const response = await fetch(`/get_tile?sample_id=${sample.id}&x=${relativeX}&y=${relativeY}`);
                         const blob = await response.blob();
                         const tiff = await fromBlob(blob);
@@ -236,23 +256,25 @@ export const MultiSampleViewer = ({
     // nucleus coordinates scatterplot layers
     const generateCellLayers = useCallback(() => {
         return samples.map(sample => {
-            const visibleData = cellTypeCoordinatesData?.[sample.id]?.filter(cell =>
-                visibleCellTypes[sample.id]?.[cell.cell_type] ?? true
-            );
-            if (!visibleData || visibleData.length === 0) return null;
+            const data = filteredCellData[sample.id];
+            if (!data || data.length === 0) return null;
             const offset = sampleOffsets[sample.id] || [0, 0];
             return new ScatterplotLayer({
                 id: `cells-${sample.id}`,
                 visible: visibleSamples[sample.id],
-                data: visibleData,
+                data: data,
                 getPosition: d => [d.cell_x + offset[0], d.cell_y + offset[1]],
                 getRadius: 5,
                 getFillColor: d => colorMaps[sample.id]?.[d.cell_type] || [0, 0, 0],
                 pickable: true,
-                parameters: { depthTest: false }
+                parameters: { depthTest: false },
+                updateTriggers: {
+                    getFillColor: [colorMaps[sample.id], visibleCellTypes[sample.id]],
+                    data: [data]
+                }
             });
         }).filter(Boolean);
-    }, [samples, cellTypeCoordinatesData, visibleCellTypes, colorMaps, visibleSamples, sampleOffsets]);
+    }, [samples, filteredCellData, colorMaps, visibleSamples, sampleOffsets, visibleCellTypes]);
 
     // update current region data
     const handleRegionUpdate = (sampleId, updatedData) => {
@@ -538,7 +560,7 @@ export const MultiSampleViewer = ({
                         minZoom: -5
                     }}
                     onViewStateChange={({ viewState }) => {
-                        setCurrentZoom(viewState.zoom);
+                        debouncedSetZoom(viewState.zoom);
                     }}
                     onHover={info => {
                         if (info.object && info.layer.id.startsWith('cells-')) {
