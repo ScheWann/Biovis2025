@@ -93,20 +93,30 @@ export const MultiSampleViewer = ({
     // get image sizes for all samples
     useEffect(() => {
         const fetchImageSizes = async () => {
-            const sizes = {};
-            await Promise.all(samples.map(async (sample) => {
+            const samplesToFetch = samples.filter(sample => !imageSizes.hasOwnProperty(sample.id));
+            if (samplesToFetch.length === 0) return;
+
+            const newSizes = {};
+            await Promise.all(samplesToFetch.map(async (sample) => {
                 const response = await fetch("/get_hires_image_size", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sample_id: sample.id })
                 });
                 const data = await response.json();
-                sizes[sample.id] = data;
+                newSizes[sample.id] = data;
             }));
-            setImageSizes(sizes);
+
+            setImageSizes(prev => ({
+                ...prev,
+                ...newSizes
+            }));
         };
-        if (samples.length) fetchImageSizes();
-    }, [samples]);
+
+        if (samples.length) {
+            fetchImageSizes();
+        }
+    }, [samples, imageSizes]);
 
     useEffect(() => {
         if (Object.keys(imageSizes).length === samples.length) {
@@ -236,7 +246,7 @@ export const MultiSampleViewer = ({
                 visible: visibleSamples[sample.id],
                 data: visibleData,
                 getPosition: d => [d.cell_x + offset[0], d.cell_y + offset[1]],
-                getRadius: 2,
+                getRadius: 5,
                 getFillColor: d => colorMaps[sample.id]?.[d.cell_type] || [0, 0, 0],
                 pickable: true,
                 parameters: { depthTest: false }
