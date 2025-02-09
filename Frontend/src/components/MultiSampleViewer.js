@@ -588,6 +588,7 @@ export const MultiSampleViewer = ({
                 {hoveredCell && (
                     <div style={{
                         position: 'absolute',
+                        pointerEvents: 'none',
                         left: hoveredCell.x,
                         top: hoveredCell.y - 40,
                         backgroundColor: 'rgba(255, 255, 255, 0.9)',
