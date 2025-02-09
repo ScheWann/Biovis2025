@@ -8,6 +8,7 @@ import { booleanPointInPolygon, centroid } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
+import "../styles/MultiSampleViewer.css";
 
 // HSL to RGB
 const hslToRgb = (h, s, l) => {
@@ -394,6 +395,11 @@ export const MultiSampleViewer = ({
                 id: `edit-layer-${sample.id}`,
                 data: features[sample.id] || { type: 'FeatureCollection', features: [] },
                 mode: isDrawingActive ? DrawPolygonMode : undefined,
+                _subLayerProps: {
+                    'polygons-stroke': {
+                        getCursor: () => 'crosshair'
+                    }
+                },
                 selectedFeatureIndexes: [],
                 onEdit: ({ updatedData }) => {
                     handleRegionUpdate(sample.id, updatedData);
@@ -537,7 +543,19 @@ export const MultiSampleViewer = ({
                 </Collapse>
             </div>
 
-            <div style={{ flex: 1, position: 'relative', cursor: isDrawingActive ? 'crosshair' : (hoveredCell ? 'pointer' : 'default') }}>
+            <div
+                style={{
+                    flex: 1,
+                    position: 'relative',
+                    cursor: isDrawingActive ? 'crosshair' : (hoveredCell ? 'pointer' : 'grab')
+                }}
+                onMouseEnter={() => {
+                    const canvas = document.querySelector('.deckgl-wrapper canvas');
+                    if (canvas) {
+                        canvas.style.cursor = isDrawingActive ? 'crosshair' : (hoveredCell ? 'pointer' : 'grab');
+                    }
+                }}
+            >
                 <DeckGL
                     layers={layers}
                     views={new OrthographicView({ controller: true })}
@@ -580,6 +598,8 @@ export const MultiSampleViewer = ({
                             speed: 0.05,
                             smooth: true
                         },
+                        dragPan: !isDrawingActive,
+                        dragRotate: false
                     }}
                 />
 

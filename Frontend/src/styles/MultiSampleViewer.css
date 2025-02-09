@@ -1,0 +1,8 @@
+.deckgl-wrapper {
+  position: relative;
+}
+
+.deckgl-wrapper canvas {
+  pointer-events: auto;
+  cursor: inherit;
+}
