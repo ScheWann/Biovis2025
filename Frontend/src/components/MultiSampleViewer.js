@@ -20,6 +20,7 @@ const stringToHash = (str) => {
     }
     return Math.abs(hash);
 };
+
 // HSL to RGB
 const hslToRgb = (h, s, l) => {
     h /= 360;
