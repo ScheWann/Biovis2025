@@ -585,7 +585,7 @@ export const MultiSampleViewer = ({
                             ];
                         })(),
                         zoom: -3,
-                        maxZoom: 1,
+                        maxZoom: 2.5,
                         minZoom: -5
                     }}
                     onViewStateChange={({ viewState }) => {
