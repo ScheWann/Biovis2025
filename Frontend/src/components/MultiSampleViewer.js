@@ -76,7 +76,7 @@ export const MultiSampleViewer = ({
     );
     const [regionName, setRegionName] = useState('');
     const [regionColor, setRegionColor] = useState(generateRandomColor());
-    const [globalDrawingMode, setGlobalDrawingMode] = useState(false);
+    const [isDrawingActive, setIsDrawingActive] = useState(false);
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
     const [currentZoom, setCurrentZoom] = useState(-3);
     const TILE_LOAD_ZOOM_THRESHOLD = -2;
@@ -380,7 +380,7 @@ export const MultiSampleViewer = ({
             newFeatures[sample.id] = { type: 'FeatureCollection', features: [] };
         });
         setFeatures(newFeatures);
-        setGlobalDrawingMode(false);
+        setIsDrawingActive(false);
         message.success('Region saved successfully');
         setRegionName('');
         setRegionColor(generateRandomColor());
@@ -393,18 +393,18 @@ export const MultiSampleViewer = ({
             return new EditableGeoJsonLayer({
                 id: `edit-layer-${sample.id}`,
                 data: features[sample.id] || { type: 'FeatureCollection', features: [] },
-                mode: DrawPolygonMode,
+                mode: isDrawingActive ? DrawPolygonMode : undefined,
                 selectedFeatureIndexes: [],
                 onEdit: ({ updatedData }) => {
                     handleRegionUpdate(sample.id, updatedData);
                 },
-                visible: globalDrawingMode && sample.id === activeDrawingSample,
+                visible: isDrawingActive && sample.id === activeDrawingSample,
                 getLineColor: tempRegion.color ? [...tempRegion.color, 200] : [255, 0, 0, 200],
                 getFillColor: tempRegion.color ? [...tempRegion.color, 50] : [255, 255, 0, 50],
                 lineWidthMinPixels: 2
             });
         });
-    }, [samples, features, tempRegions, globalDrawingMode, activeDrawingSample]);
+    }, [samples, features, tempRegions, isDrawingActive, activeDrawingSample]);
 
     // Calculate the number of cells in the region
     const getCellCount = (region) => {
@@ -537,8 +537,7 @@ export const MultiSampleViewer = ({
                 </Collapse>
             </div>
 
-            {/* Main View */}
-            <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ flex: 1, position: 'relative', cursor: isDrawingActive ? 'crosshair' : (hoveredCell ? 'pointer' : 'default') }}>
                 <DeckGL
                     layers={layers}
                     views={new OrthographicView({ controller: true })}
@@ -588,9 +587,9 @@ export const MultiSampleViewer = ({
                 {hoveredCell && (
                     <div style={{
                         position: 'absolute',
-                        pointerEvents: 'none',
                         left: hoveredCell.x,
                         top: hoveredCell.y - 40,
+                        pointerEvents: 'none',
                         backgroundColor: 'rgba(255, 255, 255, 0.9)',
                         padding: 8,
                         borderRadius: 4,
@@ -634,20 +633,20 @@ export const MultiSampleViewer = ({
                                 size='small'
                                 variant="outlined"
                                 onClick={() => {
-                                    if (!globalDrawingMode) {
+                                    if (!isDrawingActive) {
                                         setActiveDrawingSample(activeSample);
                                         setFeatures(prev => ({
                                             ...prev,
                                             [activeSample]: { type: 'FeatureCollection', features: [] }
                                         }));
-                                        setGlobalDrawingMode(true);
+                                        setIsDrawingActive(true);
                                     } else {
                                         handleSaveRegion();
                                     }
                                 }}
                                 block
                             >
-                                {globalDrawingMode && regionName ? 'Save' : 'Draw'}
+                                {isDrawingActive && regionName ? 'Save' : 'Draw'}
                             </Button>
                         </div>
                     </div>
