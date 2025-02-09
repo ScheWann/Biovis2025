@@ -10,6 +10,16 @@ import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editab
 import { fromBlob } from 'geotiff';
 import "../styles/MultiSampleViewer.css";
 
+
+const stringToHash = (str) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash |= 0;
+    }
+    return Math.abs(hash);
+};
 // HSL to RGB
 const hslToRgb = (h, s, l) => {
     h /= 360;
@@ -88,7 +98,8 @@ export const MultiSampleViewer = ({
             const initialColorMap = {};
             const initialVisibility = {};
             cellTypeDir?.forEach((cellType, index) => {
-                const hue = (index * 360) / cellTypeDir.length;
+                const hash = stringToHash(cellType);
+                const hue = hash % 360;
                 initialColorMap[cellType] = hslToRgb(hue, 100, 50);
                 initialVisibility[cellType] = true;
             });
