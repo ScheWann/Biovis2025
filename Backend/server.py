@@ -7,6 +7,7 @@ from process import (
     get_unique_cell_types,
     get_cell_type_coordinates,
     get_samples,
+    get_unique_columns,
     # get_umap_positions_with_clusters,
     # get_gene_list,
     # get_specific_gene_expression
@@ -59,6 +60,12 @@ def serve_tile():
 def get_cell_type_coordinates_route():
     sample_id = request.json['sample_id']
     return jsonify(get_cell_type_coordinates(sample_id).to_dict(orient='records'))
+
+
+@app.route('/get_all_gene_list', methods=['POST'])
+def get_all_gene_list():
+    sample_names = request.json['sample_names']
+    return jsonify(get_unique_columns(sample_names))
 
 
 #################### OLD CODE ####################
