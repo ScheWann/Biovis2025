@@ -83,11 +83,6 @@ def get_umap_positions_route():
     return jsonify(get_umap_positions_with_clusters(bin_size, kmeans).to_dict(orient='records'))
 
 
-@app.route('/get_full_gene_list', methods=['GET'])
-def get_full_gene_list():
-    return jsonify(get_gene_list())
-
-
 @app.route('/get_gene_name_search')
 def get_gene_name_search():
     query = request.args.get('q', '').strip().lower()

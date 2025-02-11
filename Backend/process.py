@@ -76,15 +76,18 @@ def get_unique_columns(sample_names):
     columns_list = []
 
     for sample_name in sample_names:
-        sample_info = SAMPLES.get(sample_name)        
-        h5_path = sample_info.get("adata")  
+        sample_info = SAMPLES.get(sample_name)
 
-        with pd.HDFStore(h5_path, 'r') as store:
-            sample_columns = set()
-            for key in store.keys():
-                df = pd.read_hdf(store, key)
-                sample_columns.update(df.columns.tolist())
-            columns_list.append(sample_columns)
+        h5ad_path = sample_info.get("adata")
+
+        try:
+            adata = sc.read_h5ad(h5ad_path)
+        except Exception as e:
+            print(f"Failed to read {h5ad_path}: {str(e)}")
+            continue
+
+        sample_columns = set(adata.var_names)
+        columns_list.append(sample_columns)
 
     if not columns_list:
         return []
@@ -97,7 +100,7 @@ def get_unique_columns(sample_names):
         unique_columns = all_union - all_intersection
 
     options = [
-        {"value": str(i+1), "label": col}
+        {"value": col, "label": col}
         for i, col in enumerate(sorted(unique_columns))
     ]
 

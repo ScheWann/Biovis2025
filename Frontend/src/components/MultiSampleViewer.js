@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
-import { Collapse, Button, Input, ColorPicker, Checkbox, message } from "antd";
+import { Collapse, Button, Input, ColorPicker, Checkbox, Select, message } from "antd";
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, TextLayer, GeoJsonLayer } from '@deck.gl/layers';
@@ -86,12 +86,29 @@ export const MultiSampleViewer = ({
     const [visibleSamples, setVisibleSamples] = useState(
         samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
     );
+    const [geneList, setGeneList] = useState([]);
+    const [selectedGenes, setSelectedGenes] = useState([]);
     const [regionName, setRegionName] = useState('');
     const [regionColor, setRegionColor] = useState(generateRandomColor());
     const [isDrawingActive, setIsDrawingActive] = useState(false);
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
     const [currentZoom, setCurrentZoom] = useState(-3);
     const TILE_LOAD_ZOOM_THRESHOLD = -2;
+
+    // fetch gene list
+    useEffect(() => {
+        const sampleNames = samples.map(item => item.id);
+
+        fetch('/get_all_gene_list', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sample_names: sampleNames })
+        })
+            .then(res => res.json())
+            .then(data => {
+                setGeneList(data);
+            });
+    }, [setGeneList]);
 
     // intialize color map and visible cell types for each sample
     useEffect(() => {
@@ -686,32 +703,48 @@ export const MultiSampleViewer = ({
                     {/* saved regions */}
                     <Collapse style={{ marginTop: 10, background: 'rgba(255,255,255,0.8)' }}>
                         <Collapse.Panel header={`Selected Region (${regions.length})`} key="selected-region">
-                            {regions.length > 0 ? (
-                                regions.map(region => {
-                                    const sampleId = region.sampleId;
-                                    const cellCount = getCellCount(region);
-                                    return (
-                                        <div key={region.id} style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            marginBottom: 4,
-                                            fontSize: '12px',
-                                            color: '#555'
-                                        }}>
-                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
-                                                <span style={{ fontSize: 14, marginBottom: 10 }}>{region.name}</span>
-                                                <span style={{ fontSize: 10, color: "#666" }}>Sample: {sampleId}</span>
-                                                <span style={{ fontSize: 10, color: "#666" }}>Cells: {cellCount}</span>
+                            {regions.length > 0 && (
+                                <>
+                                    <Select
+                                        mode="multiple"
+                                        size='small'
+                                        placeholder="Select genes"
+                                        options={geneList}
+                                        value={selectedGenes}
+                                        onChange={setSelectedGenes}
+                                        filterOption={(input, option) =>
+                                            option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                        }
+                                        style={{ width: '100%', marginBottom: 10 }}
+                                        showSearch
+                                    />
+                                    {regions.map(region => {
+                                        const sampleId = region.sampleId;
+                                        const cellCount = getCellCount(region);
+                                        return (
+                                            <div key={region.id} style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                marginBottom: 4,
+                                                fontSize: '12px',
+                                                color: '#555'
+                                            }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
+                                                    <span style={{ fontSize: 14, marginBottom: 10 }}>{region.name}</span>
+                                                    <span style={{ fontSize: 10, color: "#666" }}>Sample: {sampleId}</span>
+                                                    <span style={{ fontSize: 10, color: "#666" }}>Cells: {cellCount}</span>
+                                                </div>
+                                                <CloseOutlined
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteRegion(region.id); }}
+                                                    style={{ fontSize: '12px' }}
+                                                />
                                             </div>
-                                            <CloseOutlined
-                                                onClick={(e) => { e.stopPropagation(); handleDeleteRegion(region.id); }}
-                                                style={{ fontSize: '12px' }}
-                                            />
-                                        </div>
-                                    );
-                                })
-                            ) : (
+                                        );
+                                    })}
+                                </>
+                            )}
+                            {regions.length === 0 && (
                                 <div style={{ fontSize: '12px', color: '#999' }}>No regions selected</div>
                             )}
                         </Collapse.Panel>

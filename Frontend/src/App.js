@@ -82,17 +82,6 @@ function App() {
     }
   };
 
-  const fetchGeneList = () => {
-    fetch('/get_all_gene_list', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sample_names: selectedSamples })
-    })
-      .then(res => res.json())
-      .then(data => {
-        console.log(data);
-    })
-  }
   // initial loading
   useEffect(() => {
     fetchAvailableSamples();
