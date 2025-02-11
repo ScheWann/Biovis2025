@@ -393,6 +393,11 @@ export const MultiSampleViewer = ({
             }
         };
 
+        const cellsInRegion = (cellTypeCoordinatesData[targetSampleId] || []).filter(cell =>
+            booleanPointInPolygon([cell.cell_x, cell.cell_y], localFeature.geometry)
+        );
+        const cellIds = cellsInRegion.map(cell => cell.id);
+        
         const newRegion = {
             id: `${targetSampleId}-${regionName}-${Date.now()}`,
             name: regionName,
@@ -401,7 +406,8 @@ export const MultiSampleViewer = ({
             feature: {
                 type: 'FeatureCollection',
                 features: [localFeature]
-            }
+            },
+            cellIds: cellIds
         };
 
         setRegions(prev => [...prev, newRegion]);
@@ -443,14 +449,7 @@ export const MultiSampleViewer = ({
 
     // Calculate the number of cells in the region
     const getCellCount = (region) => {
-        if (!region.feature || !Array.isArray(region.feature.features) || region.feature.features.length === 0) {
-            return 0;
-        }
-        const sampleId = region.sampleId;
-        const polygon = region.feature.features[0].geometry;
-        return (cellTypeCoordinatesData[sampleId] || []).filter(cell =>
-            booleanPointInPolygon([cell.cell_x, cell.cell_y], polygon)
-        ).length;
+        return region.cellIds ? region.cellIds.length : 0;
     };
 
     const handleDeleteRegion = (regionId) => {
