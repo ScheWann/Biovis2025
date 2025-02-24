@@ -1,10 +1,10 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
-import { Collapse, Button, Input, ColorPicker, Checkbox, Select, message } from "antd";
+import { Collapse, Button, Input, ColorPicker, Checkbox, Select, message, Switch } from "antd";
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, TextLayer, GeoJsonLayer } from '@deck.gl/layers';
-import { booleanPointInPolygon, centroid } from '@turf/turf';
+import { booleanPointInPolygon, centroid, sample } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
@@ -93,6 +93,7 @@ export const MultiSampleViewer = ({
     const [isDrawingActive, setIsDrawingActive] = useState(false);
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
     const [currentZoom, setCurrentZoom] = useState(-3);
+    const [partWholeMode, setPartWholeMode] = useState(false);
     const TILE_LOAD_ZOOM_THRESHOLD = -2;
 
     // fetch gene list
@@ -341,6 +342,11 @@ export const MultiSampleViewer = ({
         }
     };
 
+    // Showing genes in the whole region or the selected region
+    const changeGeneShowRange = () => {
+        setPartWholeMode(!partWholeMode);
+    };
+
     // save region, save region name and region color, and update region color to new random color
     const handleSaveRegion = () => {
         if (!regionName) {
@@ -458,18 +464,30 @@ export const MultiSampleViewer = ({
     };
 
     const confirmKosaraPlot = () => {
-        console.log(selectedGenes, regions, '//////')
-        regions.forEach(region => {
+        console.log(partWholeMode, '???')
+        if (partWholeMode) {
+            regions.forEach(region => {
+                fetch('/get_kosara_data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sample_id: region.sampleId, gene_list: selectedGenes, cell_list: region.cellIds })
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log(data)
+                    });
+            });
+        } else {
             fetch('/get_kosara_data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sample_id: region.sampleId, gene_list: selectedGenes, cell_list: region.cellIds })
+                body: JSON.stringify({ sample_id: samples[0].id, gene_list: selectedGenes, cell_list: [] })
             })
                 .then(res => res.json())
                 .then(data => {
-                    console.log(data, 'kosara data')
+                    console.log(data)
                 });
-        })
+        }
     }
 
     const layers = useMemo(() => {
@@ -717,24 +735,36 @@ export const MultiSampleViewer = ({
                     {/* saved regions */}
                     <Collapse style={{ marginTop: 10, background: 'rgba(255,255,255,0.8)' }}>
                         <Collapse.Panel header={`Selected Region (${regions.length})`} key="selected-region">
+                            <Switch
+                                defaultChecked
+                                onChange={changeGeneShowRange}
+                                checked={partWholeMode}
+                                checkedChildren="Part"
+                                unCheckedChildren="Whole"
+                                style={{
+                                    backgroundColor: partWholeMode ? '#ED9121' : '#74C365',
+                                    width: '100%',
+                                    marginBottom: 10
+                                }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'spaceBetween', alignItems: 'center', gap: 5, marginBottom: 10 }}>
+                                <Select
+                                    mode="multiple"
+                                    size='small'
+                                    placeholder="Select genes"
+                                    options={geneList}
+                                    value={selectedGenes}
+                                    onChange={setSelectedGenes}
+                                    filterOption={(input, option) =>
+                                        option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                    }
+                                    style={{ width: '100%', marginBottom: 0 }}
+                                    showSearch
+                                />
+                                <Button size='small' onClick={confirmKosaraPlot}>Confirm</Button>
+                            </div>
                             {regions.length > 0 && (
                                 <>
-                                    <div style={{ display: 'flex', justifyContent: 'spaceBetween', alignItems: 'center', gap: 5 , marginBottom: 10 }}>
-                                        <Select
-                                            mode="multiple"
-                                            size='small'
-                                            placeholder="Select genes"
-                                            options={geneList}
-                                            value={selectedGenes}
-                                            onChange={setSelectedGenes}
-                                            filterOption={(input, option) =>
-                                                option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                                            }
-                                            style={{ width: '100%', marginBottom: 0 }}
-                                            showSearch
-                                        />
-                                        <Button size='small' onClick={confirmKosaraPlot}>Confirm</Button>
-                                    </div>
                                     {regions.map(region => {
                                         const sampleId = region.sampleId;
                                         const cellCount = getCellCount(region);

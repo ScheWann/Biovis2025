@@ -112,7 +112,13 @@ def filter_and_merge(cell_ids, gene_names, sample_id):
     adata_path = SAMPLES[sample_id]["adata"]
     adata = sc.read_h5ad(adata_path)
 
-    valid_cell_ids = [cell for cell in cell_ids if cell in adata.obs_names]
+    if not cell_ids:
+        valid_cell_ids = adata.obs_names.tolist()
+    else:
+        valid_cell_ids = [
+            cell for cell in cell_ids if cell in adata.obs_names
+        ]
+
     valid_gene_names = [gene for gene in gene_names if gene in adata.var_names]
 
     if len(valid_cell_ids) == 0:
@@ -162,6 +168,7 @@ def filter_and_cumsum(merged_df, selected_columns):
         conditional_cumsum, axis=1, selected_columns=selected_columns
     )
     return filtered_df
+
 
 # get kosara data
 def get_kosara_data(sample_id, gene_list, cell_list):
