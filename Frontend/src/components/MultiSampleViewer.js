@@ -463,7 +463,7 @@ export const MultiSampleViewer = ({
             fetch('/get_kosara_data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sample_id: region.sampleId, gene_list: selectedGenes, cell_list: region.cellIds})
+                body: JSON.stringify({ sample_id: region.sampleId, gene_list: selectedGenes, cell_list: region.cellIds })
             })
                 .then(res => res.json())
                 .then(data => {
@@ -670,7 +670,7 @@ export const MultiSampleViewer = ({
                     top: 10,
                     right: 10,
                     zIndex: 20,
-                    width: 220
+                    width: 250
                 }}>
                     {/* region drawing controls */}
                     <div style={{ background: 'rgba(255,255,255,0.8)', padding: '10px', borderRadius: '10px', display: 'flex', flexDirection: 'column' }}>
@@ -719,20 +719,22 @@ export const MultiSampleViewer = ({
                         <Collapse.Panel header={`Selected Region (${regions.length})`} key="selected-region">
                             {regions.length > 0 && (
                                 <>
-                                    <Select
-                                        mode="multiple"
-                                        size='small'
-                                        placeholder="Select genes"
-                                        options={geneList}
-                                        value={selectedGenes}
-                                        onChange={setSelectedGenes}
-                                        filterOption={(input, option) =>
-                                            option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                                        }
-                                        style={{ width: '100%', marginBottom: 10 }}
-                                        showSearch
-                                    />
-                                    <Button onClick={confirmKosaraPlot}>confirm</Button>
+                                    <div style={{ display: 'flex', justifyContent: 'spaceBetween', alignItems: 'center', gap: 5 , marginBottom: 10 }}>
+                                        <Select
+                                            mode="multiple"
+                                            size='small'
+                                            placeholder="Select genes"
+                                            options={geneList}
+                                            value={selectedGenes}
+                                            onChange={setSelectedGenes}
+                                            filterOption={(input, option) =>
+                                                option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                            }
+                                            style={{ width: '100%', marginBottom: 0 }}
+                                            showSearch
+                                        />
+                                        <Button size='small' onClick={confirmKosaraPlot}>Confirm</Button>
+                                    </div>
                                     {regions.map(region => {
                                         const sampleId = region.sampleId;
                                         const cellCount = getCellCount(region);
