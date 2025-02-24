@@ -397,7 +397,7 @@ export const MultiSampleViewer = ({
             booleanPointInPolygon([cell.cell_x, cell.cell_y], localFeature.geometry)
         );
         const cellIds = cellsInRegion.map(cell => cell.id);
-        
+
         const newRegion = {
             id: `${targetSampleId}-${regionName}-${Date.now()}`,
             name: regionName,
@@ -456,6 +456,21 @@ export const MultiSampleViewer = ({
         setRegions(prev => prev.filter(region => region.id !== regionId));
         message.success('Region deleted!');
     };
+
+    const confirmKosaraPlot = () => {
+        console.log(selectedGenes, regions, '//////')
+        regions.forEach(region => {
+            fetch('/get_kosara_data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sample_id: region.sampleId, gene_list: selectedGenes, cell_list: region.cellIds})
+            })
+                .then(res => res.json())
+                .then(data => {
+                    console.log(data, 'kosara data')
+                });
+        })
+    }
 
     const layers = useMemo(() => {
         const regionLabelLayer = new TextLayer({
@@ -717,6 +732,7 @@ export const MultiSampleViewer = ({
                                         style={{ width: '100%', marginBottom: 10 }}
                                         showSearch
                                     />
+                                    <Button onClick={confirmKosaraPlot}>confirm</Button>
                                     {regions.map(region => {
                                         const sampleId = region.sampleId;
                                         const cellCount = getCellCount(region);

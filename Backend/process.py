@@ -132,7 +132,7 @@ def filter_and_merge(cell_ids, gene_names, sample_id):
 
     expr_df = expr_df.reset_index().rename(columns={"index": "id"})
 
-    coord_df = get_cell_type_coordinates(sample_id)
+    coord_df = get_cell_type_coordinates(sample_id).reset_index(drop=True)
 
     merged_df = pd.merge(expr_df, coord_df, on="id", how="inner")
 
