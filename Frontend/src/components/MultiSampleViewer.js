@@ -680,12 +680,27 @@ export const MultiSampleViewer = ({
                     onHover={info => {
                         if (info.object && info.layer.id.startsWith('cells-')) {
                             const sampleId = info.layer.id.split('-')[1];
-                            setHoveredCell({
-                                ...info.object,
-                                sampleId,
-                                x: info.x,
-                                y: info.y
-                            });
+                            const isFirstSample = sampleId === samples[0]?.id;
+                            const isGeneDataMode = isFirstSample && selectedGenes.length > 0 && geneExpressionData.length > 0;
+
+                            if (isGeneDataMode) {
+                                const gene = selectedGenes[0];
+                                const expression = info.object[gene];
+                                setHoveredCell({
+                                    sampleId,
+                                    gene,
+                                    expression,
+                                    x: info.x,
+                                    y: info.y
+                                });
+                            } else {
+                                setHoveredCell({
+                                    ...info.object,
+                                    sampleId,
+                                    x: info.x,
+                                    y: info.y
+                                });
+                            }
                         } else {
                             setHoveredCell(null);
                         }
@@ -714,8 +729,17 @@ export const MultiSampleViewer = ({
                         boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                         transform: 'translateX(-50%)'
                     }}>
-                        <div>Sample: {hoveredCell.sampleId}</div>
-                        <div>Cell Type: {hoveredCell.cell_type}</div>
+                        {hoveredCell.gene ? (
+                            <>
+                                <div>Sample: {hoveredCell.sampleId}</div>
+                                <div>{hoveredCell.gene}: {hoveredCell.expression?.toFixed(2)}</div>
+                            </>
+                        ) : (
+                            <>
+                                <div>Sample: {hoveredCell.sampleId}</div>
+                                <div>Cell Type: {hoveredCell.cell_type}</div>
+                            </>
+                        )}
                     </div>
                 )}
 
