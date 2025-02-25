@@ -583,7 +583,7 @@ export const MultiSampleViewer = ({
                     filled: true,
                     lineWidthMinPixels: 2,
                     getLineColor: () => [...region.color, 200],
-                    getFillColor: () => [...region.color, 50],
+                    getFillColor: () => [...region.color, 0],
                     pickable: false
                 });
             }),
