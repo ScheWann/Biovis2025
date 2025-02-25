@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
+import * as d3 from 'd3';
 import { Collapse, Button, Input, ColorPicker, Checkbox, Select, message, Switch } from "antd";
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
@@ -19,6 +20,11 @@ const stringToHash = (str) => {
         hash |= 0;
     }
     return Math.abs(hash);
+};
+
+const rgbToArray = rgbStr => {
+    const [r, g, b] = rgbStr.match(/\d+/g);
+    return [parseInt(r), parseInt(g), parseInt(b)];
 };
 
 // HSL to RGB
@@ -94,6 +100,7 @@ export const MultiSampleViewer = ({
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
     const [currentZoom, setCurrentZoom] = useState(-3);
     const [partWholeMode, setPartWholeMode] = useState(false);
+    const [geneExpressionData, setGeneExpressionData] = useState([]);
     const TILE_LOAD_ZOOM_THRESHOLD = -2;
 
     // fetch gene list
@@ -287,25 +294,50 @@ export const MultiSampleViewer = ({
     // nucleus coordinates scatterplot layers
     const generateCellLayers = useCallback(() => {
         return samples.map(sample => {
-            const data = filteredCellData[sample.id];
-            if (!data || data.length === 0) return null;
-            const offset = sampleOffsets[sample.id] || [0, 0];
+            const sampleId = sample.id;
+            const useGeneData = sampleId === samples[0]?.id &&
+                selectedGenes.length > 0 &&
+                geneExpressionData.length > 0;
+
+            let data;
+            let getFillColor;
+
+            if (useGeneData) {
+                data = geneExpressionData;
+                const selectedGene = selectedGenes[0];
+
+                const values = data.map(d => d[selectedGene]);
+                const colorScale = d3.scaleSequential(t => d3.interpolateGreens(t * 0.8 + 0.2))
+                    .domain([Math.min(...values), Math.max(...values)]);
+
+                getFillColor = d => {
+                    const rgbStr = colorScale(d[selectedGene]);
+                    return rgbToArray(rgbStr);
+                };
+            } else {
+                data = filteredCellData[sampleId] || [];
+                getFillColor = d => colorMaps[sampleId]?.[d.cell_type] || [0, 0, 0];
+            }
+
+            const offset = sampleOffsets[sampleId] || [0, 0];
             return new ScatterplotLayer({
-                id: `cells-${sample.id}`,
-                visible: visibleSamples[sample.id],
+                id: `cells-${sampleId}`,
+                visible: visibleSamples[sampleId],
                 data: data,
                 getPosition: d => [d.cell_x + offset[0], d.cell_y + offset[1]],
                 getRadius: 5,
-                getFillColor: d => colorMaps[sample.id]?.[d.cell_type] || [0, 0, 0],
+                getFillColor: getFillColor,
                 pickable: true,
                 parameters: { depthTest: false },
                 updateTriggers: {
-                    getFillColor: [colorMaps[sample.id], visibleCellTypes[sample.id]],
+                    getFillColor: useGeneData ?
+                        [selectedGenes, geneExpressionData] :
+                        [colorMaps[sampleId], visibleCellTypes[sampleId]],
                     data: [data]
                 }
             });
         }).filter(Boolean);
-    }, [samples, filteredCellData, colorMaps, visibleSamples, sampleOffsets, visibleCellTypes]);
+    }, [samples, filteredCellData, colorMaps, visibleSamples, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes]);
 
     // update current region data
     const handleRegionUpdate = (sampleId, updatedData) => {
@@ -463,6 +495,10 @@ export const MultiSampleViewer = ({
         message.success('Region deleted!');
     };
 
+    const cleanGeneSelection = () => {
+        setSelectedGenes([]);
+    }
+
     const confirmKosaraPlot = () => {
         console.log(partWholeMode, '???')
         if (partWholeMode) {
@@ -485,7 +521,8 @@ export const MultiSampleViewer = ({
             })
                 .then(res => res.json())
                 .then(data => {
-                    console.log(data)
+                    console.log(data);
+                    setGeneExpressionData(data);
                 });
         }
     }
@@ -747,21 +784,22 @@ export const MultiSampleViewer = ({
                                     marginBottom: 10
                                 }}
                             />
-                            <div style={{ display: 'flex', justifyContent: 'spaceBetween', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-                                <Select
-                                    mode="multiple"
-                                    size='small'
-                                    placeholder="Select genes"
-                                    options={geneList}
-                                    value={selectedGenes}
-                                    onChange={setSelectedGenes}
-                                    filterOption={(input, option) =>
-                                        option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                                    }
-                                    style={{ width: '100%', marginBottom: 0 }}
-                                    showSearch
-                                />
-                                <Button size='small' onClick={confirmKosaraPlot}>Confirm</Button>
+                            <Select
+                                mode="multiple"
+                                size='small'
+                                placeholder="Select genes"
+                                options={geneList}
+                                value={selectedGenes}
+                                onChange={setSelectedGenes}
+                                filterOption={(input, option) =>
+                                    option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                }
+                                style={{ width: '100%', marginBottom: 10 }}
+                                showSearch
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+                                <Button size='small' style={{ width: '50%' }} onClick={cleanGeneSelection}>Clear</Button>
+                                <Button size='small' style={{ width: '50%' }} onClick={confirmKosaraPlot}>Confirm</Button>
                             </div>
                             {regions.length > 0 && (
                                 <>
