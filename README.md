@@ -36,3 +36,6 @@
    ```
    npm start
    ```
+
+### INSTRUCTION
+Create a **Data** folder in the root directory and then put the relevant data into it
