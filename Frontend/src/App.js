@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
+import { Select, Spin, message } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
-import { Select, Spin, message } from 'antd';
+import { Cell2CellViewer } from './components/Cell2CellViewer';
+import { GeneExpressionViewer } from './components/GeneExpressionViewer';
+import { PseudoTemporalViewer } from './components/PseudoTemporalViewer';
+
 
 function App() {
   const [cellTypeCoordinatesData, setCellTypeCoordinatesData] = useState({});
@@ -82,7 +86,7 @@ function App() {
     }
   };
 
-  // initial loading
+  // initial loading (get all available sample list)
   useEffect(() => {
     fetchAvailableSamples();
   }, []);
@@ -116,16 +120,25 @@ function App() {
 
         {/* all views */}
         <div className='content'>
-          <Spin spinning={loading} size="large">
-            {/* image view */}
-            {selectedSamples.length > 0 ? (
-              <MultiSampleViewer
-                samples={samples.filter(s => selectedSamples.includes(s.id))}
-                cellTypeCoordinatesData={cellTypeCoordinatesData}
-                cellTypeDir={cellTypeDir}
-                regions={regions}
-                setRegions={setRegions}
-              />
+          {loading ? (
+            <Spin spinning={true} size="large" style={{ height: '100%', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center'}} />
+          ) : (
+            selectedSamples.length > 0 ? (
+              <>
+                <MultiSampleViewer
+                  samples={samples.filter(s => selectedSamples.includes(s.id))}
+                  cellTypeCoordinatesData={cellTypeCoordinatesData}
+                  cellTypeDir={cellTypeDir}
+                  regions={regions}
+                  setRegions={setRegions}
+                />
+
+                <div className='auxiliaryViews'>
+                  <PseudoTemporalViewer />
+                  <Cell2CellViewer />
+                  <GeneExpressionViewer />
+                </div>
+              </>
             ) : (
               <div style={{
                 display: 'flex',
@@ -137,8 +150,8 @@ function App() {
               }}>
                 Please select at least one sample to view
               </div>
-            )}
-          </Spin>
+            )
+          )}
         </div>
       </div>
     </div>

@@ -600,7 +600,7 @@ export const MultiSampleViewer = ({
     ]);
 
     return (
-        <div style={{ height: '100%', display: 'flex' }}>
+        <div style={{ width: '70%', height: '100%', display: 'flex' }}>
             <div className="controls" style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
                 <Collapse style={{ background: '#ffffff', width: 300, opacity: 0.8 }}>
                     {samples.map(sample => (
@@ -761,7 +761,7 @@ export const MultiSampleViewer = ({
                             onChange={e => setRegionName(e.target.value)}
                             style={{ marginBottom: 8 }}
                         />
-                        <div style={{ display: "flex", gap: 5 }}>
+                        <div style={{ display: 'flex', gap: 5 }}>
                             <ColorPicker
                                 size='small'
                                 value={`rgb(${regionColor.join(',')})`}
