@@ -21,7 +21,7 @@ body {
 .content {
   width: calc(100% - 20px);
   height: 100%;
-  border: 1px solid #e8e8e8;
+  border: 2px solid #e8e8e8;
   border-radius: 5px;
   margin: 0 10px 10px 10px;
   display: flex;

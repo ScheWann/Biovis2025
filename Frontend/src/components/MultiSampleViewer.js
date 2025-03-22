@@ -600,47 +600,7 @@ export const MultiSampleViewer = ({
     ]);
 
     return (
-        <div style={{ width: '70%', height: '100%', display: 'flex' }}>
-            <div className="controls" style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
-                <Collapse style={{ background: '#ffffff', width: 300, opacity: 0.8 }}>
-                    {samples.map(sample => (
-                        <Collapse.Panel key={sample.id} header={sample.name}>
-                            <Button
-                                block
-                                onClick={() => setVisibleSamples(prev => ({
-                                    ...prev,
-                                    [sample.id]: !prev[sample.id]
-                                }))}
-                            >
-                                {visibleSamples[sample.id] ? 'Hide Sample' : 'Show Sample'}
-                            </Button>
-                            <Collapse style={{ marginTop: 16 }}>
-                                <Collapse.Panel key={`cell-types-${sample.id}`} header="Cell Types">
-                                    <CellTypeSettings
-                                        cellTypes={cellTypeDir}
-                                        cellData={cellTypeCoordinatesData[sample.id]}
-                                        colorMap={colorMaps[sample.id] || {}}
-                                        visibleMap={visibleCellTypes[sample.id] || {}}
-                                        onColorChange={(type, color) => {
-                                            setColorMaps(prev => ({
-                                                ...prev,
-                                                [sample.id]: { ...prev[sample.id], [type]: color }
-                                            }));
-                                        }}
-                                        onVisibilityChange={(type, visible) => {
-                                            setVisibleCellTypes(prev => ({
-                                                ...prev,
-                                                [sample.id]: { ...prev[sample.id], [type]: visible }
-                                            }));
-                                        }}
-                                    />
-                                </Collapse.Panel>
-                            </Collapse>
-                        </Collapse.Panel>
-                    ))}
-                </Collapse>
-            </div>
-
+        <div style={{ width: '70%', height: '100%', display: 'flex', borderRight: '2px solid #e8e8e8' }}>
             <div
                 style={{
                     flex: 1,
@@ -742,6 +702,47 @@ export const MultiSampleViewer = ({
                         )}
                     </div>
                 )}
+
+                {/* Sample list Collapse */}
+                <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
+                    <Collapse style={{ background: '#ffffff', width: 300, opacity: 0.8 }}>
+                        {samples.map(sample => (
+                            <Collapse.Panel key={sample.id} header={sample.name}>
+                                <Button
+                                    block
+                                    onClick={() => setVisibleSamples(prev => ({
+                                        ...prev,
+                                        [sample.id]: !prev[sample.id]
+                                    }))}
+                                >
+                                    {visibleSamples[sample.id] ? 'Hide Sample' : 'Show Sample'}
+                                </Button>
+                                <Collapse style={{ marginTop: 16 }}>
+                                    <Collapse.Panel key={`cell-types-${sample.id}`} header="Cell Types">
+                                        <CellTypeSettings
+                                            cellTypes={cellTypeDir}
+                                            cellData={cellTypeCoordinatesData[sample.id]}
+                                            colorMap={colorMaps[sample.id] || {}}
+                                            visibleMap={visibleCellTypes[sample.id] || {}}
+                                            onColorChange={(type, color) => {
+                                                setColorMaps(prev => ({
+                                                    ...prev,
+                                                    [sample.id]: { ...prev[sample.id], [type]: color }
+                                                }));
+                                            }}
+                                            onVisibilityChange={(type, visible) => {
+                                                setVisibleCellTypes(prev => ({
+                                                    ...prev,
+                                                    [sample.id]: { ...prev[sample.id], [type]: visible }
+                                                }));
+                                            }}
+                                        />
+                                    </Collapse.Panel>
+                                </Collapse>
+                            </Collapse.Panel>
+                        ))}
+                    </Collapse>
+                </div>
 
                 {/* rightCornerControls: Saved regions and drawing controls */}
                 <div style={{
