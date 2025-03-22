@@ -97,7 +97,8 @@ function App() {
 
   return (
     <div className="App">
-      <div className="content">
+      <div className='main'>
+        {/* select samples */}
         <Select
           size='small'
           mode="multiple"
@@ -113,28 +114,32 @@ function App() {
           loading={loading}
         />
 
-        {/* main view */}
-        <Spin spinning={loading}>
-          {selectedSamples.length > 0 ? (
-            <MultiSampleViewer
-              samples={samples.filter(s => selectedSamples.includes(s.id))}
-              cellTypeCoordinatesData={cellTypeCoordinatesData}
-              cellTypeDir={cellTypeDir}
-              regions={regions}
-              setRegions={setRegions}
-            />
-          ) : (
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: '80vh',
-              color: '#999'
-            }}>
-              Please select at least one sample to view
-            </div>
-          )}
-        </Spin>
+        {/* all views */}
+        <div className='content'>
+          <Spin spinning={loading} size="large">
+            {/* image view */}
+            {selectedSamples.length > 0 ? (
+              <MultiSampleViewer
+                samples={samples.filter(s => selectedSamples.includes(s.id))}
+                cellTypeCoordinatesData={cellTypeCoordinatesData}
+                cellTypeDir={cellTypeDir}
+                regions={regions}
+                setRegions={setRegions}
+              />
+            ) : (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100%',
+                width: '100%',
+                color: '#999'
+              }}>
+                Please select at least one sample to view
+              </div>
+            )}
+          </Spin>
+        </div>
       </div>
     </div>
   );
