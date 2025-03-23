@@ -500,15 +500,15 @@ export const MultiSampleViewer = ({
     }
 
     const confirmKosaraPlot = () => {
-        console.log(partWholeMode, samples, '???')
         const sampleList = samples.map(sample => sample.id);
-        console.log(sampleList, '???')
+        const cleanedGenes = selectedGenes.map(gene => gene.split('-')[1] || gene);  // remove the part after "-" from each selectedGene
+
         if (partWholeMode) {
             regions.forEach(region => {
                 fetch('/get_kosara_data', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sample_ids: region.sampleId, gene_list: selectedGenes, cell_list: region.cellIds })
+                    body: JSON.stringify({ sample_ids: region.sampleId, gene_list: cleanedGenes, cell_list: region.cellIds })
                 })
                     .then(res => res.json())
                     .then(data => {
@@ -519,7 +519,7 @@ export const MultiSampleViewer = ({
             fetch('/get_kosara_data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sample_ids: sampleList, gene_list: selectedGenes, cell_list: [] })
+                body: JSON.stringify({ sample_ids: sampleList, gene_list: cleanedGenes, cell_list: [] })
             })
                 .then(res => res.json())
                 .then(data => {
@@ -815,6 +815,7 @@ export const MultiSampleViewer = ({
                                 showSearch
                                 style={{
                                     width: '100%',
+                                    marginBottom: 10
                                 }}
                                 value={selectedGenes}
                                 dropdownStyle={{

@@ -74,7 +74,7 @@ def get_kosara_data_route():
     sample_ids = request.json['sample_ids']
     gene_list = request.json['gene_list']
     cell_list = request.json['cell_list']
-    return jsonify(get_kosara_data(sample_ids, gene_list, cell_list).to_dict(orient='records'))
+    return jsonify(get_kosara_data(sample_ids, gene_list, cell_list))
 
 #################### OLD CODE ####################
 @app.route('/get_um_positions_with_clusters', methods=['POST'])

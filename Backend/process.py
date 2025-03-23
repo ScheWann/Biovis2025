@@ -223,32 +223,31 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
                 if not cell_ids:
                     valid_cell_ids = adata.obs_names.tolist()
                 else:
-                    valid_cell_ids = [
-                        cell for cell in cell_ids if cell in adata.obs_names
-                    ]
+                    valid_cell_ids = [cell for cell in cell_ids if cell in adata.obs_names]
 
-                valid_gene_names = [
-                    gene for gene in gene_names if gene in adata.var_names
-                ]
+                valid_gene_names = [gene for gene in gene_names if gene in adata.var_names]
 
-                if len(valid_cell_ids) == 0:
-                    raise ValueError("ID not found in AnnData.")
-                if len(valid_gene_names) == 0:
-                    raise ValueError("Gene not found in AnnData.")
-
-                filtered_adata = adata[valid_cell_ids, valid_gene_names].copy()
-
-                if issparse(filtered_adata.X):
-                    expr_data = filtered_adata.X.toarray()
+                if valid_gene_names:
+                    filtered_adata = adata[valid_cell_ids, valid_gene_names].copy()
+                    if issparse(filtered_adata.X):
+                        expr_data = filtered_adata.X.toarray()
+                    else:
+                        expr_data = filtered_adata.X
+                    expr_df = pd.DataFrame(
+                        expr_data,
+                        index=filtered_adata.obs_names,
+                        columns=filtered_adata.var_names,
+                    )
                 else:
-                    expr_data = filtered_adata.X
-                expr_df = pd.DataFrame(
-                    expr_data,
-                    index=filtered_adata.obs_names,
-                    columns=filtered_adata.var_names,
-                )
+                    expr_df = pd.DataFrame(index=valid_cell_ids)
 
                 expr_df = expr_df.reset_index().rename(columns={"index": "id"})
+
+                missing_genes = [gene for gene in gene_names if gene not in expr_df.columns]
+                for gene in missing_genes:
+                    expr_df[gene] = 0
+
+                expr_df = expr_df[['id'] + gene_names]
 
                 coord_df = get_cell_type_coordinates(sample_id).reset_index(drop=True)
 
@@ -290,6 +289,6 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
 
         kosara_df = calculate_radius(cumsum_df, merged_df, radius)
 
-        results[sample_id] = kosara_df
+        results[sample_id] = kosara_df.to_dict(orient="records")
 
     return results
