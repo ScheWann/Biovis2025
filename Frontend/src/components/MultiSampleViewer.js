@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import * as d3 from 'd3';
-import { Collapse, Button, Input, ColorPicker, Checkbox, Select, message, Switch } from "antd";
+import { Collapse, Button, Input, ColorPicker, Checkbox, TreeSelect, message, Switch } from "antd";
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, TextLayer, GeoJsonLayer } from '@deck.gl/layers';
@@ -99,7 +99,7 @@ export const MultiSampleViewer = ({
     const [isDrawingActive, setIsDrawingActive] = useState(false);
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
     const [currentZoom, setCurrentZoom] = useState(-3);
-    const [partWholeMode, setPartWholeMode] = useState(false);
+    const [partWholeMode, setPartWholeMode] = useState(false); // defaultly showing gene expression value in the whole regions
     const [geneExpressionData, setGeneExpressionData] = useState([]);
     const TILE_LOAD_ZOOM_THRESHOLD = -2;
 
@@ -500,13 +500,15 @@ export const MultiSampleViewer = ({
     }
 
     const confirmKosaraPlot = () => {
-        console.log(partWholeMode, '???')
+        console.log(partWholeMode, samples, '???')
+        const sampleList = samples.map(sample => sample.id);
+        console.log(sampleList, '???')
         if (partWholeMode) {
             regions.forEach(region => {
                 fetch('/get_kosara_data', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sample_id: region.sampleId, gene_list: selectedGenes, cell_list: region.cellIds })
+                    body: JSON.stringify({ sample_ids: region.sampleId, gene_list: selectedGenes, cell_list: region.cellIds })
                 })
                     .then(res => res.json())
                     .then(data => {
@@ -517,12 +519,12 @@ export const MultiSampleViewer = ({
             fetch('/get_kosara_data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sample_id: samples[0].id, gene_list: selectedGenes, cell_list: [] })
+                body: JSON.stringify({ sample_ids: sampleList, gene_list: selectedGenes, cell_list: [] })
             })
                 .then(res => res.json())
                 .then(data => {
                     console.log(data);
-                    setGeneExpressionData(data);
+                    // setGeneExpressionData(data);
                 });
         }
     }
@@ -809,18 +811,22 @@ export const MultiSampleViewer = ({
                                     marginBottom: 10
                                 }}
                             />
-                            <Select
-                                mode="multiple"
+                            <TreeSelect
+                                showSearch
+                                style={{
+                                    width: '100%',
+                                }}
+                                value={selectedGenes}
+                                dropdownStyle={{
+                                    maxHeight: 400,
+                                    overflow: 'auto',
+                                }}
                                 size='small'
                                 placeholder="Select genes"
-                                options={geneList}
-                                value={selectedGenes}
+                                allowClear
+                                multiple
                                 onChange={setSelectedGenes}
-                                filterOption={(input, option) =>
-                                    option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                                }
-                                style={{ width: '100%', marginBottom: 10 }}
-                                showSearch
+                                treeData={geneList}
                             />
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 5, marginBottom: 5 }}>
                                 <Button size='small' style={{ width: '50%' }} onClick={cleanGeneSelection}>Clear</Button>
