@@ -43,7 +43,7 @@ body {
 
 .ant-select {
   max-width: 800px;
-  margin: 0 auto 24px;
+  /* margin: 0 auto 24px; */
 }
 
 .ant-spin-nested-loading {
