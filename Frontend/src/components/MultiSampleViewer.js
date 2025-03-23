@@ -761,7 +761,7 @@ export const MultiSampleViewer = ({
 
                 {/* Sample list Collapse */}
                 <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
-                    <Collapse accordion items={collapseItems} defaultActiveKey={['0']} style={{ background: '#ffffff', width: 300, opacity: 0.8 }} />
+                    <Collapse items={collapseItems} defaultActiveKey={['0']} style={{ background: '#ffffff', width: 300, opacity: 0.8 }} />
                 </div>
 
                 {/* rightCornerControls: Saved regions and drawing controls */}
