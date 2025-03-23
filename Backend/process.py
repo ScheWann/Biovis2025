@@ -73,10 +73,9 @@ def get_cell_type_coordinates(sample_id):
     return df
 
 
-# return gene list by sending a sample array
+# return gene list
 def get_gene_list(sample_names):
-    grouped_options = []
-    sample_gene_sets = {}
+    sample_gene_dict = {}
 
     for sample_name in sample_names:
         sample_info = SAMPLES.get(sample_name)
@@ -91,51 +90,14 @@ def get_gene_list(sample_names):
             print(f"Failed to read {h5ad_path}: {str(e)}")
             continue
 
-        sample_gene_sets[sample_name] = set(adata.var_names)
+        gene_sums = adata.X.sum(axis=0)
+        gene_names = adata.var_names
 
-    if not sample_gene_sets:
-        return grouped_options
-    
-    if len(sample_gene_sets) == 1:
-        # Only one sample, return its gene list without common group
-        sample_name = next(iter(sample_gene_sets))
-        unique_gene_children = [
-            {"value": f"{sample_name}-{gene}", "title": gene}
-            for gene in sorted(sample_gene_sets[sample_name])
-        ]
-        grouped_options.append({"value": sample_name, "title": sample_name, "children": unique_gene_children})
-    else:
-        # Multiple samples, compute common and unique genes
-        common_genes = set.intersection(*sample_gene_sets.values())
-        unique_genes_per_sample = {
-            sample: genes - common_genes for sample, genes in sample_gene_sets.items()
+        sample_gene_dict[sample_name] = {
+            gene: float(gene_sums[i]) for i, gene in enumerate(gene_names)
         }
 
-        common_gene_children = [
-            {"value": f"common-{gene}", "title": gene} for gene in sorted(common_genes)
-        ]
-        grouped_options.append(
-            {
-                "value": "common_genes",
-                "title": "Common Genes",
-                "children": common_gene_children,
-            }
-        )
-
-        for sample_name, unique_genes in unique_genes_per_sample.items():
-            unique_gene_children = [
-                {"value": f"{sample_name}-{gene}", "title": gene}
-                for gene in sorted(unique_genes)
-            ]
-            grouped_options.append(
-                {
-                    "value": sample_name,
-                    "title": sample_name,
-                    "children": unique_gene_children,
-                }
-            )
-    
-    return grouped_options
+    return sample_gene_dict
 
 
 # get kosara data

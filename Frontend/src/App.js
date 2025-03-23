@@ -11,7 +11,7 @@ function App() {
   const [cellTypeCoordinatesData, setCellTypeCoordinatesData] = useState({});
   const [samples, setSamples] = useState([]);
   const [selectedSamples, setSelectedSamples] = useState([]);
-  const [cellTypeDir, setCellTypeDir] = useState([]);
+  const [cellTypeDir, setCellTypeDir] = useState({});
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -30,7 +30,7 @@ function App() {
     }
   };
 
-  // get cell type data for selected samples
+  // get cell information(cell_type, cell_x, cell_y, id) for selected samples
   const fetchCellTypeData = async (sampleIds) => {
     setLoading(true);
     try {
@@ -62,10 +62,10 @@ function App() {
     }
   };
 
-  // get cell type directory for selected samples
+  // get cell type directory for each selected sample
   const fetchCellTypeDirectory = async (sampleIds) => {
     try {
-      const uniqueTypes = new Set();
+      const cellTypeMap = {};
       await Promise.all(
         sampleIds.map(sampleId =>
           fetch('/get_unique_cell_types', {
@@ -75,11 +75,11 @@ function App() {
           })
             .then(res => res.json())
             .then(data => {
-              data.forEach(type => uniqueTypes.add(type));
+              cellTypeMap[sampleId] = data;
             })
         )
       );
-      setCellTypeDir(Array.from(uniqueTypes));
+      setCellTypeDir(cellTypeMap);
     } catch (error) {
       message.error('Get cell type directory failed');
       console.error(error);

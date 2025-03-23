@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import * as d3 from 'd3';
-import { Collapse, Button, Input, ColorPicker, Checkbox, TreeSelect, message, Switch } from "antd";
+import { Collapse, Button, Input, ColorPicker, Checkbox, TreeSelect, message, Switch, Radio } from "antd";
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, TextLayer, GeoJsonLayer } from '@deck.gl/layers';
@@ -26,6 +26,17 @@ const rgbToArray = rgbStr => {
     const [r, g, b] = rgbStr.match(/\d+/g);
     return [parseInt(r), parseInt(g), parseInt(b)];
 };
+
+const radioOptions = [
+    {
+        label: 'Cell Type',
+        value: 'cellTypes',
+    },
+    {
+        label: 'Genes',
+        value: 'genes',
+    },
+];
 
 // HSL to RGB
 const hslToRgb = (h, s, l) => {
@@ -99,6 +110,7 @@ export const MultiSampleViewer = ({
     const [isDrawingActive, setIsDrawingActive] = useState(false);
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
     const [currentZoom, setCurrentZoom] = useState(-3);
+    const [radioCellGeneMode, setRadioCellGeneMode] = useState('cellTypes');
     const [partWholeMode, setPartWholeMode] = useState(false); // defaultly showing gene expression value in the whole regions
     const [geneExpressionData, setGeneExpressionData] = useState([]);
     const TILE_LOAD_ZOOM_THRESHOLD = -2;
@@ -118,22 +130,26 @@ export const MultiSampleViewer = ({
             });
     }, [setGeneList]);
 
-    // intialize color map and visible cell types for each sample
+    // Initialize color map and visible cell types for each sample
     useEffect(() => {
         const initialStates = samples.reduce((acc, sample) => {
             const initialColorMap = {};
             const initialVisibility = {};
-            cellTypeDir?.forEach((cellType, index) => {
+            const sampleCellTypes = cellTypeDir?.[sample.id] || [];
+
+            sampleCellTypes.forEach((cellType) => {
                 const hash = stringToHash(cellType);
                 const hue = hash % 360;
                 initialColorMap[cellType] = hslToRgb(hue, 100, 50);
                 initialVisibility[cellType] = true;
             });
+
             return {
                 colorMaps: { ...acc.colorMaps, [sample.id]: initialColorMap },
                 visibleCellTypes: { ...acc.visibleCellTypes, [sample.id]: initialVisibility }
             };
         }, { colorMaps: {}, visibleCellTypes: {} });
+
         setColorMaps(initialStates.colorMaps);
         setVisibleCellTypes(initialStates.visibleCellTypes);
     }, [samples, cellTypeDir]);
@@ -196,6 +212,44 @@ export const MultiSampleViewer = ({
     const debouncedSetZoom = useMemo(() => debounce((zoom) => {
         setCurrentZoom(zoom);
     }, 100), []);
+
+    const changeCellGeneMode = (e) => {
+        setRadioCellGeneMode(e.target.value);
+    }
+
+    const collapseItems = samples.map((sample, index) => ({
+        key: sample.id,
+        label: sample.name,
+        children: (
+            <>
+                <Radio.Group block options={radioOptions} size='small' defaultValue="cellTypes" optionType="button" style={{ marginBottom: 10 }} onChange={changeCellGeneMode} />
+                {radioCellGeneMode === 'cellTypes' ? (
+                    <CellTypeSettings
+                        cellTypes={cellTypeDir[sample.id] || []}
+                        cellData={cellTypeCoordinatesData[sample.id]}
+                        colorMap={colorMaps[sample.id] || {}}
+                        visibleMap={visibleCellTypes[sample.id] || {}}
+                        onColorChange={(type, color) => {
+                            setColorMaps(prev => ({
+                                ...prev,
+                                [sample.id]: { ...prev[sample.id], [type]: color }
+                            }));
+                        }}
+                        onVisibilityChange={(type, visible) => {
+                            setVisibleCellTypes(prev => ({
+                                ...prev,
+                                [sample.id]: { ...prev[sample.id], [type]: visible }
+                            }));
+                        }}
+                    />
+                ) : (
+                    <GeneSettings
+                        geneList={geneList[sample.id] || {}}
+                    />
+                )}
+            </>
+        )
+    }));
 
     // TileLayer
     const generateTileLayers = useCallback(() => {
@@ -707,43 +761,7 @@ export const MultiSampleViewer = ({
 
                 {/* Sample list Collapse */}
                 <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
-                    <Collapse style={{ background: '#ffffff', width: 300, opacity: 0.8 }}>
-                        {samples.map(sample => (
-                            <Collapse.Panel key={sample.id} header={sample.name}>
-                                <Button
-                                    block
-                                    onClick={() => setVisibleSamples(prev => ({
-                                        ...prev,
-                                        [sample.id]: !prev[sample.id]
-                                    }))}
-                                >
-                                    {visibleSamples[sample.id] ? 'Hide Sample' : 'Show Sample'}
-                                </Button>
-                                <Collapse style={{ marginTop: 16 }}>
-                                    <Collapse.Panel key={`cell-types-${sample.id}`} header="Cell Types">
-                                        <CellTypeSettings
-                                            cellTypes={cellTypeDir}
-                                            cellData={cellTypeCoordinatesData[sample.id]}
-                                            colorMap={colorMaps[sample.id] || {}}
-                                            visibleMap={visibleCellTypes[sample.id] || {}}
-                                            onColorChange={(type, color) => {
-                                                setColorMaps(prev => ({
-                                                    ...prev,
-                                                    [sample.id]: { ...prev[sample.id], [type]: color }
-                                                }));
-                                            }}
-                                            onVisibilityChange={(type, visible) => {
-                                                setVisibleCellTypes(prev => ({
-                                                    ...prev,
-                                                    [sample.id]: { ...prev[sample.id], [type]: visible }
-                                                }));
-                                            }}
-                                        />
-                                    </Collapse.Panel>
-                                </Collapse>
-                            </Collapse.Panel>
-                        ))}
-                    </Collapse>
+                    <Collapse accordion items={collapseItems} defaultActiveKey={['0']} style={{ background: '#ffffff', width: 300, opacity: 0.8 }} />
                 </div>
 
                 {/* rightCornerControls: Saved regions and drawing controls */}
@@ -872,21 +890,27 @@ export const MultiSampleViewer = ({
     );
 };
 
-// CellTypeSettings component with cell count display
+// cell types and related counts display
 const CellTypeSettings = ({
     cellTypes,
     cellData,
     colorMap,
     visibleMap,
     onColorChange,
-    onVisibilityChange
+    onVisibilityChange,
 }) => {
     const [searchText, setSearchText] = useState('');
-    const filteredTypes = useMemo(() =>
-        cellTypes?.filter(type =>
-            type.toLowerCase().includes(searchText.toLowerCase())
-        ) || []
-        , [cellTypes, searchText]);
+
+    const filteredTypes = useMemo(() => {
+        return (cellTypes || [])
+            .map(type => ({
+                type,
+                count: (cellData || []).filter(cell => cell.cell_type === type).length
+            }))
+            .filter(item => item.type.toLowerCase().includes(searchText.toLowerCase()))
+            .sort((a, b) => b.count - a.count);
+    }, [cellTypes, cellData, searchText]);
+
     return (
         <div style={{ maxHeight: 400, overflowY: 'auto' }}>
             <Input.Search
@@ -894,38 +918,74 @@ const CellTypeSettings = ({
                 placeholder="Search cell types"
                 value={searchText}
                 onChange={e => setSearchText(e.target.value)}
-                style={{ marginBottom: 12 }}
+                style={{ marginBottom: 5 }}
             />
-            {filteredTypes.map(type => {
-                const count = (cellData || []).filter(cell => cell.cell_type === type).length;
-                return (
-                    <div key={type} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '8px 0',
-                        borderBottom: '1px solid #f0f0f0'
-                    }}>
-                        <Checkbox
-                            checked={visibleMap[type] ?? true}
-                            onChange={e => onVisibilityChange(type, e.target.checked)}
-                            style={{ marginRight: 8 }}
-                        />
-                        <ColorPicker
-                            size="small"
-                            value={`rgb(${(colorMap[type] || [0, 0, 0]).join(',')})`}
-                            onChange={color => {
-                                const rgb = color.toRgb();
-                                onColorChange(type, [rgb.r, rgb.g, rgb.b]);
-                            }}
-                            style={{ marginRight: 12 }}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                            <span style={{ fontSize: 14 }}>{type}</span>
-                            <span style={{ fontSize: 12, color: '#666' }}>{count}</span>
-                        </div>
+
+            {filteredTypes.map(({ type, count }) => (
+                <div key={type} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '8px 0',
+                    borderBottom: '1px solid #f0f0f0'
+                }}>
+                    <Checkbox
+                        checked={visibleMap[type] ?? true}
+                        onChange={e => onVisibilityChange(type, e.target.checked)}
+                        style={{ marginRight: 8 }}
+                    />
+                    <ColorPicker
+                        size="small"
+                        value={`rgb(${(colorMap[type] || [0, 0, 0]).join(',')})`}
+                        onChange={color => {
+                            const rgb = color.toRgb();
+                            onColorChange(type, [rgb.r, rgb.g, rgb.b]);
+                        }}
+                        style={{ marginRight: 12 }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <span style={{ fontSize: 14 }}>{type}</span>
+                        <span style={{ fontSize: 12, color: '#666' }}>{count}</span>
                     </div>
-                );
-            })}
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// gene names display
+const GeneSettings = ({ geneList }) => {
+    const [searchText, setSearchText] = useState('');
+
+    const filteredGenes = useMemo(() =>
+        Object.entries(geneList)
+            .sort(([, countA], [, countB]) => countB - countA)
+            .filter(([gene]) => gene.toLowerCase().includes(searchText.toLowerCase()))  // 搜索过滤
+        || []
+        , [geneList, searchText]);
+
+    return (
+        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+            <Input.Search
+                size="small"
+                placeholder="Search genes"
+                value={searchText}
+                onChange={e => setSearchText(e.target.value)}
+                style={{ marginBottom: 8 }}
+            />
+            {filteredGenes.map(([gene, count]) => (
+                <div key={gene} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '8px 0',
+                    borderBottom: '1px solid #f0f0f0'
+                }}>
+                    <Checkbox style={{ marginRight: 8 }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <span style={{ fontSize: 12 }}>{gene}</span>
+                        <span style={{ fontSize: 12, color: '#666' }}>{count}</span>
+                    </div>
+                </div>
+            ))}
         </div>
     );
 };
