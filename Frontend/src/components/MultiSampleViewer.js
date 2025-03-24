@@ -4,8 +4,8 @@ import * as d3 from 'd3';
 import { Collapse, Button, Input, ColorPicker, Checkbox, TreeSelect, message, Switch, Radio } from "antd";
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
-import { BitmapLayer, ScatterplotLayer, TextLayer, GeoJsonLayer } from '@deck.gl/layers';
-import { booleanPointInPolygon, centroid, sample } from '@turf/turf';
+import { BitmapLayer, ScatterplotLayer, TextLayer, GeoJsonLayer, PolygonLayer } from '@deck.gl/layers';
+import { booleanPointInPolygon, centroid } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
@@ -225,16 +225,17 @@ export const MultiSampleViewer = ({
         setSelectedGenes([]);
     }
 
-    const confirmKosaraPlot = () => {
-        const sampleList = samples.map(sample => sample.id);
-        const cleanedGenes = selectedGenes.map(gene => gene.split('-')[1] || gene);  // remove the part after "-" from each selectedGene
+    const confirmKosaraPlot = (sampleId) => {
+        const sample = [sampleId];
+        // const sampleList = samples.map(sample => sample.id);
+        // const cleanedGenes = selectedGenes.map(gene => gene.split('-')[1] || gene);
 
         if (partWholeMode) {
             regions.forEach(region => {
                 fetch('/get_kosara_data', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sample_ids: region.sampleId, gene_list: cleanedGenes, cell_list: region.cellIds })
+                    body: JSON.stringify({ sample_ids: sample, gene_list: selectedGenes, cell_list: region.cellIds })
                 })
                     .then(res => res.json())
                     .then(data => {
@@ -245,12 +246,12 @@ export const MultiSampleViewer = ({
             fetch('/get_kosara_data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sample_ids: sampleList, gene_list: cleanedGenes, cell_list: [] })
+                body: JSON.stringify({ sample_ids: sample, gene_list: selectedGenes, cell_list: [] })
             })
                 .then(res => res.json())
                 .then(data => {
                     console.log(data);
-                    // setGeneExpressionData(data);
+                    setGeneExpressionData(data[sample]);
                 });
         }
     }
@@ -283,6 +284,7 @@ export const MultiSampleViewer = ({
                 ) : (
                     <GeneSettings
                         geneList={geneList[sample.id] || {}}
+                        sampleId={sample.id}
                         onVisibilityGeneChange={onVisibilityGeneChange}
                         cleanGeneSelection={cleanGeneSelection}
                         confirmKosaraPlot={confirmKosaraPlot}
@@ -412,25 +414,25 @@ export const MultiSampleViewer = ({
             } else {
                 data = filteredCellData[sampleId] || [];
                 getFillColor = d => colorMaps[sampleId]?.[d.cell_type] || [0, 0, 0];
-            }
 
-            const offset = sampleOffsets[sampleId] || [0, 0];
-            return new ScatterplotLayer({
-                id: `cells-${sampleId}`,
-                visible: visibleSamples[sampleId],
-                data: data,
-                getPosition: d => [d.cell_x + offset[0], d.cell_y + offset[1]],
-                getRadius: 5,
-                getFillColor: getFillColor,
-                pickable: true,
-                parameters: { depthTest: false },
-                updateTriggers: {
-                    getFillColor: useGeneData ?
-                        [selectedGenes, geneExpressionData] :
-                        [colorMaps[sampleId], visibleCellTypes[sampleId]],
-                    data: [data]
-                }
-            });
+                const offset = sampleOffsets[sampleId] || [0, 0];
+                return new ScatterplotLayer({
+                    id: `cells-${sampleId}`,
+                    visible: visibleSamples[sampleId],
+                    data: data,
+                    getPosition: d => [d.cell_x + offset[0], d.cell_y + offset[1]],
+                    getRadius: 5,
+                    getFillColor: getFillColor,
+                    pickable: true,
+                    parameters: { depthTest: false },
+                    updateTriggers: {
+                        getFillColor: useGeneData ?
+                            [selectedGenes, geneExpressionData] :
+                            [colorMaps[sampleId], visibleCellTypes[sampleId]],
+                        data: [data]
+                    }
+                });
+            }
         }).filter(Boolean);
     }, [samples, filteredCellData, colorMaps, visibleSamples, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes]);
 
@@ -959,7 +961,7 @@ const CellTypeSettings = ({
 };
 
 // gene names display
-const GeneSettings = ({ geneList, onVisibilityGeneChange, cleanGeneSelection, confirmKosaraPlot }) => {
+const GeneSettings = ({ geneList, sampleId, onVisibilityGeneChange, cleanGeneSelection, confirmKosaraPlot }) => {
     const [searchText, setSearchText] = useState('');
 
     const filteredGenes = useMemo(() =>
@@ -998,7 +1000,7 @@ const GeneSettings = ({ geneList, onVisibilityGeneChange, cleanGeneSelection, co
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 5 }}>
                 <Button size='small' style={{ width: '50%' }} onClick={cleanGeneSelection}>Clear</Button>
-                <Button size='small' style={{ width: '50%' }} onClick={confirmKosaraPlot}>Confirm</Button>
+                <Button size='small' style={{ width: '50%' }} onClick={() => confirmKosaraPlot(sampleId)}>Confirm</Button>
             </div>
         </div>
     );

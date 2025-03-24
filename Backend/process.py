@@ -141,11 +141,10 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
         else:
             return a * 10 - 1.5
 
-    def calculate_radius(df, originaldf, radius_val):
-        originaldf = originaldf.copy()
+    def calculate_radius(originaldf, radius_val):
         originaldf["radius"] = radius_val
-        result_df = originaldf[["id", "cell_x", "cell_y", "radius"] + gene_list].copy()
-        for index, row in df.iterrows():
+        result_df = originaldf.copy()
+        for index, row in originaldf.iterrows():
             for col in gene_list:
                 a_value = row[col]
                 if a_value == 0:
@@ -215,7 +214,7 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
 
                 merged_df = pd.merge(expr_df, coord_df, on="id", how="inner")
 
-                merged_df["total_expression"] = merged_df[gene_names].sum(axis=1)
+                merged_df["total_expression"] = adata.X.sum(axis=1)
 
                 for gene in gene_names:
                     merged_df[f"{gene}_original_ratio"] = np.where(
@@ -247,9 +246,10 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
     results = {}
 
     for sample_id, merged_df in position_cell_ratios_dict.items():
-        cumsum_df = filter_and_cumsum(merged_df, gene_list)
+        # cumsum_df = filter_and_cumsum(merged_df, gene_list)
 
-        kosara_df = calculate_radius(cumsum_df, merged_df, radius)
+        # kosara_df = calculate_radius(cumsum_df, merged_df, radius)
+        kosara_df = calculate_radius(merged_df, radius)
 
         results[sample_id] = kosara_df.to_dict(orient="records")
 
