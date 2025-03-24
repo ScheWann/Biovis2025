@@ -250,7 +250,26 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
 
         # kosara_df = calculate_radius(cumsum_df, merged_df, radius)
         kosara_df = calculate_radius(merged_df, radius)
+        formatted_results = []
+        for _, row in kosara_df.iterrows():
+            transformed_entry = {
+                "id": row["id"],
+                "cell_x": row["cell_x"],
+                "cell_y": row["cell_y"],
+                "cell_type": row["cell_type"],
+                "total_expression": row["total_expression"],
+                "angles": {},
+                "radius": {},
+                "ratios": {}
+            }
+            
+            for gene in gene_list:
+                transformed_entry["angles"][gene] = row.get(f"{gene}_angle", 0)
+                transformed_entry["radius"][gene] = row.get(f"{gene}_radius", 0)
+                transformed_entry["ratios"][gene] = row.get(f"{gene}_original_ratio", 0)
+            
+            formatted_results.append(transformed_entry)
 
-        results[sample_id] = kosara_df.to_dict(orient="records")
+        results[sample_id] = formatted_results
 
     return results
