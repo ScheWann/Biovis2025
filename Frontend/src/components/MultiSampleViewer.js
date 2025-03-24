@@ -217,6 +217,44 @@ export const MultiSampleViewer = ({
         setRadioCellGeneMode(e.target.value);
     }
 
+    const onVisibilityGeneChange = (gene) => {
+        setSelectedGenes([...selectedGenes, gene]);
+    }
+
+    const cleanGeneSelection = () => {
+        setSelectedGenes([]);
+    }
+
+    const confirmKosaraPlot = () => {
+        const sampleList = samples.map(sample => sample.id);
+        const cleanedGenes = selectedGenes.map(gene => gene.split('-')[1] || gene);  // remove the part after "-" from each selectedGene
+
+        if (partWholeMode) {
+            regions.forEach(region => {
+                fetch('/get_kosara_data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sample_ids: region.sampleId, gene_list: cleanedGenes, cell_list: region.cellIds })
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log(data)
+                    });
+            });
+        } else {
+            fetch('/get_kosara_data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sample_ids: sampleList, gene_list: cleanedGenes, cell_list: [] })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    console.log(data);
+                    // setGeneExpressionData(data);
+                });
+        }
+    }
+
     const collapseItems = samples.map((sample, index) => ({
         key: sample.id,
         label: sample.name,
@@ -235,7 +273,7 @@ export const MultiSampleViewer = ({
                                 [sample.id]: { ...prev[sample.id], [type]: color }
                             }));
                         }}
-                        onVisibilityChange={(type, visible) => {
+                        onVisibilityCellTypeChange={(type, visible) => {
                             setVisibleCellTypes(prev => ({
                                 ...prev,
                                 [sample.id]: { ...prev[sample.id], [type]: visible }
@@ -245,6 +283,9 @@ export const MultiSampleViewer = ({
                 ) : (
                     <GeneSettings
                         geneList={geneList[sample.id] || {}}
+                        onVisibilityGeneChange={onVisibilityGeneChange}
+                        cleanGeneSelection={cleanGeneSelection}
+                        confirmKosaraPlot={confirmKosaraPlot}
                     />
                 )}
             </>
@@ -549,40 +590,6 @@ export const MultiSampleViewer = ({
         message.success('Region deleted!');
     };
 
-    const cleanGeneSelection = () => {
-        setSelectedGenes([]);
-    }
-
-    const confirmKosaraPlot = () => {
-        const sampleList = samples.map(sample => sample.id);
-        const cleanedGenes = selectedGenes.map(gene => gene.split('-')[1] || gene);  // remove the part after "-" from each selectedGene
-
-        if (partWholeMode) {
-            regions.forEach(region => {
-                fetch('/get_kosara_data', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sample_ids: region.sampleId, gene_list: cleanedGenes, cell_list: region.cellIds })
-                })
-                    .then(res => res.json())
-                    .then(data => {
-                        console.log(data)
-                    });
-            });
-        } else {
-            fetch('/get_kosara_data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sample_ids: sampleList, gene_list: cleanedGenes, cell_list: [] })
-            })
-                .then(res => res.json())
-                .then(data => {
-                    console.log(data);
-                    // setGeneExpressionData(data);
-                });
-        }
-    }
-
     const layers = useMemo(() => {
         const regionLabelLayer = new TextLayer({
             id: 'region-labels',
@@ -790,7 +797,6 @@ export const MultiSampleViewer = ({
                                     const rgb = color.toRgb();
                                     setRegionColor([rgb.r, rgb.g, rgb.b]);
                                 }}
-                                style={{ marginBottom: 8 }}
                             />
                             <Button
                                 size='small'
@@ -817,7 +823,7 @@ export const MultiSampleViewer = ({
                     {/* saved regions */}
                     <Collapse style={{ marginTop: 10, background: 'rgba(255,255,255,0.8)' }}>
                         <Collapse.Panel header={`Selected Region (${regions.length})`} key="selected-region">
-                            <Switch
+                            {/* <Switch
                                 defaultChecked
                                 onChange={changeGeneShowRange}
                                 checked={partWholeMode}
@@ -850,7 +856,7 @@ export const MultiSampleViewer = ({
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 5, marginBottom: 5 }}>
                                 <Button size='small' style={{ width: '50%' }} onClick={cleanGeneSelection}>Clear</Button>
                                 <Button size='small' style={{ width: '50%' }} onClick={confirmKosaraPlot}>Confirm</Button>
-                            </div>
+                            </div> */}
                             {regions.length > 0 && (
                                 <>
                                     {regions.map(region => {
@@ -897,7 +903,7 @@ const CellTypeSettings = ({
     colorMap,
     visibleMap,
     onColorChange,
-    onVisibilityChange,
+    onVisibilityCellTypeChange,
 }) => {
     const [searchText, setSearchText] = useState('');
 
@@ -930,7 +936,7 @@ const CellTypeSettings = ({
                 }}>
                     <Checkbox
                         checked={visibleMap[type] ?? true}
-                        onChange={e => onVisibilityChange(type, e.target.checked)}
+                        onChange={e => onVisibilityCellTypeChange(type, e.target.checked)}
                         style={{ marginRight: 8 }}
                     />
                     <ColorPicker
@@ -953,18 +959,18 @@ const CellTypeSettings = ({
 };
 
 // gene names display
-const GeneSettings = ({ geneList }) => {
+const GeneSettings = ({ geneList, onVisibilityGeneChange, cleanGeneSelection, confirmKosaraPlot }) => {
     const [searchText, setSearchText] = useState('');
 
     const filteredGenes = useMemo(() =>
         Object.entries(geneList)
             .sort(([, countA], [, countB]) => countB - countA)
-            .filter(([gene]) => gene.toLowerCase().includes(searchText.toLowerCase()))  // 搜索过滤
+            .filter(([gene]) => gene.toLowerCase().includes(searchText.toLowerCase()))
         || []
         , [geneList, searchText]);
 
     return (
-        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+        <div style={{ maxHeight: 400 }}>
             <Input.Search
                 size="small"
                 placeholder="Search genes"
@@ -972,20 +978,28 @@ const GeneSettings = ({ geneList }) => {
                 onChange={e => setSearchText(e.target.value)}
                 style={{ marginBottom: 8 }}
             />
-            {filteredGenes.map(([gene, count]) => (
-                <div key={gene} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '8px 0',
-                    borderBottom: '1px solid #f0f0f0'
-                }}>
-                    <Checkbox style={{ marginRight: 8 }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                        <span style={{ fontSize: 12 }}>{gene}</span>
-                        <span style={{ fontSize: 12, color: '#666' }}>{count}</span>
+            <div style={{ maxHeight: 340, marginBottom: 10, overflowY: 'auto' }}>
+                {filteredGenes.map(([gene, count]) => (
+                    <div key={gene} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '8px 0',
+                        borderBottom: '1px solid #f0f0f0',
+                    }}>
+                        <Checkbox style={{ marginRight: 8 }}
+                            onChange={e => onVisibilityGeneChange(gene)}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                            <span style={{ fontSize: 12 }}>{gene}</span>
+                            <span style={{ fontSize: 12, color: '#666' }}>{count}</span>
+                        </div>
                     </div>
-                </div>
-            ))}
+                ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 5 }}>
+                <Button size='small' style={{ width: '50%' }} onClick={cleanGeneSelection}>Clear</Button>
+                <Button size='small' style={{ width: '50%' }} onClick={confirmKosaraPlot}>Confirm</Button>
+            </div>
         </div>
     );
 };
