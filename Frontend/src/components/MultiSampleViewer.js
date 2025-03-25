@@ -91,6 +91,7 @@ const debounce = (fn, delay) => {
 };
 
 export const MultiSampleViewer = ({
+    setLoading,
     samples,
     cellTypeCoordinatesData,
     cellTypeDir,
@@ -124,7 +125,7 @@ export const MultiSampleViewer = ({
     const [radioCellGeneMode, setRadioCellGeneMode] = useState('cellTypes');
     const [partWholeMode, setPartWholeMode] = useState(false); // defaultly showing gene expression value in the whole regions
     const [geneExpressionData, setGeneExpressionData] = useState([]);
-    const TILE_LOAD_ZOOM_THRESHOLD = -2;
+    const TILE_LOAD_ZOOM_THRESHOLD = 0;
 
     // fetch gene list
     useEffect(() => {
@@ -240,7 +241,7 @@ export const MultiSampleViewer = ({
         const sample = [sampleId];
         // const sampleList = samples.map(sample => sample.id);
         // const cleanedGenes = selectedGenes.map(gene => gene.split('-')[1] || gene);
-
+        setLoading(true);
         if (partWholeMode) {
             regions.forEach(region => {
                 fetch('/get_kosara_data', {
@@ -261,6 +262,7 @@ export const MultiSampleViewer = ({
             })
                 .then(res => res.json())
                 .then(data => {
+                    setLoading(false);
                     setGeneExpressionData(data[sample]);
                 });
         }
@@ -714,9 +716,7 @@ export const MultiSampleViewer = ({
                     pickable: true,
                     parameters: { depthTest: false },
                     updateTriggers: {
-                        getFillColor: useGeneData ?
-                            [selectedGenes, geneExpressionData] :
-                            [colorMaps[sampleId], visibleCellTypes[sampleId]],
+                        getFillColor: [colorMaps[sampleId], visibleCellTypes[sampleId]],
                         data: [data]
                     }
                 });
@@ -910,46 +910,46 @@ export const MultiSampleViewer = ({
             sizeUnits: 'pixels'
         });
         return [
-            // ...generateWholePngLayers(),
-            // ...generateTileLayers(),
+            ...generateWholePngLayers(),
+            ...generateTileLayers(),
             ...generateMarkerImageLayers(),
             ...generateCellLayers(),
-            // ...generateEditLayers(),
-            // ...regions.map(region => {
-            //     const offset = sampleOffsets[region.sampleId] || [0, 0];
-            //     const globalFeature = {
-            //         ...region.feature,
-            //         features: region.feature.features.map(f => ({
-            //             ...f,
-            //             geometry: {
-            //                 ...f.geometry,
-            //                 coordinates: f.geometry.coordinates.map(ring =>
-            //                     ring.map(([x, y]) => [x + offset[0], y + offset[1]])
-            //                 )
-            //             }
-            //         }))
-            //     };
-            //     return new GeoJsonLayer({
-            //         id: `region-${region.id}`,
-            //         data: globalFeature,
-            //         stroked: true,
-            //         filled: true,
-            //         lineWidthMinPixels: 2,
-            //         getLineColor: () => [...region.color, 200],
-            //         getFillColor: () => [...region.color, 0],
-            //         pickable: false
-            //     });
-            // }),
-            // regionLabelLayer
+            ...generateEditLayers(),
+            ...regions.map(region => {
+                const offset = sampleOffsets[region.sampleId] || [0, 0];
+                const globalFeature = {
+                    ...region.feature,
+                    features: region.feature.features.map(f => ({
+                        ...f,
+                        geometry: {
+                            ...f.geometry,
+                            coordinates: f.geometry.coordinates.map(ring =>
+                                ring.map(([x, y]) => [x + offset[0], y + offset[1]])
+                            )
+                        }
+                    }))
+                };
+                return new GeoJsonLayer({
+                    id: `region-${region.id}`,
+                    data: globalFeature,
+                    stroked: true,
+                    filled: true,
+                    lineWidthMinPixels: 2,
+                    getLineColor: () => [...region.color, 200],
+                    getFillColor: () => [...region.color, 0],
+                    pickable: false
+                });
+            }),
+            regionLabelLayer
         ].filter(Boolean);
     }, [
-        // generateWholePngLayers,
-        // generateTileLayers,
+        generateWholePngLayers,
+        generateTileLayers,
         generateMarkerImageLayers,
         generateCellLayers,
-        // generateEditLayers,
-        // regions,
-        // sampleOffsets
+        generateEditLayers,
+        regions,
+        sampleOffsets
     ]);
 
     return (

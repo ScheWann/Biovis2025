@@ -130,7 +130,7 @@ function App() {
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
-              background: "rgba(169, 169, 169, 0.5)",
+              background: "rgba(0, 0, 0, 0.5)",
               zIndex: 10
             }}>
               <Spin spinning={true} size="large" />
@@ -140,6 +140,7 @@ function App() {
           {selectedSamples.length > 0 ? (
             <>
               <MultiSampleViewer
+                setLoading={setLoading}
                 samples={samples.filter(s => selectedSamples.includes(s.id))}
                 cellTypeCoordinatesData={cellTypeCoordinatesData}
                 cellTypeDir={cellTypeDir}
