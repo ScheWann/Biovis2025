@@ -2,7 +2,30 @@ import React, { useRef, useState, useEffect } from "react";
 import * as d3 from "d3";
 import useSVGCanvas from "./useSVGCanvas";
 
-export const GeneExpressionViewer = ({ data }) => {
+// Dummy data (cells × genes) reference for python backend
+// to run for now, put this at the top of app.js and send this to GeneExpressionViewer
+const data = {
+  metadata: {
+    cell_ids: ["Cell_1", "Cell_2", "Cell_3", "Cell_4", "Cell_5"],
+    genes: ["Gene_TP53", "Gene_CDKN1A", "Gene_EGFR", "Gene_KRAS"],
+    cell_type_annotations: {
+      Cell_1: "CD4_Tcell",
+      Cell_2: "CD8_Tcell",
+      Cell_3: "B_cell",
+      Cell_4: "Macrophage",
+      Cell_5: "NK_cell",
+    },
+  },
+  expression_data: [
+    { cell_id: "Cell_1", expression: [5.2, 3.1, 8.4, 0.5] },
+    { cell_id: "Cell_2", expression: [1.7, 6.3, 2.9, 4.8] },
+    { cell_id: "Cell_3", expression: [7.5, 2.4, 0.9, 5.6] },
+    { cell_id: "Cell_4", expression: [3.8, 9.1, 4.2, 1.3] },
+    { cell_id: "Cell_5", expression: [0.5, 4.8, 5.6, 2.1] },
+  ],
+};
+
+export const GeneExpressionViewer = ({}) => {
   const d3Container = useRef(null);
   const [svg, height, width, tTip] = useSVGCanvas(d3Container);
 
@@ -50,14 +73,14 @@ export const GeneExpressionViewer = ({ data }) => {
     const xScale = d3
       .scaleBand()
       .domain(genes)
-      .range([margin.right, viewWidth])
-      .padding(0.05);
+      .range([margin.right, viewWidth]);
+    // .padding(0.05);
 
     const yScale = d3
       .scaleBand()
       .domain(orderedCellIds)
-      .range([margin.top, viewHeight])
-      .padding(0.05);
+      .range([margin.top, viewHeight]);
+    // .padding(0.05);
 
     // Draw heatmap rectangles
     svg
@@ -78,8 +101,8 @@ export const GeneExpressionViewer = ({ data }) => {
       .attr("width", xScale.bandwidth())
       .attr("height", yScale.bandwidth())
       .attr("fill", (d) => colorScale(d.value))
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 0.5)
+      // .attr("stroke", "#fff")
+      // .attr("stroke-width", 0.5)
       .append("title")
       .text((d) => `${d.cell} - ${d.gene}: ${d.value}`);
 
@@ -234,26 +257,3 @@ export const GeneExpressionViewer = ({ data }) => {
     ></div>
   );
 };
-
-// Dummy data (cells × genes) reference for python backend
-// to run for now, put this at the top of app.js and send this to GeneExpressionViewer
-// const data = {
-//     metadata: {
-//       cell_ids: ["Cell_1", "Cell_2", "Cell_3", "Cell_4", "Cell_5"],
-//       genes: ["Gene_TP53", "Gene_CDKN1A", "Gene_EGFR", "Gene_KRAS"],
-//       cell_type_annotations: {
-//         Cell_1: "CD4_Tcell",
-//         Cell_2: "CD8_Tcell",
-//         Cell_3: "B_cell",
-//         Cell_4: "Macrophage",
-//         Cell_5: "NK_cell",
-//       },
-//     },
-//     expression_data: [
-//       { cell_id: "Cell_1", expression: [5.2, 3.1, 8.4, 0.5] },
-//       { cell_id: "Cell_2", expression: [1.7, 6.3, 2.9, 4.8] },
-//       { cell_id: "Cell_3", expression: [7.5, 2.4, 0.9, 5.6] },
-//       { cell_id: "Cell_4", expression: [3.8, 9.1, 4.2, 1.3] },
-//       { cell_id: "Cell_5", expression: [0.5, 4.8, 5.6, 2.1] },
-//     ],
-//   };
