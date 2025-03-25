@@ -14,6 +14,10 @@ def load_and_preprocess_data(subsample_ratio=0.001):
     data_path = "Data/skin_TXK6Z4X_A1_processed/tmap/weighted_by_area_celltypist_cells_adata.h5"
     print(f"Loading data from: {data_path}")
     adata = sc.read_h5ad(data_path)
+    umi_counts = adata.to_df()
+    
+    # Apply cell type to adata
+    adata.obs["cell_type"] = adata.obs["cell_type"]
     
     # Subsample if needed
     if subsample_ratio < 1:
@@ -104,6 +108,13 @@ def visualize_results(adata, markers_unique, markers_shared):
     plt.figure(figsize=(8, 6))
     sc.pl.umap(adata, color='leiden', title='Cell Clusters', show=False)
     plt.savefig('Python/figures/umap_clusters.png', bbox_inches='tight', dpi=300)
+    plt.close()
+    
+    # Plot UMAP based on cell types
+    print("\nPlotting UMAP based on cell types...")
+    plt.figure(figsize=(8, 6))
+    sc.pl.umap(adata, color='cell_type', title='Cell Types', show=False)
+    plt.savefig('Python/figures/umap_cell_types.png', bbox_inches='tight', dpi=300)
     plt.close()
     
     # Plot top marker genes
