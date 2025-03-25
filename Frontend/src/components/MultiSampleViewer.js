@@ -644,7 +644,7 @@ export const MultiSampleViewer = ({
                 visible: visibleSamples[sample.id],
                 image: `/${sample.id}_cells_layer.png`,
                 bounds: [offset[0], offset[1] + imageSize[1], offset[0] + imageSize[0], offset[1]],
-                opacity: 0.05,
+                opacity: 1,
                 parameters: { depthTest: false }
             });
         }).filter(Boolean);
