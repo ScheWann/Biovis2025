@@ -1,16 +1,20 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
-import * as d3 from 'd3';
 import { Collapse, Button, Input, ColorPicker, Checkbox, TreeSelect, message, Switch, Radio } from "antd";
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
-import { BitmapLayer, ScatterplotLayer, TextLayer, GeoJsonLayer, PolygonLayer } from '@deck.gl/layers';
+import { BitmapLayer, ScatterplotLayer, TextLayer, GeoJsonLayer, PolygonLayer, PathLayer } from '@deck.gl/layers';
 import { booleanPointInPolygon, centroid } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
 import "../styles/MultiSampleViewer.css";
 
+const CELL_COLORS = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1',
+    '#96CEB4', '#FFEEAD', '#D4A5A5',
+    '#88D8B0', '#FF9999', '#99CCFF'
+];
 
 const stringToHash = (str) => {
     let hash = 0;
@@ -62,6 +66,13 @@ const hslToRgb = (h, s, l) => {
         b = hue2rgb(p, q, h - 1 / 3);
     }
     return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+};
+
+const hexToRgbs = (hex) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return [r, g, b];
 };
 
 // generate random color, call this function after saving region to update the color for next drawing
@@ -256,6 +267,258 @@ export const MultiSampleViewer = ({
         }
     }
 
+    const generateCirclePoints = (cx, cy, r, steps = 20) => {
+        const points = [];
+        const angleStep = (2 * Math.PI) / steps;
+        for (let i = 0; i < steps; i++) {
+            const theta = i * angleStep;
+            points.push([cx + r * Math.cos(theta), cy + r * Math.sin(theta)]);
+        }
+
+        points.push(points[0]);
+        return points;
+    }
+
+    const generateKosaraPath = (pointX, pointY, angles, ratios, cal_radius) => {
+        const baseRadius = 5;
+        let paths = [];
+        let cellTypes = selectedGenes;
+        let startpointX, startpointY, endpointX, endpointY = 0;
+        let lastStartPointX, lastStartPointY, lastEndPointX, lastEndPointY, lastCircleRadius = 0;
+        let originalPointX = pointX - baseRadius * Math.cos(45 * Math.PI / 180);
+        let originalPointY = pointY + baseRadius * Math.sin(45 * Math.PI / 180);
+
+        let cellIndices = ratios.filter(item => item[1] !== 0 && cellTypes.includes(item[0])).sort((a, b) => b[1] - a[1]).slice(0, 9).map(item => item[0]);
+        let cellAngles = cellIndices.map(index => angles.find(item => item[0] === index));
+        let cellRadius = cellIndices.map(index => cal_radius.find(item => item[0] === index));
+
+        // If no selected cells are shown, draw an empty circle
+        if (cellAngles.length === 0) {
+            const circlePoints = generateCirclePoints(originalPointX, originalPointY, baseRadius, 50);
+            paths.push({ path: circlePoints, color: '#FFFFFF' });
+        } else {
+            cellAngles = cellAngles.map(angle => [angle[0], angle[1]]);
+            cellRadius = cellRadius.map(rad => [rad[0], rad[1]]);
+
+            cellAngles.forEach((angle, index) => {
+                let cal_cell_radius = cellRadius[index][1];
+                let points = [];
+
+                startpointX = originalPointX + Math.abs(cal_cell_radius * Math.cos((angle[1] + 45) * Math.PI / 180));
+                startpointY = originalPointY - Math.abs(cal_cell_radius * Math.sin((angle[1] + 45) * Math.PI / 180));
+                endpointX = originalPointX + Math.abs(cal_cell_radius * Math.cos((angle[1] - 45) * Math.PI / 180));
+                endpointY = originalPointY - Math.abs(cal_cell_radius * Math.sin((angle[1] - 45) * Math.PI / 180));
+
+                if (index === 0) {
+                    const isLargeArcInner = cal_cell_radius > Math.sqrt(3) * baseRadius;
+                    points = generateComplexArcPoints(
+                        startpointX,
+                        startpointY,
+                        endpointX,
+                        endpointY,
+                        cal_cell_radius,
+                        baseRadius,
+                        { large: 0, sweep: 1 },
+                        { large: isLargeArcInner ? 1 : 0, sweep: 1 }
+                    );
+                }
+                else if (index === cellAngles.length - 1) {
+                    const isLargeArcInner = lastCircleRadius <= Math.sqrt(3) * baseRadius;
+                    points = generateComplexArcPoints(
+                        lastStartPointX,
+                        lastStartPointY,
+                        lastEndPointX,
+                        lastEndPointY,
+                        lastCircleRadius,
+                        baseRadius,
+                        { large: 0, sweep: 1 },
+                        { large: isLargeArcInner ? 1 : 0, sweep: 0 }
+                    );
+                }
+                else {
+                    const pointsSegment1 = generateSingleArcPoints(
+                        lastStartPointX, lastStartPointY,
+                        lastEndPointX, lastEndPointY,
+                        lastCircleRadius,
+                        0,
+                        1
+                    );
+
+                    const pointsSegment2 = generateSingleArcPoints(
+                        lastEndPointX, lastEndPointY,
+                        endpointX, endpointY,
+                        baseRadius,
+                        0,
+                        0
+                    );
+
+                    const pointsSegment3 = generateSingleArcPoints(
+                        endpointX, endpointY,
+                        startpointX, startpointY,
+                        cal_cell_radius,
+                        0,
+                        0
+                    );
+
+                    const pointsSegment4 = generateSingleArcPoints(
+                        startpointX, startpointY,
+                        lastStartPointX, lastStartPointY,
+                        baseRadius,
+                        0,
+                        0
+                    );
+                    points = [...pointsSegment1, ...pointsSegment2, ...pointsSegment3, ...pointsSegment4];
+                }
+
+                paths.push({
+                    path: points,
+                    color: CELL_COLORS[index % CELL_COLORS.length]
+                });
+
+                lastCircleRadius = cal_cell_radius;
+                lastStartPointX = startpointX;
+                lastStartPointY = startpointY;
+                lastEndPointX = endpointX;
+                lastEndPointY = endpointY;
+            });
+
+            const lastAngle = cellAngles[cellAngles.length - 1][1];
+
+            if (lastAngle < 90) {
+                let points = [];
+                const isLargeArcInner = lastCircleRadius <= Math.sqrt(3) * baseRadius;
+                points = generateComplexArcPoints(
+                    lastStartPointX,
+                    lastStartPointY,
+                    lastEndPointX,
+                    lastEndPointY,
+                    lastCircleRadius,
+                    baseRadius,
+                    { large: 0, sweep: 1 },
+                    { large: isLargeArcInner ? 1 : 0, sweep: 0 } 
+                );
+
+                paths.push({
+                    path: points,
+                    color: '#FFFFFF'
+                });
+            }
+        }
+        return paths;
+    }
+
+    const generateComplexArcPoints = (
+        startX,
+        startY,
+        endX,
+        endY,
+        outerRadius,
+        innerRadius,
+        outerFlags = { large: 0, sweep: 1 },
+        innerFlags = { large: 0, sweep: 0 }
+    ) => {
+        // outerRadius
+        const outerArc = generateSingleArcPoints(
+            startX, startY,
+            endX, endY,
+            outerRadius,
+            outerFlags.large,
+            outerFlags.sweep
+        );
+
+        // innerRadius
+        const innerArc = generateSingleArcPoints(
+            endX, endY,
+            startX, startY,
+            innerRadius,
+            innerFlags.large,
+            innerFlags.sweep
+        );
+
+        return [...outerArc, ...innerArc];
+    };
+
+    const generateSingleArcPoints = (startX, startY, endX, endY, r, largeArcFlag, sweepFlag) => {
+        const dx = endX - startX;
+        const dy = endY - startY;
+        const d = Math.hypot(dx, dy);
+        if (d > 2 * r) {
+            console.error("Chord length is greater than the diameter");
+            return [];
+        }
+
+        // middle point and h value
+        const midX = (startX + endX) / 2;
+        const midY = (startY + endY) / 2;
+        const h = Math.sqrt(r * r - (d / 2) * (d / 2));
+
+        // unit vector perpendicular to the chord (two candidates)
+        const ux = -dy / d;
+        const uy = dx / d;
+
+        // two candidate centers
+        const cx1 = midX + h * ux;
+        const cy1 = midY + h * uy;
+        const cx2 = midX - h * ux;
+        const cy2 = midY - h * uy;
+
+        // given the center of the circle, calculate the start point, end point angle and arc length (without sweepFlag correction, the angle difference is in [0, 2π))
+        const computeAngles = (cx, cy) => {
+            const startAngle = Math.atan2(startY - cy, startX - cx);
+            const endAngle = Math.atan2(endY - cy, endX - cx);
+            let delta = endAngle - startAngle;
+            // nomoralize to [0, 2π)
+            delta = ((delta % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+            return { startAngle, endAngle, delta };
+        }
+
+        const cand1 = computeAngles(cx1, cy1);
+        const cand2 = computeAngles(cx2, cy2);
+
+        // get effective delta, if sweepFlag is 1, then effective delta is delta; if sweepFlag is 0, then effective delta is 2π - delta
+        const effectiveDelta = (candidate) => {
+            return sweepFlag === 1 ? candidate.delta : (2 * Math.PI - candidate.delta);
+        }
+
+        const eff1 = effectiveDelta(cand1);
+        const eff2 = effectiveDelta(cand2);
+
+        // when largeArcFlag === 0, if eff1 <= Math.PI && eff2 > Math.PI, choose cand1; if eff2 <= Math.PI && eff1 > Math.PI, choose cand2
+        let chosen, cx, cy;
+        if (largeArcFlag === 0) {
+            if (eff1 <= Math.PI && eff2 > Math.PI) {
+                chosen = cand1; cx = cx1; cy = cy1;
+            } else if (eff2 <= Math.PI && eff1 > Math.PI) {
+                chosen = cand2; cx = cx2; cy = cy2;
+            } else {
+                chosen = cand1; cx = cx1; cy = cy1;
+            }
+        } else {
+            if (eff1 >= Math.PI && eff2 < Math.PI) {
+                chosen = cand1; cx = cx1; cy = cy1;
+            } else if (eff2 >= Math.PI && eff1 < Math.PI) {
+                chosen = cand2; cx = cx2; cy = cy2;
+            } else {
+                chosen = cand1; cx = cx1; cy = cy1;
+            }
+        }
+
+        const deltaEffective = sweepFlag === 1 ? effectiveDelta(chosen) : -effectiveDelta(chosen);
+
+        // generate points by sampling
+        const steps = 20;
+        const points = [];
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const theta = chosen.startAngle + t * deltaEffective;
+            const x = cx + r * Math.cos(theta);
+            const y = cy + r * Math.sin(theta);
+            points.push([x, y]);
+        }
+
+        return points;
+    }
+
     const collapseItems = samples.map((sample, index) => ({
         key: sample.id,
         label: sample.name,
@@ -400,24 +663,48 @@ export const MultiSampleViewer = ({
             let getFillColor;
 
             if (useGeneData) {
-                data = geneExpressionData;
-                const selectedGene = selectedGenes[0];
+                const optimizedPathData = geneExpressionData.flatMap(d => {
+                    const angles = Object.entries(d.angles);
+                    const ratios = Object.entries(d.ratios);
+                    const radius = Object.entries(d.radius);
+                    const offset = sampleOffsets[d.sampleId] || [0, 0];
 
-                const values = data.map(d => d[selectedGene]);
-                const colorScale = d3.scaleSequential(t => d3.interpolateGreens(t * 0.8 + 0.2))
-                    .domain([Math.min(...values), Math.max(...values)]);
+                    return generateKosaraPath(
+                        d.cell_x + offset[0],
+                        d.cell_y + offset[1],
+                        angles,
+                        ratios,
+                        radius
+                    ).map(path => ({
+                        id: d.id,
+                        points: path.path,
+                        color: path.color
+                    }));
+                });
 
-                getFillColor = d => {
-                    const rgbStr = colorScale(d[selectedGene]);
-                    return rgbToArray(rgbStr);
-                };
+                console.log(optimizedPathData, 'test');
+
+                return new PolygonLayer({
+                    id: `Scatters-kosara-${sampleId}`,
+                    data: optimizedPathData,
+                    getPolygon: d => d.points,
+                    getFillColor: d => {
+                        const rgbColor = hexToRgbs(d.color);
+                        return [...rgbColor, 255];
+                    },
+                    stroked: false,
+                    parameters: { depthTest: false, blend: true },
+                    updateTriggers: {
+                        data: [geneExpressionData, sampleOffsets]
+                    }
+                });
             } else {
                 data = filteredCellData[sampleId] || [];
                 getFillColor = d => colorMaps[sampleId]?.[d.cell_type] || [0, 0, 0];
 
                 const offset = sampleOffsets[sampleId] || [0, 0];
                 return new ScatterplotLayer({
-                    id: `cells-${sampleId}`,
+                    id: `Scatters-${sampleId}`,
                     visible: visibleSamples[sampleId],
                     data: data,
                     getPosition: d => [d.cell_x + offset[0], d.cell_y + offset[1]],
@@ -703,7 +990,7 @@ export const MultiSampleViewer = ({
                         debouncedSetZoom(viewState.zoom);
                     }}
                     onHover={info => {
-                        if (info.object && info.layer.id.startsWith('cells-')) {
+                        if (info.object && info.layer.id.startsWith('Scatters-')) {
                             const sampleId = info.layer.id.split('-')[1];
                             const isFirstSample = sampleId === samples[0]?.id;
                             const isGeneDataMode = isFirstSample && selectedGenes.length > 0 && geneExpressionData.length > 0;
@@ -711,12 +998,13 @@ export const MultiSampleViewer = ({
                             if (isGeneDataMode) {
                                 const gene = selectedGenes[0];
                                 const expression = info.object[gene];
+                                console.log(info.object, gene, expression);
                                 setHoveredCell({
                                     sampleId,
                                     gene,
                                     expression,
-                                    x: info.x,
-                                    y: info.y
+                                    x: info.cell_x,
+                                    y: info.cell_y
                                 });
                             } else {
                                 setHoveredCell({
