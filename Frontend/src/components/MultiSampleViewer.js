@@ -261,7 +261,6 @@ export const MultiSampleViewer = ({
             })
                 .then(res => res.json())
                 .then(data => {
-                    console.log(data);
                     setGeneExpressionData(data[sample]);
                 });
         }
@@ -395,7 +394,7 @@ export const MultiSampleViewer = ({
                     lastCircleRadius,
                     baseRadius,
                     { large: 0, sweep: 1 },
-                    { large: isLargeArcInner ? 1 : 0, sweep: 0 } 
+                    { large: isLargeArcInner ? 1 : 0, sweep: 0 }
                 );
 
                 paths.push({
@@ -677,21 +676,23 @@ export const MultiSampleViewer = ({
                         radius
                     ).map(path => ({
                         id: d.id,
+                        cell_type: d.cell_type,
                         points: path.path,
-                        color: path.color
+                        color: path.color,
+                        total_expression: d.total_expression,
+                        ratios: d.ratios,
                     }));
                 });
 
-                console.log(optimizedPathData, 'test');
-
                 return new PolygonLayer({
-                    id: `Scatters-kosara-${sampleId}`,
+                    id: `Scatters-${sampleId}`,
                     data: optimizedPathData,
                     getPolygon: d => d.points,
                     getFillColor: d => {
                         const rgbColor = hexToRgbs(d.color);
                         return [...rgbColor, 255];
                     },
+                    pickable: true,
                     stroked: false,
                     parameters: { depthTest: false, blend: true },
                     updateTriggers: {
@@ -909,46 +910,46 @@ export const MultiSampleViewer = ({
             sizeUnits: 'pixels'
         });
         return [
-            ...generateWholePngLayers(),
-            ...generateTileLayers(),
+            // ...generateWholePngLayers(),
+            // ...generateTileLayers(),
             ...generateMarkerImageLayers(),
             ...generateCellLayers(),
-            ...generateEditLayers(),
-            ...regions.map(region => {
-                const offset = sampleOffsets[region.sampleId] || [0, 0];
-                const globalFeature = {
-                    ...region.feature,
-                    features: region.feature.features.map(f => ({
-                        ...f,
-                        geometry: {
-                            ...f.geometry,
-                            coordinates: f.geometry.coordinates.map(ring =>
-                                ring.map(([x, y]) => [x + offset[0], y + offset[1]])
-                            )
-                        }
-                    }))
-                };
-                return new GeoJsonLayer({
-                    id: `region-${region.id}`,
-                    data: globalFeature,
-                    stroked: true,
-                    filled: true,
-                    lineWidthMinPixels: 2,
-                    getLineColor: () => [...region.color, 200],
-                    getFillColor: () => [...region.color, 0],
-                    pickable: false
-                });
-            }),
-            regionLabelLayer
+            // ...generateEditLayers(),
+            // ...regions.map(region => {
+            //     const offset = sampleOffsets[region.sampleId] || [0, 0];
+            //     const globalFeature = {
+            //         ...region.feature,
+            //         features: region.feature.features.map(f => ({
+            //             ...f,
+            //             geometry: {
+            //                 ...f.geometry,
+            //                 coordinates: f.geometry.coordinates.map(ring =>
+            //                     ring.map(([x, y]) => [x + offset[0], y + offset[1]])
+            //                 )
+            //             }
+            //         }))
+            //     };
+            //     return new GeoJsonLayer({
+            //         id: `region-${region.id}`,
+            //         data: globalFeature,
+            //         stroked: true,
+            //         filled: true,
+            //         lineWidthMinPixels: 2,
+            //         getLineColor: () => [...region.color, 200],
+            //         getFillColor: () => [...region.color, 0],
+            //         pickable: false
+            //     });
+            // }),
+            // regionLabelLayer
         ].filter(Boolean);
     }, [
-        generateWholePngLayers,
-        generateTileLayers,
+        // generateWholePngLayers,
+        // generateTileLayers,
         generateMarkerImageLayers,
         generateCellLayers,
-        generateEditLayers,
-        regions,
-        sampleOffsets
+        // generateEditLayers,
+        // regions,
+        // sampleOffsets
     ]);
 
     return (
@@ -992,19 +993,21 @@ export const MultiSampleViewer = ({
                     onHover={info => {
                         if (info.object && info.layer.id.startsWith('Scatters-')) {
                             const sampleId = info.layer.id.split('-')[1];
-                            const isFirstSample = sampleId === samples[0]?.id;
-                            const isGeneDataMode = isFirstSample && selectedGenes.length > 0 && geneExpressionData.length > 0;
+                            const isGeneDataMode = selectedGenes.length > 0 && geneExpressionData.length > 0;
 
                             if (isGeneDataMode) {
-                                const gene = selectedGenes[0];
-                                const expression = info.object[gene];
-                                console.log(info.object, gene, expression);
+                                const id = info.object.id;
+                                const ratios = info.object["ratios"]; // {gene name1: expression,...}
+                                const cell_type = info.object["cell_type"];
+                                const total_expression = info.object["total_expression"];
                                 setHoveredCell({
+                                    id,
                                     sampleId,
-                                    gene,
-                                    expression,
-                                    x: info.cell_x,
-                                    y: info.cell_y
+                                    cell_type,
+                                    ratios,
+                                    total_expression,
+                                    x: info.x,
+                                    y: info.y
                                 });
                             } else {
                                 setHoveredCell({
@@ -1040,12 +1043,21 @@ export const MultiSampleViewer = ({
                         padding: 8,
                         borderRadius: 4,
                         boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                        transform: 'translateX(-50%)'
+                        transform: 'translateX(-50%)',
+                        fontSize: 12,
+                        textAlign: 'left'
                     }}>
-                        {hoveredCell.gene ? (
+                        {hoveredCell.id ? (
                             <>
-                                <div>Sample: {hoveredCell.sampleId}</div>
-                                <div>{hoveredCell.gene}: {hoveredCell.expression?.toFixed(2)}</div>
+                                <div><strong>Sample:</strong> {hoveredCell.sampleId}</div>
+                                <div><strong>Cell Type:</strong> {hoveredCell.cell_type}</div>
+                                <div><strong>Total Expression:</strong> {hoveredCell.total_expression}</div>
+                                {hoveredCell.ratios &&
+                                    Object.entries(hoveredCell.ratios).map(([gene, expression]) => (
+                                        <div key={gene}>
+                                            <strong>{gene}:</strong> {expression?.toFixed(2)}
+                                        </div>
+                                    ))}
                             </>
                         ) : (
                             <>
