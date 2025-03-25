@@ -108,8 +108,9 @@ def analyze_gene_expression(adata, genes_to_analyze):
     print("\nAnalyzing gene expression patterns...")
     rdata_df = adata.to_df()
     
-    # Create figures directory if it doesn't exist
-    os.makedirs('figures', exist_ok=True)
+    # Set the figures directory
+    figures_dir = 'D:/Research/vis2025/siyuan/Biovis2025/Python/figures'
+    os.makedirs(figures_dir, exist_ok=True)
     
     # Keep track of genes with enough expression
     genes_with_expression = []
@@ -150,7 +151,7 @@ def analyze_gene_expression(adata, genes_to_analyze):
                             s=f'x={len(g_highly_cells)}')
                 plt.grid(True)
                 plt.legend()
-                plt.savefig(f'figures/gene_expression_{gene}.png', bbox_inches='tight', dpi=300)
+                plt.savefig(f'{figures_dir}/gene_expression_{gene}.png', bbox_inches='tight', dpi=300)
                 plt.close()
             except RuntimeError as e:
                 print(f"Could not fit curve for gene {gene}: {str(e)}")
@@ -220,8 +221,9 @@ def visualize_results(adata, genes_to_analyze):
     """Visualize analysis results"""
     print("\nVisualizing results...")
     
-    # Create figures directory if it doesn't exist
-    os.makedirs('figures', exist_ok=True)
+    # Set the figures directory
+    figures_dir = 'D:/Research/vis2025/siyuan/Biovis2025/Python/figures'
+    os.makedirs(figures_dir, exist_ok=True)
     
     # Set figure parameters
     sc.settings.set_figure_params(dpi=100, frameon=False)
@@ -229,14 +231,14 @@ def visualize_results(adata, genes_to_analyze):
     # Plot UMAP with cell types
     plt.figure(figsize=(8, 6))
     sc.pl.umap(adata, color='cell_type_id', title='Cell Types', show=False)
-    plt.savefig('figures/umap_cell_types.png', bbox_inches='tight', dpi=300)
+    plt.savefig(f'{figures_dir}/umap_cell_types.png', bbox_inches='tight', dpi=300)
     plt.close()
     
     if genes_to_analyze:
         # Plot gene expression on UMAP
         plt.figure(figsize=(15, 10))
         sc.pl.umap(adata, color=genes_to_analyze[:5], ncols=3, show=False)
-        plt.savefig('figures/umap_gene_expression.png', bbox_inches='tight', dpi=300)
+        plt.savefig(f'{figures_dir}/umap_gene_expression.png', bbox_inches='tight', dpi=300)
         plt.close()
         
         # Create clustermap
@@ -271,7 +273,7 @@ def visualize_results(adata, genes_to_analyze):
             yticklabels=True,
             z_score=0,
             col_colors=[cluster_colors]
-        ).savefig('figures/gene_expression_heatmap.png', bbox_inches='tight', dpi=300)
+        ).savefig(f'{figures_dir}/gene_expression_heatmap.png', bbox_inches='tight', dpi=300)
     else:
         print("No genes with sufficient expression to visualize")
 

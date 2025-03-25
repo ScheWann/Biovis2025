@@ -6,9 +6,13 @@
   "dependencies": {
     "@ant-design/icons": "^5.6.0",
     "@deck.gl-community/editable-layers": "^9.0.3",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
     "@loaders.gl/geotiff": "^4.3.3",
+    "@mui/material": "^6.4.8",
     "@turf/turf": "^7.2.0",
     "antd": "^5.23.0",
+    "axios": "^1.8.4",
     "cra-template": "1.2.0",
     "d3": "^7.9.0",
     "deck.gl": "^9.0.38",
@@ -21,7 +25,7 @@
     "react-scripts": "5.0.1",
     "tiff.js": "^1.0.0",
     "web-vitals": "^4.2.4",
-     "wgsl_reflect": "latest"
+    "wgsl_reflect": "latest"
   },
   "scripts": {
     "start": "react-scripts start",
