@@ -14,10 +14,13 @@ def load_and_preprocess_data(subsample_ratio=0.001):
     data_path = "Data/skin_TXK6Z4X_A1_processed/tmap/weighted_by_area_celltypist_cells_adata.h5"
     print(f"Loading data from: {data_path}")
     adata = sc.read_h5ad(data_path)
-    umi_counts = adata.to_df()
     
-    # Apply cell type to adata
-    adata.obs["cell_type"] = adata.obs["cell_type"]
+    # Convert to DataFrame and back to ensure proper data structure
+    umi_counts = adata.to_df()
+    adata = sc.AnnData(X=umi_counts.values, obs=adata.obs, var=adata.var)
+    
+    # Ensure cell_type is categorical
+    adata.obs['cell_type'] = pd.Categorical(adata.obs['cell_type'])
     
     # Subsample if needed
     if subsample_ratio < 1:
@@ -37,23 +40,6 @@ def load_and_preprocess_data(subsample_ratio=0.001):
     
     # Compute neighbors
     sc.pp.neighbors(adata, n_neighbors=15, n_pcs=50)
-    
-    # Try to run clustering
-    try:
-        print("Running Leiden clustering...")
-        sc.tl.leiden(adata, resolution=0.8)
-    except BaseException as e:
-        print(f"Warning: Leiden clustering failed: {str(e)}")
-        print("Trying Louvain clustering instead...")
-        try:
-            sc.tl.louvain(adata, resolution=0.8)
-            adata.obs['leiden'] = adata.obs['louvain']
-        except Exception as e:
-            print(f"Warning: Louvain clustering also failed: {str(e)}")
-            print("Using random cluster labels for testing...")
-            adata.obs['leiden'] = pd.Categorical(
-                np.random.randint(0, 5, size=adata.n_obs).astype(str)
-            )
     
     # Compute UMAP
     sc.tl.umap(adata)
@@ -76,11 +62,11 @@ def run_differential_expression_analysis(adata):
     
     # Find unique marker genes
     print("\nFinding unique marker genes...")
-    markers_unique = get_DEG_uniq(adata, adata, group_key='leiden', power=5, ratio=0.05, p_threshold=0.1, q_threshold=0.2)
+    markers_unique = get_DEG_uniq(adata, adata, group_key='cell_type', power=5, ratio=0.05, p_threshold=0.1, q_threshold=0.2)
     
     # Find shared marker genes
     print("\nFinding shared marker genes...")
-    markers_multi = get_DEG_multi(adata, adata, group_key='leiden', power=5, ratio=0.05, p_threshold=0.1, q_threshold=0.2)
+    markers_multi = get_DEG_multi(adata, adata, group_key='cell_type', power=5, ratio=0.05, p_threshold=0.1, q_threshold=0.2)
     
     # Display results
     print("\nAnalysis Results:")
@@ -93,28 +79,18 @@ def run_differential_expression_analysis(adata):
     
     return markers_unique, markers_multi
 
-def visualize_results(adata, markers_unique, markers_shared):
+def visualize_results(adata, markers_unique, markers_multi):
     """Visualize the results"""
     print("\nVisualizing results...")
     
-    # Plot UMAP with cell clusters
-    print("\nPlotting UMAP with cell clusters...")
+    # Plot UMAP with cell types
+    print("\nPlotting UMAP with cell types...")
     sc.settings.set_figure_params(dpi=100, frameon=False)
     
-    # Ensure leiden is categorical
-    adata.obs['leiden'] = pd.Categorical(adata.obs['leiden'])
-    
-    # Plot clusters
-    plt.figure(figsize=(8, 6))
-    sc.pl.umap(adata, color='leiden', title='Cell Clusters', show=False)
-    plt.savefig('Python/figures/umap_clusters.png', bbox_inches='tight', dpi=300)
-    plt.close()
-    
-    # Plot UMAP based on cell types
-    print("\nPlotting UMAP based on cell types...")
+    # Plot cell types
     plt.figure(figsize=(8, 6))
     sc.pl.umap(adata, color='cell_type', title='Cell Types', show=False)
-    plt.savefig('Python/figures/umap_cell_types.png', bbox_inches='tight', dpi=300)
+    plt.savefig('figures/umap_cell_types.png', bbox_inches='tight', dpi=300)
     plt.close()
     
     # Plot top marker genes
@@ -126,7 +102,7 @@ def visualize_results(adata, markers_unique, markers_shared):
         # Plot marker genes
         plt.figure(figsize=(15, 10))
         sc.pl.umap(adata, color=top_genes, ncols=3, show=False)
-        plt.savefig('Python/figures/umap_marker_genes.png', bbox_inches='tight', dpi=300)
+        plt.savefig('figures/umap_marker_genes.png', bbox_inches='tight', dpi=300)
         plt.close()
     else:
         print("\nNo marker genes found to visualize.")
