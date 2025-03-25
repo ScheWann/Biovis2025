@@ -119,38 +119,51 @@ function App() {
         />
 
         {/* all views */}
-        <div className='content'>
-          {loading ? (
-            <Spin spinning={true} size="large" style={{ height: '100%', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center'}} />
-          ) : (
-            selectedSamples.length > 0 ? (
-              <>
-                <MultiSampleViewer
-                  samples={samples.filter(s => selectedSamples.includes(s.id))}
-                  cellTypeCoordinatesData={cellTypeCoordinatesData}
-                  cellTypeDir={cellTypeDir}
-                  regions={regions}
-                  setRegions={setRegions}
-                />
+        <div className="content" style={{ position: "relative" }}>
+          {loading && (
+            <div style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              background: "rgba(169, 169, 169, 0.5)",
+              zIndex: 10
+            }}>
+              <Spin spinning={true} size="large" />
+            </div>
+          )}
 
-                <div className='auxiliaryViews'>
-                  <PseudoTemporalViewer />
-                  <Cell2CellViewer />
-                  <GeneExpressionViewer />
-                </div>
-              </>
-            ) : (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100%',
-                width: '100%',
-                color: '#999'
-              }}>
-                Please select at least one sample to view
+          {selectedSamples.length > 0 ? (
+            <>
+              <MultiSampleViewer
+                samples={samples.filter(s => selectedSamples.includes(s.id))}
+                cellTypeCoordinatesData={cellTypeCoordinatesData}
+                cellTypeDir={cellTypeDir}
+                regions={regions}
+                setRegions={setRegions}
+              />
+
+              <div className="auxiliaryViews">
+                <PseudoTemporalViewer />
+                <Cell2CellViewer />
+                <GeneExpressionViewer />
               </div>
-            )
+            </>
+          ) : (
+            <div style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              height: "100%",
+              width: "100%",
+              color: "#999"
+            }}>
+              Please select at least one sample to view
+            </div>
           )}
         </div>
       </div>
