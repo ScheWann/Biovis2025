@@ -73,12 +73,14 @@ def get_cell_type_coordinates(sample_id):
     return df
 
 
-# return gene list by sending a sample array
-def get_unique_columns(sample_names):
-    columns_list = []
+# return gene list
+def get_gene_list(sample_names):
+    sample_gene_dict = {}
 
     for sample_name in sample_names:
         sample_info = SAMPLES.get(sample_name)
+        if not sample_info:
+            continue
 
         h5ad_path = sample_info.get("adata")
 
@@ -88,90 +90,18 @@ def get_unique_columns(sample_names):
             print(f"Failed to read {h5ad_path}: {str(e)}")
             continue
 
-        sample_columns = set(adata.var_names)
-        columns_list.append(sample_columns)
+        gene_sums = adata.X.sum(axis=0)
+        gene_names = adata.var_names
 
-    if not columns_list:
-        return []
+        sample_gene_dict[sample_name] = {
+            gene: float(gene_sums[i]) for i, gene in enumerate(gene_names)
+        }
 
-    if len(columns_list) == 1:
-        unique_columns = columns_list[0]
-    else:
-        all_union = set().union(*columns_list)
-        all_intersection = set(columns_list[0]).intersection(*columns_list[1:])
-        unique_columns = all_union - all_intersection
-
-    options = [
-        {"value": col, "label": col} for i, col in enumerate(sorted(unique_columns))
-    ]
-
-    return options
-
-
-def filter_and_merge(cell_ids, gene_names, sample_id):
-    adata_path = SAMPLES[sample_id]["adata"]
-    adata = sc.read_h5ad(adata_path)
-
-    if not cell_ids:
-        valid_cell_ids = adata.obs_names.tolist()
-    else:
-        valid_cell_ids = [
-            cell for cell in cell_ids if cell in adata.obs_names
-        ]
-
-    valid_gene_names = [gene for gene in gene_names if gene in adata.var_names]
-
-    if len(valid_cell_ids) == 0:
-        raise ValueError("ID not found in AnnData.")
-    if len(valid_gene_names) == 0:
-        raise ValueError("Gene not found in AnnData.")
-
-    filtered_adata = adata[valid_cell_ids, valid_gene_names].copy()
-
-    if issparse(filtered_adata.X):
-        expr_data = filtered_adata.X.toarray()
-    else:
-        expr_data = filtered_adata.X
-    expr_df = pd.DataFrame(
-        expr_data, index=filtered_adata.obs_names, columns=filtered_adata.var_names
-    )
-
-    expr_df = expr_df.reset_index().rename(columns={"index": "id"})
-
-    coord_df = get_cell_type_coordinates(sample_id).reset_index(drop=True)
-
-    merged_df = pd.merge(expr_df, coord_df, on="id", how="inner")
-
-    merged_df["total_expression"] = merged_df[gene_names].sum(axis=1)
-
-    for gene in gene_names:
-        merged_df[f"{gene}_original_ratio"] = np.where(
-            merged_df["total_expression"] == 0,
-            0,
-            merged_df[gene] / merged_df["total_expression"],
-        )
-
-    return merged_df
-
-
-def filter_and_cumsum(merged_df, selected_columns):
-    def conditional_cumsum(row, selected_columns):
-        cumsum = 0
-        for col in selected_columns:
-            if row[col] != 0:
-                cumsum += row[col]
-                row[col] = cumsum
-        return row
-
-    filtered_df = merged_df[["id", "cell_x", "cell_y"] + selected_columns].copy()
-    filtered_df[selected_columns] = filtered_df[selected_columns].apply(
-        conditional_cumsum, axis=1, selected_columns=selected_columns
-    )
-    return filtered_df
+    return sample_gene_dict
 
 
 # get kosara data
-def get_kosara_data(sample_id, gene_list, cell_list):
+def get_kosara_data(sample_ids, gene_list, cell_list):
     radius = 5
     d = np.sqrt(2) * radius
 
@@ -211,11 +141,10 @@ def get_kosara_data(sample_id, gene_list, cell_list):
         else:
             return a * 10 - 1.5
 
-    def calculate_radius(df, originaldf, radius_val):
-        originaldf = originaldf.copy()
+    def calculate_radius(originaldf, radius_val):
         originaldf["radius"] = radius_val
-        result_df = originaldf[["id", "cell_x", "cell_y", "radius"] + gene_list].copy()
-        for index, row in df.iterrows():
+        result_df = originaldf.copy()
+        for index, row in originaldf.iterrows():
             for col in gene_list:
                 a_value = row[col]
                 if a_value == 0:
@@ -243,11 +172,104 @@ def get_kosara_data(sample_id, gene_list, cell_list):
 
         return result_df
 
-    position_cell_ratios_df = filter_and_merge(cell_list, gene_list, sample_id)
-    kosara_df = calculate_radius(
-        filter_and_cumsum(position_cell_ratios_df, gene_list),
-        position_cell_ratios_df,
-        radius,
-    )
+    def filter_and_merge(cell_ids, gene_names, sample_ids):
+        results = {}
+        for sample_id in sample_ids:
+            if sample_id not in SAMPLES:
+                raise ValueError("Sample not found.")
+            else:
+                adata_path = SAMPLES[sample_id]["adata"]
+                adata = sc.read_h5ad(adata_path)
 
-    return kosara_df
+                if not cell_ids:
+                    valid_cell_ids = adata.obs_names.tolist()
+                else:
+                    valid_cell_ids = [cell for cell in cell_ids if cell in adata.obs_names]
+
+                valid_gene_names = [gene for gene in gene_names if gene in adata.var_names]
+
+                if valid_gene_names:
+                    filtered_adata = adata[valid_cell_ids, valid_gene_names].copy()
+                    if issparse(filtered_adata.X):
+                        expr_data = filtered_adata.X.toarray()
+                    else:
+                        expr_data = filtered_adata.X
+                    expr_df = pd.DataFrame(
+                        expr_data,
+                        index=filtered_adata.obs_names,
+                        columns=filtered_adata.var_names,
+                    )
+                else:
+                    expr_df = pd.DataFrame(index=valid_cell_ids)
+
+                expr_df = expr_df.reset_index().rename(columns={"index": "id"})
+
+                missing_genes = [gene for gene in gene_names if gene not in expr_df.columns]
+                for gene in missing_genes:
+                    expr_df[gene] = 0
+
+                expr_df = expr_df[['id'] + gene_names]
+
+                coord_df = get_cell_type_coordinates(sample_id).reset_index(drop=True)
+
+                merged_df = pd.merge(expr_df, coord_df, on="id", how="inner")
+
+                merged_df["total_expression"] = adata.X.sum(axis=1)
+
+                for gene in gene_names:
+                    merged_df[f"{gene}_original_ratio"] = np.where(
+                        merged_df["total_expression"] == 0,
+                        0,
+                        merged_df[gene] / merged_df["total_expression"],
+                    )
+
+                results[sample_id] = merged_df
+
+        return results
+
+    def filter_and_cumsum(merged_df, selected_columns):
+        def conditional_cumsum(row, selected_columns):
+            cumsum = 0
+            for col in selected_columns:
+                if row[col] != 0:
+                    cumsum += row[col]
+                    row[col] = cumsum
+            return row
+
+        filtered_df = merged_df[["id", "cell_x", "cell_y"] + selected_columns].copy()
+        filtered_df[selected_columns] = filtered_df[selected_columns].apply(
+            conditional_cumsum, axis=1, selected_columns=selected_columns
+        )
+        return filtered_df
+
+    position_cell_ratios_dict = filter_and_merge(cell_list, gene_list, sample_ids)
+    results = {}
+
+    for sample_id, merged_df in position_cell_ratios_dict.items():
+        # cumsum_df = filter_and_cumsum(merged_df, gene_list)
+
+        # kosara_df = calculate_radius(cumsum_df, merged_df, radius)
+        kosara_df = calculate_radius(merged_df, radius)
+        formatted_results = []
+        for _, row in kosara_df.iterrows():
+            transformed_entry = {
+                "id": row["id"],
+                "cell_x": row["cell_x"],
+                "cell_y": row["cell_y"],
+                "cell_type": row["cell_type"],
+                "total_expression": row["total_expression"],
+                "angles": {},
+                "radius": {},
+                "ratios": {}
+            }
+            
+            for gene in gene_list:
+                transformed_entry["angles"][gene] = row.get(f"{gene}_angle", 0)
+                transformed_entry["radius"][gene] = row.get(f"{gene}_radius", 0)
+                transformed_entry["ratios"][gene] = row.get(f"{gene}_original_ratio", 0)
+            
+            formatted_results.append(transformed_entry)
+
+        results[sample_id] = formatted_results
+
+    return results

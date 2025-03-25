@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react';
+import { Select, Spin, message } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
-import { Select, Spin, message } from 'antd';
+import { Cell2CellViewer } from './components/Cell2CellViewer';
+import { GeneExpressionViewer } from './components/GeneExpressionViewer';
+import { PseudoTemporalViewer } from './components/PseudoTemporalViewer';
+
 
 function App() {
   const [cellTypeCoordinatesData, setCellTypeCoordinatesData] = useState({});
   const [samples, setSamples] = useState([]);
   const [selectedSamples, setSelectedSamples] = useState([]);
-  const [cellTypeDir, setCellTypeDir] = useState([]);
+  const [cellTypeDir, setCellTypeDir] = useState({});
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -26,7 +30,7 @@ function App() {
     }
   };
 
-  // get cell type data for selected samples
+  // get cell information(cell_type, cell_x, cell_y, id) for selected samples
   const fetchCellTypeData = async (sampleIds) => {
     setLoading(true);
     try {
@@ -58,10 +62,10 @@ function App() {
     }
   };
 
-  // get cell type directory for selected samples
+  // get cell type directory for each selected sample
   const fetchCellTypeDirectory = async (sampleIds) => {
     try {
-      const uniqueTypes = new Set();
+      const cellTypeMap = {};
       await Promise.all(
         sampleIds.map(sampleId =>
           fetch('/get_unique_cell_types', {
@@ -71,18 +75,18 @@ function App() {
           })
             .then(res => res.json())
             .then(data => {
-              data.forEach(type => uniqueTypes.add(type));
+              cellTypeMap[sampleId] = data;
             })
         )
       );
-      setCellTypeDir(Array.from(uniqueTypes));
+      setCellTypeDir(cellTypeMap);
     } catch (error) {
       message.error('Get cell type directory failed');
       console.error(error);
     }
   };
 
-  // initial loading
+  // initial loading (get all available sample list)
   useEffect(() => {
     fetchAvailableSamples();
   }, []);
@@ -97,7 +101,8 @@ function App() {
 
   return (
     <div className="App">
-      <div className="content">
+      <div className='main'>
+        {/* select samples */}
         <Select
           size='small'
           mode="multiple"
@@ -113,28 +118,55 @@ function App() {
           loading={loading}
         />
 
-        {/* main view */}
-        <Spin spinning={loading}>
+        {/* all views */}
+        <div className="content" style={{ position: "relative" }}>
+          {loading && (
+            <div style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              background: "rgba(0, 0, 0, 0.5)",
+              zIndex: 10
+            }}>
+              <Spin spinning={true} size="large" />
+            </div>
+          )}
+
           {selectedSamples.length > 0 ? (
-            <MultiSampleViewer
-              samples={samples.filter(s => selectedSamples.includes(s.id))}
-              cellTypeCoordinatesData={cellTypeCoordinatesData}
-              cellTypeDir={cellTypeDir}
-              regions={regions}
-              setRegions={setRegions}
-            />
+            <>
+              <MultiSampleViewer
+                setLoading={setLoading}
+                samples={samples.filter(s => selectedSamples.includes(s.id))}
+                cellTypeCoordinatesData={cellTypeCoordinatesData}
+                cellTypeDir={cellTypeDir}
+                regions={regions}
+                setRegions={setRegions}
+              />
+
+              <div className="auxiliaryViews">
+                <PseudoTemporalViewer />
+                <Cell2CellViewer />
+                <GeneExpressionViewer />
+              </div>
+            </>
           ) : (
             <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: '80vh',
-              color: '#999'
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              height: "100%",
+              width: "100%",
+              color: "#999"
             }}>
               Please select at least one sample to view
             </div>
           )}
-        </Spin>
+        </div>
       </div>
     </div>
   );

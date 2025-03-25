@@ -7,7 +7,7 @@ from process import (
     get_unique_cell_types,
     get_cell_type_coordinates,
     get_samples,
-    get_unique_columns,
+    get_gene_list,
     get_kosara_data,
     # get_umap_positions_with_clusters,
     # get_gene_list,
@@ -66,14 +66,15 @@ def get_cell_type_coordinates_route():
 @app.route('/get_all_gene_list', methods=['POST'])
 def get_all_gene_list():
     sample_names = request.json['sample_names']
-    return jsonify(get_unique_columns(sample_names))
+    return jsonify(get_gene_list(sample_names))
+
 
 @app.route('/get_kosara_data', methods=['POST'])
 def get_kosara_data_route():
-    sample_id = request.json['sample_id']
+    sample_ids = request.json['sample_ids']
     gene_list = request.json['gene_list']
     cell_list = request.json['cell_list']
-    return jsonify(get_kosara_data(sample_id, gene_list, cell_list).to_dict(orient='records'))
+    return jsonify(get_kosara_data(sample_ids, gene_list, cell_list))
 
 #################### OLD CODE ####################
 @app.route('/get_um_positions_with_clusters', methods=['POST'])
