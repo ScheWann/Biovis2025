@@ -191,7 +191,7 @@ export const PseudoTemporalViewer = () => {
             .attr("x", width / 2)
             .attr("y", margin.top / 2)
             .attr("text-anchor", "middle")
-            .text("Pseudo-Temporal UMAP");
+            .text("Pseudo-temporal Gene Ordering");
 
         // Add legend
         const legend = staticContainer.append("g")
