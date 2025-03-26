@@ -152,7 +152,7 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
         result_df = originaldf.copy()
         for index, row in originaldf.iterrows():
             for col in gene_list:
-                a_value = row[col]
+                a_value = row[col + "_original_ratio"]
                 if a_value == 0:
                     cal_radius = 0
                     angle = 0
@@ -241,28 +241,10 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
             df["id"] = adata.obs.index
             return df
 
-    def filter_and_cumsum(merged_df, selected_columns):
-        def conditional_cumsum(row, selected_columns):
-            cumsum = 0
-            for col in selected_columns:
-                if row[col] != 0:
-                    cumsum += row[col]
-                    row[col] = cumsum
-            return row
-
-        filtered_df = merged_df[["id", "cell_x", "cell_y"] + selected_columns].copy()
-        filtered_df[selected_columns] = filtered_df[selected_columns].apply(
-            conditional_cumsum, axis=1, selected_columns=selected_columns
-        )
-        return filtered_df
-
     position_cell_ratios_dict = filter_and_merge(cell_list, gene_list, sample_ids)
     results = {}
 
     for sample_id, merged_df in position_cell_ratios_dict.items():
-        # cumsum_df = filter_and_cumsum(merged_df, gene_list)
-
-        # kosara_df = calculate_radius(cumsum_df, merged_df, radius)
         kosara_df = calculate_radius(merged_df, radius)
         formatted_results = []
         for _, row in kosara_df.iterrows():
