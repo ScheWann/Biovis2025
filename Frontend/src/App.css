@@ -27,6 +27,13 @@ body {
   display: flex;
 }
 
+.selectSamples {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 .auxiliaryViews {
   width: 30%;
   height: 100%;

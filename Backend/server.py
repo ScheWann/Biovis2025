@@ -29,14 +29,14 @@ def get_available_samples():
 
 @app.route('/get_hires_image_size', methods=['POST'])
 def get_hires_image_size_route():
-    sample_id = request.json['sample_id']
-    return jsonify(get_hires_image_size(sample_id))
+    sample_ids = request.json['sample_ids']
+    return jsonify(get_hires_image_size(sample_ids))
 
 
 @app.route('/get_unique_cell_types', methods=['POST'])
 def get_unique_cell_types_route():
-    sample_id = request.json['sample_id']
-    return jsonify(get_unique_cell_types(sample_id))
+    sample_ids = request.json['sample_ids']
+    return jsonify(get_unique_cell_types(sample_ids))
 
 
 @app.route('/get_tile', methods=['GET'])
@@ -59,8 +59,8 @@ def serve_tile():
 
 @app.route('/get_cell_type_coordinates', methods=['POST'])
 def get_cell_type_coordinates_route():
-    sample_id = request.json['sample_id']
-    return jsonify(get_cell_type_coordinates(sample_id).to_dict(orient='records'))
+    sample_ids = request.json['sample_ids']
+    return jsonify(get_cell_type_coordinates(sample_ids))
 
 
 @app.route('/get_all_gene_list', methods=['POST'])

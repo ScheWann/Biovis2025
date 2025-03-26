@@ -115,7 +115,7 @@ export const MultiSampleViewer = ({
     const [visibleSamples, setVisibleSamples] = useState(
         samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
     );
-    const [geneList, setGeneList] = useState([]);
+    const [geneList, setGeneList] = useState({});
     const [selectedGenes, setSelectedGenes] = useState([]);
     const [regionName, setRegionName] = useState('');
     const [regionColor, setRegionColor] = useState(generateRandomColor());
@@ -130,17 +130,23 @@ export const MultiSampleViewer = ({
     // fetch gene list
     useEffect(() => {
         const sampleNames = samples.map(item => item.id);
+        const missingSampleNames = sampleNames.filter(id => !geneList[id]);
+
+        if (missingSampleNames.length === 0) return;
 
         fetch('/get_all_gene_list', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sample_names: sampleNames })
+            body: JSON.stringify({ sample_names: missingSampleNames })
         })
             .then(res => res.json())
             .then(data => {
-                setGeneList(data);
+                setGeneList(prev => ({
+                    ...prev,
+                    ...data
+                }));
             });
-    }, [setGeneList]);
+    }, [samples]);
 
     // Initialize color map and visible cell types for each sample
     useEffect(() => {
@@ -168,31 +174,24 @@ export const MultiSampleViewer = ({
 
     // get image sizes for all samples
     useEffect(() => {
-        const fetchImageSizes = async () => {
-            const samplesToFetch = samples.filter(sample => !imageSizes.hasOwnProperty(sample.id));
-            if (samplesToFetch.length === 0) return;
+        const fetchImageSizes = () => {
+            const sampleIds = samples.map(sample => sample.id);
 
-            const newSizes = {};
-            await Promise.all(samplesToFetch.map(async (sample) => {
-                const response = await fetch("/get_hires_image_size", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sample_id: sample.id })
-                });
-                const data = await response.json();
-                newSizes[sample.id] = data;
-            }));
-
-            setImageSizes(prev => ({
-                ...prev,
-                ...newSizes
-            }));
+            fetch('/get_hires_image_size', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sample_ids: sampleIds })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    setImageSizes(data);
+                })
         };
 
         if (samples.length) {
             fetchImageSizes();
         }
-    }, [samples, imageSizes]);
+    }, [samples]);
 
     useEffect(() => {
         if (Object.keys(imageSizes).length === samples.length) {
@@ -644,7 +643,7 @@ export const MultiSampleViewer = ({
                 parameters: { depthTest: false }
             });
         }).filter(Boolean);
-    }, [samples, imageSizes, visibleSamples, sampleOffsets, currentZoom]);
+    }, [imageSizes, visibleSamples, sampleOffsets, currentZoom]);
 
     // cell boundaries image layers
     const generateMarkerImageLayers = useCallback(() => {
@@ -1089,7 +1088,7 @@ export const MultiSampleViewer = ({
                     position: 'absolute',
                     top: 10,
                     right: 10,
-                    zIndex: 20,
+                    zIndex: 10,
                     width: 250
                 }}>
                     {/* region drawing controls */}

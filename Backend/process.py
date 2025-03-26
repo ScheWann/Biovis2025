@@ -36,41 +36,47 @@ SAMPLES = {
 
 # return sample list
 def get_samples():
-    return [{"id": sample["id"], "name": sample["name"]} for sample in SAMPLES.values()]
+    return [{"value": sample["id"], "label": sample["name"]} for sample in SAMPLES.values()]
 
 
 # return tissue width and height size
-def get_hires_image_size(sample_id):
+def get_hires_image_size(sample_ids):
     Image.MAX_IMAGE_PIXELS = None
-    if sample_id == "skin_TXK6Z4X_A1":
-        image = Image.open(SAMPLES["skin_TXK6Z4X_A1"]["wsi"])
-    elif sample_id == "skin_TXK6Z4X_D1":
-        image = Image.open(SAMPLES["skin_TXK6Z4X_D1"]["wsi"])
+    sizes = {}
 
-    return image.size
+    for sample_id in sample_ids:
+        if sample_id in SAMPLES:
+            image = Image.open(SAMPLES[sample_id]["wsi"])
+        sizes[sample_id] = image.size
+
+    return sizes
 
 
 # return unique cell types
-def get_unique_cell_types(sample_id):
-    if sample_id == "skin_TXK6Z4X_A1":
-        adata = sc.read_h5ad(SAMPLES["skin_TXK6Z4X_A1"]["adata"])
-    elif sample_id == "skin_TXK6Z4X_D1":
-        adata = sc.read_h5ad(SAMPLES["skin_TXK6Z4X_D1"]["adata"])
+def get_unique_cell_types(sample_ids):
+    result = {}
 
-    return adata.obs["cell_type"].unique().tolist()
+    for sample_id in sample_ids:
+        if sample_id in SAMPLES:
+            adata = sc.read_h5ad(SAMPLES[sample_id]["adata"])
+            result[sample_id] = adata.obs["cell_type"].unique().tolist()
+
+    return result
 
 
 # return cell type, and cell coordinates
-def get_cell_type_coordinates(sample_id):
-    if sample_id == "skin_TXK6Z4X_A1":
-        adata = sc.read_h5ad(SAMPLES["skin_TXK6Z4X_A1"]["adata"])
-    elif sample_id == "skin_TXK6Z4X_D1":
-        adata = sc.read_h5ad(SAMPLES["skin_TXK6Z4X_D1"]["adata"])
+def get_cell_type_coordinates(sample_ids):
+    result = {}
 
-    df = adata.obsm["spatial"].copy()
-    df["cell_type"] = adata.obs["cell_type"]
-    df["id"] = adata.obs.index
-    return df
+    for sample_id in sample_ids:
+        if sample_id in SAMPLES:
+            adata = sc.read_h5ad(SAMPLES[sample_id]["adata"])
+            df = adata.obsm["spatial"].copy()
+            df["cell_type"] = adata.obs["cell_type"]
+            df["id"] = adata.obs.index
+            result[sample_id] = df.to_dict(orient="records")
+
+    return result
 
 
 # return gene list
