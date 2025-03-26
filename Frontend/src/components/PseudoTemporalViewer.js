@@ -39,7 +39,7 @@ const ToolPanel = styled(Box)(({ theme }) => ({
     top: theme.spacing(1),
     left: theme.spacing(1),
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'row',
     gap: theme.spacing(0.1),
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     padding: theme.spacing(0.1),
@@ -49,13 +49,13 @@ const ToolPanel = styled(Box)(({ theme }) => ({
 }));
 
 const UMAPContainer = styled(Box)(({ theme }) => ({
-    width: '90%',
+    width: '100%',
     height: '100%',
     position: 'relative',
     backgroundColor: '#fff',
     borderRadius: theme.shape.borderRadius,
     overflow: 'hidden',
-    margin: '0 auto',
+    margin: '0',
 }));
 
 const FilterPanel = styled(Box)(({ theme }) => ({
@@ -145,7 +145,7 @@ export const PseudoTemporalViewer = () => {
 
         const width = svgRef.current.clientWidth;
         const height = svgRef.current.clientHeight;
-        const margin = { top: 20, right: 20, bottom: 30, left: 40 };
+        const margin = { top: 40, right: 120, bottom: 40, left: 60 };
 
         const svg = d3.select(svgRef.current)
             .attr("width", width)
@@ -163,83 +163,14 @@ export const PseudoTemporalViewer = () => {
             .domain(umapData.metadata.unique_cell_types)
             .range(d3.schemeCategory10);
 
-        const zoom = d3.zoom()
-            .scaleExtent([0.1, 10])
-            .on("zoom", (event) => {
-                const transform = event.transform;
-                transform.x = 0; 
-                g.attr("transform", transform);
-            });
+        // Create a container for static elements (axes, labels, legend)
+        const staticContainer = svg.append("g");
 
-        svg.call(zoom);
+        // Create a container for interactive elements (points)
+        const interactiveContainer = svg.append("g");
 
-        const g = svg.append("g");
-
-        const points = g.selectAll("circle")
-            .data(umapData.umap_coordinates.x)
-            .enter()
-            .append("circle")
-            .attr("cx", (d, i) => xScale(d))
-            .attr("cy", (d, i) => yScale(umapData.umap_coordinates.y[i]))
-            .attr("r", 3)
-            .attr("fill", (d, i) => {
-                const cellType = umapData.cell_types[i];
-                return selectedCellTypes.includes(cellType) 
-                    ? colorScale(cellType)
-                    : "#ddd";
-            })
-            .attr("opacity", (d, i) => selectedCellTypes.includes(umapData.cell_types[i]) ? 0.6 : 0.1)
-            .on("mouseover", function(event, d) {
-                const cellType = umapData.cell_types[event.target.__data__];
-                if (selectedCellTypes.includes(cellType)) {
-                    d3.select(this)
-                        .attr("r", 5)
-                        .attr("opacity", 1);
-
-                    const tooltip = d3.select("body")
-                        .append("div")
-                        .attr("class", "tooltip")
-                        .style("opacity", 0)
-                        .style("position", "absolute")
-                        .style("background-color", "white")
-                        .style("border", "1px solid #ddd")
-                        .style("border-radius", "4px")
-                        .style("padding", "8px")
-                        .style("pointer-events", "none")
-                        .style("box-shadow", "0 2px 4px rgba(0,0,0,0.1)")
-                        .style("font-size", "12px")
-                        .style("z-index", "1000");
-
-                    tooltip.transition()
-                        .duration(200)
-                        .style("opacity", .9);
-
-                    tooltip.html(`Cell Type: ${cellType}`)
-                        .style("left", (event.pageX + 10) + "px")
-                        .style("top", (event.pageY - 28) + "px");
-                }
-            })
-            .on("mouseout", function(event, d) {
-                const cellType = umapData.cell_types[event.target.__data__];
-                if (selectedCellTypes.includes(cellType)) {
-                    d3.select(this)
-                        .attr("r", 3)
-                        .attr("opacity", 0.6);
-                    
-                    d3.selectAll(".tooltip").remove();
-                }
-            });
-
-        const xAxis = g.append("g")
-            .attr("transform", `translate(0,${height - margin.bottom})`)
-            .call(d3.axisBottom(xScale).tickValues([]));
-
-        const yAxis = g.append("g")
-            .attr("transform", `translate(${margin.left},0)`)
-            .call(d3.axisLeft(yScale).tickValues([]));
-
-        // Add axis labels
-        xAxis.append("text")
+        // Add static elements
+        staticContainer.append("text")
             .attr("x", width / 2)
             .attr("y", height - 10)
             .attr("text-anchor", "middle")
@@ -247,7 +178,7 @@ export const PseudoTemporalViewer = () => {
             .style("font-size", "14px")
             .style("font-weight", "bold");
 
-        yAxis.append("text")
+        staticContainer.append("text")
             .attr("transform", "rotate(-90)")
             .attr("x", -height / 2)
             .attr("y", 15)
@@ -256,13 +187,14 @@ export const PseudoTemporalViewer = () => {
             .style("font-size", "14px")
             .style("font-weight", "bold");
 
-        g.append("text")
+        staticContainer.append("text")
             .attr("x", width / 2)
             .attr("y", margin.top / 2)
             .attr("text-anchor", "middle")
             .text("Pseudo-Temporal UMAP");
 
-        const legend = g.append("g")
+        // Add legend
+        const legend = staticContainer.append("g")
             .attr("font-family", "sans-serif")
             .attr("font-size", 10)
             .attr("text-anchor", "start")
@@ -286,6 +218,107 @@ export const PseudoTemporalViewer = () => {
             .attr("y", 9.5)
             .attr("dy", "0.32em")
             .text(d => d);
+
+        // Add zoom behavior only to interactive container
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 10])
+            .on("zoom", (event) => {
+                interactiveContainer.attr("transform", event.transform);
+            });
+
+        interactiveContainer.call(zoom);
+
+        // Add pan behavior
+        let isPanning = false;
+        let startX, startY;
+
+        interactiveContainer.on("mousedown", function(event) {
+            isPanning = true;
+            startX = event.clientX;
+            startY = event.clientY;
+        });
+
+        interactiveContainer.on("mousemove", function(event) {
+            if (!isPanning) return;
+            
+            const dx = event.clientX - startX;
+            const dy = event.clientY - startY;
+            
+            const currentTransform = d3.zoomTransform(interactiveContainer.node());
+            const newTransform = currentTransform.translate(dx / currentTransform.k, dy / currentTransform.k);
+            
+            interactiveContainer.transition()
+                .duration(0)
+                .call(zoom.transform, newTransform);
+            
+            startX = event.clientX;
+            startY = event.clientY;
+        });
+
+        interactiveContainer.on("mouseup", function() {
+            isPanning = false;
+        });
+
+        interactiveContainer.on("mouseleave", function() {
+            isPanning = false;
+        });
+
+        // Add points to interactive container
+        const points = interactiveContainer.selectAll("circle")
+            .data(umapData.umap_coordinates.x)
+            .enter()
+            .append("circle")
+            .attr("cx", (d, i) => xScale(d))
+            .attr("cy", (d, i) => yScale(umapData.umap_coordinates.y[i]))
+            .attr("r", 3)
+            .attr("fill", (d, i) => {
+                const cellType = umapData.cell_types[i];
+                return selectedCellTypes.includes(cellType) 
+                    ? colorScale(cellType)
+                    : "#ddd";
+            })
+            .attr("opacity", (d, i) => selectedCellTypes.includes(umapData.cell_types[i]) ? 0.6 : 0.1)
+            .on("mouseover", function(event, d) {
+                const index = event.target.__data__;
+                const cellType = umapData.cell_types[index];
+                if (selectedCellTypes.includes(cellType)) {
+                    d3.select(this)
+                        .attr("r", 5)
+                        .attr("opacity", 1);
+
+                    const tooltip = d3.select("body")
+                        .append("div")
+                        .attr("class", "tooltip")
+                        .style("opacity", 0)
+                        .style("position", "absolute")
+                        .style("background-color", "white")
+                        .style("border", "1px solid #ddd")
+                        .style("border-radius", "4px")
+                        .style("padding", "8px")
+                        .style("pointer-events", "none")
+                        .style("box-shadow", "0 2px 4px rgba(0,0,0,0.1)")
+                        .style("font-size", "12px")
+                        .style("z-index", "1000");
+
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+
+                    tooltip.html(`Cell Type: ${cellType}<br>Index: ${index}`)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                }
+            })
+            .on("mouseout", function(event, d) {
+                const cellType = umapData.cell_types[event.target.__data__];
+                if (selectedCellTypes.includes(cellType)) {
+                    d3.select(this)
+                        .attr("r", 3)
+                        .attr("opacity", 0.6);
+                    
+                    d3.selectAll(".tooltip").remove();
+                }
+            });
 
         zoomRef.current = zoom;
 
@@ -348,26 +381,11 @@ export const PseudoTemporalViewer = () => {
                 ) : error ? (
                     <Alert severity="error" sx={{ m: 1 }}>{error}</Alert>
                 ) : (
-                    <svg ref={svgRef} style={{ width: '90%', height: '90%' }}></svg>
+                    <svg ref={svgRef} style={{ width: '100%', height: '100%' }}></svg>
                 )}
             </UMAPContainer>
 
             <ToolPanel>
-                <Tooltip title="Zoom In">
-                    <IconButton onClick={handleZoomIn} size="small" sx={{ padding: '3px' }}>
-                        <ZoomInIcon sx={{ fontSize: '1.0rem' }} />
-                    </IconButton>
-                </Tooltip>
-                <Tooltip title="Zoom Out">
-                    <IconButton onClick={handleZoomOut} size="small" sx={{ padding: '3px' }}>
-                        <ZoomOutIcon sx={{ fontSize: '1.0rem' }} />
-                    </IconButton>
-                </Tooltip>
-                <Tooltip title="Pan Mode">
-                    <IconButton onClick={() => setShowFilters(!showFilters)} size="small" sx={{ padding: '3px' }}>
-                        <PanToolIcon sx={{ fontSize: '1.0rem' }} />
-                    </IconButton>
-                </Tooltip>
                 <Tooltip title="Filter Cell Types">
                     <IconButton onClick={() => setShowFilters(!showFilters)} size="small" sx={{ padding: '3px' }}>
                         <FilterListIcon sx={{ fontSize: '1.0rem' }} />
@@ -403,12 +421,10 @@ export const PseudoTemporalViewer = () => {
                     value={samplePercent}
                     onChange={handleSampleChange}
                     size="small"
-                    InputProps={{ 
-                        inputProps: {
-                            min: 0.1, 
-                            max: 100, 
-                            step: 0.1 
-                        }
+                    inputProps={{
+                        min: 0.1, 
+                        max: 100, 
+                        step: 0.1 
                     }}
                 />
             </ControlPanel>
