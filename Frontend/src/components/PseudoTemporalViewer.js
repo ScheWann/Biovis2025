@@ -39,7 +39,7 @@ const ToolPanel = styled(Box)(({ theme }) => ({
     top: theme.spacing(1),
     left: theme.spacing(1),
     display: 'flex',
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: theme.spacing(0.1),
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     padding: theme.spacing(0.1),
@@ -49,13 +49,13 @@ const ToolPanel = styled(Box)(({ theme }) => ({
 }));
 
 const UMAPContainer = styled(Box)(({ theme }) => ({
-    width: '100%',
+    width: '90%',
     height: '100%',
     position: 'relative',
     backgroundColor: '#fff',
     borderRadius: theme.shape.borderRadius,
     overflow: 'hidden',
-    margin: '0',
+    margin: '0 auto',
 }));
 
 const FilterPanel = styled(Box)(({ theme }) => ({
@@ -145,7 +145,7 @@ export const PseudoTemporalViewer = () => {
 
         const width = svgRef.current.clientWidth;
         const height = svgRef.current.clientHeight;
-        const margin = { top: 40, right: 120, bottom: 40, left: 60 };
+        const margin = { top: 20, right: 20, bottom: 30, left: 40 };
 
         const svg = d3.select(svgRef.current)
             .attr("width", width)
@@ -163,108 +163,19 @@ export const PseudoTemporalViewer = () => {
             .domain(umapData.metadata.unique_cell_types)
             .range(d3.schemeCategory10);
 
-        // Create a container for static elements (axes, labels, legend)
-        const staticContainer = svg.append("g");
-
-        // Create a container for interactive elements (points)
-        const interactiveContainer = svg.append("g");
-
-        // Add static elements
-        staticContainer.append("text")
-            .attr("x", width / 2)
-            .attr("y", height - 10)
-            .attr("text-anchor", "middle")
-            .text("UMAP1")
-            .style("font-size", "14px")
-            .style("font-weight", "bold");
-
-        staticContainer.append("text")
-            .attr("transform", "rotate(-90)")
-            .attr("x", -height / 2)
-            .attr("y", 15)
-            .attr("text-anchor", "middle")
-            .text("UMAP2")
-            .style("font-size", "14px")
-            .style("font-weight", "bold");
-
-        staticContainer.append("text")
-            .attr("x", width / 2)
-            .attr("y", margin.top / 2)
-            .attr("text-anchor", "middle")
-            .text("Pseudo-Temporal UMAP");
-
-        // Add legend
-        const legend = staticContainer.append("g")
-            .attr("font-family", "sans-serif")
-            .attr("font-size", 10)
-            .attr("text-anchor", "start")
-            .selectAll("g")
-            .data(umapData.metadata.unique_cell_types)
-            .enter().append("g")
-            .attr("transform", (d, i) => {
-                const totalHeight = height - margin.top - margin.bottom;
-                const itemHeight = totalHeight / umapData.metadata.unique_cell_types.length;
-                return `translate(0,${margin.top + (i * itemHeight)})`;
-            });
-
-        legend.append("rect")
-            .attr("x", width - margin.right + 10)
-            .attr("width", 19)
-            .attr("height", 19)
-            .attr("fill", d => colorScale(d));
-
-        legend.append("text")
-            .attr("x", width - margin.right + 35)
-            .attr("y", 9.5)
-            .attr("dy", "0.32em")
-            .text(d => d);
-
-        // Add zoom behavior only to interactive container
         const zoom = d3.zoom()
             .scaleExtent([0.1, 10])
             .on("zoom", (event) => {
-                interactiveContainer.attr("transform", event.transform);
+                const transform = event.transform;
+                transform.x = 0; 
+                g.attr("transform", transform);
             });
 
-        interactiveContainer.call(zoom);
+        svg.call(zoom);
 
-        // Add pan behavior
-        let isPanning = false;
-        let startX, startY;
+        const g = svg.append("g");
 
-        interactiveContainer.on("mousedown", function(event) {
-            isPanning = true;
-            startX = event.clientX;
-            startY = event.clientY;
-        });
-
-        interactiveContainer.on("mousemove", function(event) {
-            if (!isPanning) return;
-            
-            const dx = event.clientX - startX;
-            const dy = event.clientY - startY;
-            
-            const currentTransform = d3.zoomTransform(interactiveContainer.node());
-            const newTransform = currentTransform.translate(dx / currentTransform.k, dy / currentTransform.k);
-            
-            interactiveContainer.transition()
-                .duration(0)
-                .call(zoom.transform, newTransform);
-            
-            startX = event.clientX;
-            startY = event.clientY;
-        });
-
-        interactiveContainer.on("mouseup", function() {
-            isPanning = false;
-        });
-
-        interactiveContainer.on("mouseleave", function() {
-            isPanning = false;
-        });
-
-        // Add points to interactive container
-        const points = interactiveContainer.selectAll("circle")
+        const points = g.selectAll("circle")
             .data(umapData.umap_coordinates.x)
             .enter()
             .append("circle")
@@ -279,8 +190,7 @@ export const PseudoTemporalViewer = () => {
             })
             .attr("opacity", (d, i) => selectedCellTypes.includes(umapData.cell_types[i]) ? 0.6 : 0.1)
             .on("mouseover", function(event, d) {
-                const index = event.target.__data__;
-                const cellType = umapData.cell_types[index];
+                const cellType = umapData.cell_types[event.target.__data__];
                 if (selectedCellTypes.includes(cellType)) {
                     d3.select(this)
                         .attr("r", 5)
@@ -304,7 +214,7 @@ export const PseudoTemporalViewer = () => {
                         .duration(200)
                         .style("opacity", .9);
 
-                    tooltip.html(`Cell Type: ${cellType}<br>Index: ${index}`)
+                    tooltip.html(`Cell Type: ${cellType}`)
                         .style("left", (event.pageX + 10) + "px")
                         .style("top", (event.pageY - 28) + "px");
                 }
@@ -319,6 +229,63 @@ export const PseudoTemporalViewer = () => {
                     d3.selectAll(".tooltip").remove();
                 }
             });
+
+        const xAxis = g.append("g")
+            .attr("transform", `translate(0,${height - margin.bottom})`)
+            .call(d3.axisBottom(xScale).tickValues([]));
+
+        const yAxis = g.append("g")
+            .attr("transform", `translate(${margin.left},0)`)
+            .call(d3.axisLeft(yScale).tickValues([]));
+
+        // Add axis labels
+        xAxis.append("text")
+            .attr("x", width / 2)
+            .attr("y", height - 10)
+            .attr("text-anchor", "middle")
+            .text("UMAP1")
+            .style("font-size", "14px")
+            .style("font-weight", "bold");
+
+        yAxis.append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("x", -height / 2)
+            .attr("y", 15)
+            .attr("text-anchor", "middle")
+            .text("UMAP2")
+            .style("font-size", "14px")
+            .style("font-weight", "bold");
+
+        g.append("text")
+            .attr("x", width / 2)
+            .attr("y", margin.top / 2)
+            .attr("text-anchor", "middle")
+            .text("Pseudo-Temporal UMAP");
+
+        const legend = g.append("g")
+            .attr("font-family", "sans-serif")
+            .attr("font-size", 10)
+            .attr("text-anchor", "start")
+            .selectAll("g")
+            .data(umapData.metadata.unique_cell_types)
+            .enter().append("g")
+            .attr("transform", (d, i) => {
+                const totalHeight = height - margin.top - margin.bottom;
+                const itemHeight = totalHeight / umapData.metadata.unique_cell_types.length;
+                return `translate(0,${margin.top + (i * itemHeight)})`;
+            });
+
+        legend.append("rect")
+            .attr("x", width - margin.right + 10)
+            .attr("width", 19)
+            .attr("height", 19)
+            .attr("fill", d => colorScale(d));
+
+        legend.append("text")
+            .attr("x", width - margin.right + 35)
+            .attr("y", 9.5)
+            .attr("dy", "0.32em")
+            .text(d => d);
 
         zoomRef.current = zoom;
 
@@ -381,11 +348,26 @@ export const PseudoTemporalViewer = () => {
                 ) : error ? (
                     <Alert severity="error" sx={{ m: 1 }}>{error}</Alert>
                 ) : (
-                    <svg ref={svgRef} style={{ width: '100%', height: '100%' }}></svg>
+                    <svg ref={svgRef} style={{ width: '90%', height: '90%' }}></svg>
                 )}
             </UMAPContainer>
 
             <ToolPanel>
+                <Tooltip title="Zoom In">
+                    <IconButton onClick={handleZoomIn} size="small" sx={{ padding: '3px' }}>
+                        <ZoomInIcon sx={{ fontSize: '1.0rem' }} />
+                    </IconButton>
+                </Tooltip>
+                <Tooltip title="Zoom Out">
+                    <IconButton onClick={handleZoomOut} size="small" sx={{ padding: '3px' }}>
+                        <ZoomOutIcon sx={{ fontSize: '1.0rem' }} />
+                    </IconButton>
+                </Tooltip>
+                <Tooltip title="Pan Mode">
+                    <IconButton onClick={() => setShowFilters(!showFilters)} size="small" sx={{ padding: '3px' }}>
+                        <PanToolIcon sx={{ fontSize: '1.0rem' }} />
+                    </IconButton>
+                </Tooltip>
                 <Tooltip title="Filter Cell Types">
                     <IconButton onClick={() => setShowFilters(!showFilters)} size="small" sx={{ padding: '3px' }}>
                         <FilterListIcon sx={{ fontSize: '1.0rem' }} />
@@ -421,10 +403,12 @@ export const PseudoTemporalViewer = () => {
                     value={samplePercent}
                     onChange={handleSampleChange}
                     size="small"
-                    inputProps={{
-                        min: 0.1, 
-                        max: 100, 
-                        step: 0.1 
+                    InputProps={{ 
+                        inputProps: {
+                            min: 0.1, 
+                            max: 100, 
+                            step: 0.1 
+                        }
                     }}
                 />
             </ControlPanel>
