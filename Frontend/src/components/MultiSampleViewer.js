@@ -122,7 +122,7 @@ export const MultiSampleViewer = ({
     const [isDrawingActive, setIsDrawingActive] = useState(false);
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
     const [currentZoom, setCurrentZoom] = useState(-3);
-    const [radioCellGeneMode, setRadioCellGeneMode] = useState('cellTypes');
+    const [radioCellGeneModes, setRadioCellGeneModes] = useState(samples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {}));
     const [partWholeMode, setPartWholeMode] = useState(false); // defaultly showing gene expression value in the whole regions
     const [geneExpressionData, setGeneExpressionData] = useState([]);
     const TILE_LOAD_ZOOM_THRESHOLD = 0;
@@ -225,9 +225,12 @@ export const MultiSampleViewer = ({
         setCurrentZoom(zoom);
     }, 100), []);
 
-    const changeCellGeneMode = (e) => {
-        setRadioCellGeneMode(e.target.value);
-    }
+    const changeCellGeneMode = (sampleId, e) => {
+        setRadioCellGeneModes(prev => ({
+            ...prev,
+            [sampleId]: e.target.value
+        }));
+    };
 
     const onVisibilityGeneChange = (gene) => {
         setSelectedGenes([...selectedGenes, gene]);
@@ -520,13 +523,21 @@ export const MultiSampleViewer = ({
         return points;
     }
 
-    const collapseItems = samples.map((sample, index) => ({
+    const collapseItems = samples.map((sample) => ({
         key: sample.id,
         label: sample.name,
         children: (
             <>
-                <Radio.Group block options={radioOptions} size='small' defaultValue="cellTypes" optionType="button" style={{ marginBottom: 10 }} onChange={changeCellGeneMode} />
-                {radioCellGeneMode === 'cellTypes' ? (
+                <Radio.Group
+                    block
+                    options={radioOptions}
+                    size='small'
+                    value={radioCellGeneModes[sample.id]}
+                    optionType="button"
+                    style={{ marginBottom: 10 }}
+                    onChange={(e) => changeCellGeneMode(sample.id, e)}
+                />
+                {radioCellGeneModes[sample.id] === 'cellTypes' ? (
                     <CellTypeSettings
                         cellTypes={cellTypeDir[sample.id] || []}
                         cellData={cellTypeCoordinatesData[sample.id]}
@@ -911,7 +922,7 @@ export const MultiSampleViewer = ({
         });
         return [
             ...generateWholePngLayers(),
-            ...generateTileLayers(),
+            // ...generateTileLayers(),
             ...generateMarkerImageLayers(),
             ...generateCellLayers(),
             ...generateEditLayers(),
@@ -944,7 +955,7 @@ export const MultiSampleViewer = ({
         ].filter(Boolean);
     }, [
         generateWholePngLayers,
-        generateTileLayers,
+        // generateTileLayers,
         generateMarkerImageLayers,
         generateCellLayers,
         generateEditLayers,
