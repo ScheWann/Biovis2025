@@ -122,14 +122,24 @@ export const PseudoTemporalViewer = () => {
             setLoading(true);
             setError(null);
             
+            console.log('Fetching UMAP data with sample_percent:', samplePercent);
             const response = await axios.get('/get_deaplog_results', {
                 params: {
                     sample_percent: samplePercent
                 }
             });
             
+            console.log('Received UMAP data:', response.data);
+            if (!response.data || !response.data.umap_coordinates) {
+                throw new Error('Invalid data format received from server');
+            }
+            
             setUmapData(response.data);
-            setSelectedCellTypes(response.data.metadata.unique_cell_types);
+            if (response.data.metadata && response.data.metadata.unique_cell_types) {
+                setSelectedCellTypes(response.data.metadata.unique_cell_types);
+            } else {
+                console.warn('No unique cell types found in metadata');
+            }
         } catch (err) {
             console.error('Error fetching UMAP data:', err);
             setError(err.response?.data?.error || 'Failed to fetch UMAP data');

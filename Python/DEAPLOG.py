@@ -597,143 +597,142 @@ def get_genes_location_pseudotime(rdata, adata, group_key, gene_matrix, obsm, po
     print('Done!')
     return gene_pseudotime_locates_df
 
-def visualize_results(adata, output_dir='output'):
-    """
-    Create visualizations of DEAPLOG analysis results
-    """
-    import os
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    
-    # Create output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # 1. UMAP plot colored by clusters
-    plt.figure(figsize=(10, 8))
-    sc.pl.umap(adata, color='leiden', show=False)
-    plt.title('UMAP Plot Colored by Clusters')
-    plt.savefig(os.path.join(output_dir, 'umap_clusters.png'))
-    plt.close()
-    
-    # 2. UMAP plot colored by pseudotime
-    plt.figure(figsize=(10, 8))
-    sc.pl.umap(adata, color='dpt_pseudotime', show=False)
-    plt.title('UMAP Plot Colored by Pseudotime')
-    plt.savefig(os.path.join(output_dir, 'umap_pseudotime.png'))
-    plt.close()
-    
-    # 3. Top marker genes heatmap
-    if 'markers_uniq' in adata.uns:
-        markers_df = adata.uns['markers_uniq']
-        top_markers = markers_df.groupby('cell_type').head(5)['gene_name'].tolist()
-        plt.figure(figsize=(15, 10))
-        sc.pl.heatmap(adata, var_names=top_markers, groupby='leiden', show=False)
-        plt.title('Top Marker Genes Heatmap')
-        plt.savefig(os.path.join(output_dir, 'marker_genes_heatmap.png'))
-        plt.close()
-    
-    # 4. Gene expression along pseudotime
-    if 'markers_uniq' in adata.uns:
-        markers_df = adata.uns['markers_uniq']
-        top_genes = markers_df.nlargest(5, 'score')['gene_name'].tolist()
-        plt.figure(figsize=(15, 8))
-        for gene in top_genes:
-            sc.pl.scatter(adata, x='dpt_pseudotime', y=gene, show=False)
-            plt.title(f'{gene} Expression Along Pseudotime')
-            plt.savefig(os.path.join(output_dir, f'gene_expression_pseudotime_{gene}.png'))
-            plt.close()
-
 def run_deaplog_analysis(rdata, adata, sample_percent=None):
     """
-    Run DEAPLOG analysis on the data
+    Run DEAPLOG analysis on the data and return results in format suitable for frontend
     """
     try:
         print(f"Initial data shape: {adata.shape}")
+        print(f"Sample percent received: {sample_percent}")
         
         # Sample cells if specified
-        if sample_percent and sample_percent < 1.0:
-            n_cells = int(adata.n_obs * sample_percent)
-            sc.pp.subsample(adata, n_obs=n_cells, random_state=42)
-            sc.pp.subsample(rdata, n_obs=n_cells, random_state=42)
-            print(f"After sampling, data shape: {adata.shape}")
+        if sample_percent is not None:
+            sample_percent = float(sample_percent)
+            if sample_percent < 1.0:
+                n_cells = int(adata.n_obs * sample_percent)
+                print(f"Sampling {n_cells} cells from {adata.n_obs} total cells")
+                # Random sampling
+                indices = np.random.choice(adata.n_obs, size=n_cells, replace=False)
+                adata = adata[indices].copy()
+                rdata = rdata[indices].copy()
+                print(f"After sampling, data shape: {adata.shape}")
+            else:
+                print("Using full dataset (sample_percent >= 1.0)")
         
-        # Identify highly variable genes
-        print("Identifying highly variable genes...")
-        sc.pp.highly_variable_genes(adata, min_mean=0.0125, max_mean=3, min_disp=0.5)
-        sc.pp.highly_variable_genes(rdata, min_mean=0.0125, max_mean=3, min_disp=0.5)
-        print(f"Number of highly variable genes: {adata.var['highly_variable'].sum()}")
+        # Convert to dense array for preprocessing
+        print("Converting to dense array...")
+        if sparse.issparse(adata.X):
+            adata.X = adata.X.toarray()
+        if sparse.issparse(rdata.X):
+            rdata.X = rdata.X.toarray()
+            
+        # Convert to float32 to reduce memory usage
+        adata.X = adata.X.astype('float32')
+        rdata.X = rdata.X.astype('float32')
+        
+        # Basic preprocessing
+        print("Performing basic preprocessing...")
+        # Replace inf/-inf with max/min finite values
+        adata.X = np.nan_to_num(adata.X, nan=0)
+        rdata.X = np.nan_to_num(rdata.X, nan=0)
+        
+        # Clip extreme values
+        print("Clipping extreme values...")
+        upper = np.percentile(adata.X[adata.X > 0], 99)
+        adata.X = np.clip(adata.X, 0, upper)
+        rdata.X = np.clip(rdata.X, 0, upper)
+        
+        # Log transform
+        print("Log transforming data...")
+        sc.pp.log1p(adata)
+        sc.pp.log1p(rdata)
+        
+        # Calculate highly variable genes manually
+        print("Calculating highly variable genes...")
+        means = np.mean(adata.X, axis=0)
+        vars = np.var(adata.X, axis=0)
+        dispersion = vars / means
+        
+        # Select top 2000 genes by dispersion
+        n_top = 2000
+        dispersion[np.isnan(dispersion)] = 0  # Handle any remaining NaNs
+        top_genes_idx = np.argsort(dispersion)[-n_top:]
+        
+        # Create highly_variable column in var
+        adata.var['highly_variable'] = False
+        adata.var.iloc[top_genes_idx, adata.var.columns.get_loc('highly_variable')] = True
+        
+        rdata.var['highly_variable'] = adata.var['highly_variable'].copy()
+        
+        print(f"Number of highly variable genes: {sum(adata.var['highly_variable'])}")
         
         # Run PCA with reduced number of components
         print("Running PCA...")
-        n_comps = min(20, adata.var['highly_variable'].sum() - 1)  # Ensure n_comps is valid
-        print(f"Using {n_comps} components for PCA")
-        sc.pp.pca(adata, use_highly_variable=True, n_comps=n_comps)
-        sc.pp.pca(rdata, use_highly_variable=True, n_comps=n_comps)
+        sc.pp.pca(adata, n_comps=50)
         
         # Compute neighborhood graph
         print("Computing neighborhood graph...")
-        sc.pp.neighbors(adata, n_neighbors=10, n_pcs=n_comps)
-        sc.pp.neighbors(rdata, n_neighbors=10, n_pcs=n_comps)
+        sc.pp.neighbors(adata, n_neighbors=10, n_pcs=50)
         
         # Run UMAP
         print("Running UMAP...")
         sc.tl.umap(adata)
-        sc.tl.umap(rdata)
         
         # Run Leiden clustering
         print("Running Leiden clustering...")
         sc.tl.leiden(adata, resolution=0.5)
-        sc.tl.leiden(rdata, resolution=0.5)
         
         # Calculate pseudotime using diffusion pseudotime
         print("Calculating diffusion pseudotime...")
         sc.tl.diffmap(adata)
-        # Select root cell as the cell with minimum diffusion component 1
-        root_idx = np.argmin(adata.obsm['X_diffmap'][:, 0])
-        adata.uns['iroot'] = root_idx
+        adata.uns['iroot'] = np.argmin(adata.obsm['X_diffmap'][:, 0])
         sc.tl.dpt(adata)
         
         # Get marker genes
         print("Getting marker genes...")
         markers_uniq = get_DEG_uniq(rdata, adata, group_key='leiden', power=11, ratio=0.2, p_threshold=0.01, q_threshold=0.05)
-        adata.uns['markers_uniq'] = markers_uniq  # Store markers in adata.uns
-        markers_multi = get_DEG_multi(rdata, adata, group_key='leiden', power=11, ratio=0.2, p_threshold=0.01, q_threshold=0.05)
         
-        # Get gene pseudotime
-        print("Calculating gene pseudotime...")
-        gene_pseudotime = get_genes_location_pseudotime(rdata, adata, group_key='leiden', gene_matrix='markers_uniq', obsm='X_umap')
+        # Extract UMAP coordinates and metadata
+        print("Extracting visualization data...")
+        umap_coords = adata.obsm['X_umap']
+        cell_types = adata.obs['cell_type'].tolist() if 'cell_type' in adata.obs else ['Unknown'] * len(adata)
+        clusters = adata.obs['leiden'].tolist()
+        pseudotime = adata.obs['dpt_pseudotime'].tolist()
         
-        # Create visualizations
-        print("Creating visualizations...")
-        visualize_results(adata, output_dir='output')
-        
-        # Prepare results
-        results = {
-            'umap_coords': adata.obsm['X_umap'].tolist(),
-            'cell_clusters': adata.obs['leiden'].tolist(),
-            'marker_genes': {
-                'unique': markers_uniq.to_dict() if markers_uniq is not None else {},
-                'multi': markers_multi.to_dict() if markers_multi is not None else {}
+        # Create response data structure
+        response_data = {
+            "umap_coordinates": {
+                "x": umap_coords[:, 0].tolist(),
+                "y": umap_coords[:, 1].tolist()
             },
-            'gene_pseudotime': gene_pseudotime.to_dict() if gene_pseudotime is not None else {},
-            'visualizations': {
-                'umap_clusters': 'output/umap_clusters.png',
-                'umap_pseudotime': 'output/umap_pseudotime.png',
-                'marker_genes_heatmap': 'output/marker_genes_heatmap.png',
-                'gene_expression_pseudotime': 'output/gene_expression_pseudotime.png'
+            "cell_types": cell_types,
+            "cell_clusters": clusters,
+            "pseudotime": pseudotime,
+            "metadata": {
+                "unique_cell_types": sorted(list(set(cell_types))),
+                "unique_clusters": sorted(list(set(clusters)))
             }
         }
         
-        return results
+        # Save results
+        output_dir = 'output'
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, 'umap_data.json')
+        with open(output_file, 'w') as f:
+            json.dump(response_data, f)
+        
+        print("Analysis completed successfully")
+        print(f"Response data shape: {len(response_data['umap_coordinates']['x'])} cells")
+        return response_data
         
     except Exception as e:
-        print(f"Error in DEAPLOG analysis: {str(e)}")
+        print(f"Error in run_deaplog_analysis: {str(e)}")
         raise
 
 def main():
     parser = argparse.ArgumentParser(description='Run DEAPLOG analysis')
-    parser.add_argument('--sample_percent', type=float, default=0.1,
-                      help='Percentage of cells to sample for analysis')
+    parser.add_argument('--sample_percent', type=float, default=1.0,
+                      help='Percentage of cells to sample for analysis (default: 1.0 for full dataset)')
     parser.add_argument('--step', type=int, default=0,
                       help='Analysis step to run')
     parser.add_argument('--data_path', type=str, required=True,
