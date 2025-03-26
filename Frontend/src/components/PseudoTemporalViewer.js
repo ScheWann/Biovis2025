@@ -11,8 +11,8 @@ import PaletteIcon from '@mui/icons-material/Palette';
 
 const ControlPanel = styled(Box)(({ theme }) => ({
     position: 'absolute',
-    bottom: theme.spacing(1),
-    right: theme.spacing(1),
+    bottom: 0,
+    left: 0,
     display: 'flex',
     flexDirection: 'column',
     gap: theme.spacing(0.5),
@@ -21,23 +21,35 @@ const ControlPanel = styled(Box)(({ theme }) => ({
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[2],
     zIndex: 1000,
+    '& .MuiTextField-root': {
+        width: '60px',
+        '& .MuiInputBase-root': {
+            height: '25px',
+            fontSize: '0.8rem',
+        },
+        '& .MuiInputLabel-root': {
+            fontSize: '0.8rem',
+            transform: 'translate(8px, 4px) scale(1)',
+        },
+    }
 }));
 
 const ToolPanel = styled(Box)(({ theme }) => ({
     position: 'absolute',
     top: theme.spacing(1),
-    right: theme.spacing(1),
+    left: theme.spacing(1),
     display: 'flex',
-    gap: theme.spacing(0.5),
+    flexDirection: 'column',
+    gap: theme.spacing(0.1),
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    padding: theme.spacing(0.5),
+    padding: theme.spacing(0.1),
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[2],
     zIndex: 1000,
 }));
 
 const UMAPContainer = styled(Box)(({ theme }) => ({
-    width: '80%',
+    width: '90%',
     height: '100%',
     position: 'relative',
     backgroundColor: '#fff',
@@ -49,14 +61,30 @@ const UMAPContainer = styled(Box)(({ theme }) => ({
 const FilterPanel = styled(Box)(({ theme }) => ({
     position: 'absolute',
     top: theme.spacing(1),
-    left: theme.spacing(1),
+    right: theme.spacing(1),
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    padding: theme.spacing(1),
+    padding: theme.spacing(0.5),
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[2],
     zIndex: 1000,
     maxHeight: '200px',
     overflowY: 'auto',
+    '& .MuiTypography-root': {
+        fontSize: '0.75rem',
+        marginBottom: theme.spacing(0.5),
+    },
+    '& .MuiStack-root': {
+        gap: theme.spacing(0.5),
+    },
+    '& .MuiBox-root': {
+        '& .MuiTypography-root': {
+            fontSize: '0.7rem',
+        },
+        '& input[type="checkbox"]': {
+            width: '14px',
+            height: '14px',
+        }
+    }
 }));
 
 const ColorPickerPanel = styled(Box)(({ theme }) => ({
@@ -70,7 +98,6 @@ const ColorPickerPanel = styled(Box)(({ theme }) => ({
     zIndex: 1000,
 }));
 
-// تعریف رنگ‌های پیش‌فرض
 const defaultColors = [
     '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
     '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
@@ -83,8 +110,6 @@ export const PseudoTemporalViewer = () => {
     const [umapData, setUmapData] = useState(null);
     const [selectedCellTypes, setSelectedCellTypes] = useState([]);
     const [showFilters, setShowFilters] = useState(false);
-    const [showColorPicker, setShowColorPicker] = useState(false);
-    const [customColors, setCustomColors] = useState({});
     const svgRef = useRef(null);
     const zoomRef = useRef(null);
 
@@ -104,7 +129,6 @@ export const PseudoTemporalViewer = () => {
             });
             
             setUmapData(response.data);
-            // تنظیم تمام انواع سلول‌ها به عنوان انتخاب شده
             setSelectedCellTypes(response.data.metadata.unique_cell_types);
         } catch (err) {
             console.error('Error fetching UMAP data:', err);
@@ -117,7 +141,6 @@ export const PseudoTemporalViewer = () => {
     useEffect(() => {
         if (!umapData || !svgRef.current) return;
 
-        // پاک کردن SVG قبلی
         d3.select(svgRef.current).selectAll("*").remove();
 
         const width = svgRef.current.clientWidth;
@@ -128,7 +151,6 @@ export const PseudoTemporalViewer = () => {
             .attr("width", width)
             .attr("height", height);
 
-        // ایجاد مقیاس‌ها
         const xScale = d3.scaleLinear()
             .domain(d3.extent(umapData.umap_coordinates.x))
             .range([margin.left, width - margin.right]);
@@ -137,7 +159,6 @@ export const PseudoTemporalViewer = () => {
             .domain(d3.extent(umapData.umap_coordinates.y))
             .range([height - margin.bottom, margin.top]);
 
-        // ایجاد رنگ‌ها برای انواع سلول‌ها
         const colorScale = d3.scaleOrdinal()
             .domain(umapData.metadata.unique_cell_types)
             .range(d3.schemeCategory10);
@@ -164,7 +185,7 @@ export const PseudoTemporalViewer = () => {
             .attr("fill", (d, i) => {
                 const cellType = umapData.cell_types[i];
                 return selectedCellTypes.includes(cellType) 
-                    ? (customColors[cellType] || colorScale(cellType))
+                    ? colorScale(cellType)
                     : "#ddd";
             })
             .attr("opacity", (d, i) => selectedCellTypes.includes(umapData.cell_types[i]) ? 0.6 : 0.1)
@@ -174,6 +195,28 @@ export const PseudoTemporalViewer = () => {
                     d3.select(this)
                         .attr("r", 5)
                         .attr("opacity", 1);
+
+                    const tooltip = d3.select("body")
+                        .append("div")
+                        .attr("class", "tooltip")
+                        .style("opacity", 0)
+                        .style("position", "absolute")
+                        .style("background-color", "white")
+                        .style("border", "1px solid #ddd")
+                        .style("border-radius", "4px")
+                        .style("padding", "8px")
+                        .style("pointer-events", "none")
+                        .style("box-shadow", "0 2px 4px rgba(0,0,0,0.1)")
+                        .style("font-size", "12px")
+                        .style("z-index", "1000");
+
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+
+                    tooltip.html(`Cell Type: ${cellType}`)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 28) + "px");
                 }
             })
             .on("mouseout", function(event, d) {
@@ -182,84 +225,36 @@ export const PseudoTemporalViewer = () => {
                     d3.select(this)
                         .attr("r", 3)
                         .attr("opacity", 0.6);
+                    
+                    d3.selectAll(".tooltip").remove();
                 }
             });
 
-        const tooltip = d3.select("body")
-            .append("div")
-            .attr("class", "tooltip")
-            .style("opacity", 0)
-            .style("position", "absolute")
-            .style("background-color", "white")
-            .style("border", "1px solid #ddd")
-            .style("border-radius", "4px")
-            .style("padding", "8px")
-            .style("pointer-events", "none")
-            .style("box-shadow", "0 2px 4px rgba(0,0,0,0.1)")
-            .style("font-size", "12px")
-            .style("z-index", "1000");
-
-        points.on("mouseover", function(event, d) {
-            const cellType = umapData.cell_types[event.target.__data__];
-            if (selectedCellTypes.includes(cellType)) {
-                const cellInfo = {
-                    type: cellType,
-                    index: event.target.__data__,
-                    x: umapData.umap_coordinates.x[event.target.__data__].toFixed(2),
-                    y: umapData.umap_coordinates.y[event.target.__data__].toFixed(2)
-                };
-
-                if (umapData.gene_expression) {
-                    const topGenes = Object.entries(umapData.gene_expression)
-                        .map(([gene, values]) => ({
-                            gene,
-                            value: values[event.target.__data__]
-                        }))
-                        .sort((a, b) => b.value - a.value)
-                        .slice(0, 3);
-
-                    cellInfo.topGenes = topGenes;
-                }
-
-                tooltip.transition()
-                    .duration(200)
-                    .style("opacity", .9);
-
-                let tooltipHtml = `
-                    <div style="font-weight: bold; margin-bottom: 4px;">Cell Information</div>
-                    <div>Type: ${cellInfo.type}</div>
-                    <div>Index: ${cellInfo.index}</div>
-                    <div>UMAP1: ${cellInfo.x}</div>
-                    <div>UMAP2: ${cellInfo.y}</div>
-                `;
-
-                if (cellInfo.topGenes) {
-                    tooltipHtml += `
-                        <div style="margin-top: 8px; font-weight: bold;">Top Expressed Genes:</div>
-                        ${cellInfo.topGenes.map(g => `
-                            <div>${g.gene}: ${g.value.toFixed(2)}</div>
-                        `).join('')}
-                    `;
-                }
-
-                tooltip.html(tooltipHtml)
-                    .style("left", (event.pageX + 10) + "px")
-                    .style("top", (event.pageY - 28) + "px");
-            }
-        })
-        .on("mouseout", function(event, d) {
-            tooltip.transition()
-                .duration(500)
-                .style("opacity", 0);
-        });
-
-        g.append("g")
+        const xAxis = g.append("g")
             .attr("transform", `translate(0,${height - margin.bottom})`)
-            .call(d3.axisBottom(xScale));
+            .call(d3.axisBottom(xScale).tickValues([]));
 
-        g.append("g")
+        const yAxis = g.append("g")
             .attr("transform", `translate(${margin.left},0)`)
-            .call(d3.axisLeft(yScale));
+            .call(d3.axisLeft(yScale).tickValues([]));
+
+        // Add axis labels
+        xAxis.append("text")
+            .attr("x", width / 2)
+            .attr("y", height - 10)
+            .attr("text-anchor", "middle")
+            .text("UMAP1")
+            .style("font-size", "14px")
+            .style("font-weight", "bold");
+
+        yAxis.append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("x", -height / 2)
+            .attr("y", 15)
+            .attr("text-anchor", "middle")
+            .text("UMAP2")
+            .style("font-size", "14px")
+            .style("font-weight", "bold");
 
         g.append("text")
             .attr("x", width / 2)
@@ -274,13 +269,17 @@ export const PseudoTemporalViewer = () => {
             .selectAll("g")
             .data(umapData.metadata.unique_cell_types)
             .enter().append("g")
-            .attr("transform", (d, i) => `translate(0,${i * 20})`);
+            .attr("transform", (d, i) => {
+                const totalHeight = height - margin.top - margin.bottom;
+                const itemHeight = totalHeight / umapData.metadata.unique_cell_types.length;
+                return `translate(0,${margin.top + (i * itemHeight)})`;
+            });
 
         legend.append("rect")
             .attr("x", width - margin.right + 10)
             .attr("width", 19)
             .attr("height", 19)
-            .attr("fill", d => customColors[d] || colorScale(d));
+            .attr("fill", d => colorScale(d));
 
         legend.append("text")
             .attr("x", width - margin.right + 35)
@@ -290,7 +289,7 @@ export const PseudoTemporalViewer = () => {
 
         zoomRef.current = zoom;
 
-    }, [umapData, selectedCellTypes, customColors]);
+    }, [umapData, selectedCellTypes]);
 
     const handleSampleChange = (event) => {
         const value = Math.min(Math.max(0.1, parseFloat(event.target.value) || 0.1), 100);
@@ -331,17 +330,6 @@ export const PseudoTemporalViewer = () => {
         );
     };
 
-    const handleColorChange = (cellType, color) => {
-        setCustomColors(prev => ({
-            ...prev,
-            [cellType]: color
-        }));
-    };
-
-    const getDefaultColor = (index) => {
-        return defaultColors[index % defaultColors.length];
-    };
-
     return (
         <Box sx={{ 
             height: '33vh', 
@@ -360,44 +348,39 @@ export const PseudoTemporalViewer = () => {
                 ) : error ? (
                     <Alert severity="error" sx={{ m: 1 }}>{error}</Alert>
                 ) : (
-                    <svg ref={svgRef} style={{ width: '100%', height: '100%' }}></svg>
+                    <svg ref={svgRef} style={{ width: '90%', height: '90%' }}></svg>
                 )}
             </UMAPContainer>
 
             <ToolPanel>
                 <Tooltip title="Zoom In">
-                    <IconButton onClick={handleZoomIn} size="small">
-                        <ZoomInIcon />
+                    <IconButton onClick={handleZoomIn} size="small" sx={{ padding: '3px' }}>
+                        <ZoomInIcon sx={{ fontSize: '1.0rem' }} />
                     </IconButton>
                 </Tooltip>
                 <Tooltip title="Zoom Out">
-                    <IconButton onClick={handleZoomOut} size="small">
-                        <ZoomOutIcon />
+                    <IconButton onClick={handleZoomOut} size="small" sx={{ padding: '3px' }}>
+                        <ZoomOutIcon sx={{ fontSize: '1.0rem' }} />
                     </IconButton>
                 </Tooltip>
                 <Tooltip title="Pan Mode">
-                    <IconButton onClick={() => setShowFilters(!showFilters)} size="small">
-                        <PanToolIcon />
+                    <IconButton onClick={() => setShowFilters(!showFilters)} size="small" sx={{ padding: '3px' }}>
+                        <PanToolIcon sx={{ fontSize: '1.0rem' }} />
                     </IconButton>
                 </Tooltip>
                 <Tooltip title="Filter Cell Types">
-                    <IconButton onClick={() => setShowFilters(!showFilters)} size="small">
-                        <FilterListIcon />
-                    </IconButton>
-                </Tooltip>
-                <Tooltip title="Customize Colors">
-                    <IconButton onClick={() => setShowColorPicker(!showColorPicker)} size="small">
-                        <PaletteIcon />
+                    <IconButton onClick={() => setShowFilters(!showFilters)} size="small" sx={{ padding: '3px' }}>
+                        <FilterListIcon sx={{ fontSize: '1.0rem' }} />
                     </IconButton>
                 </Tooltip>
             </ToolPanel>
 
             {showFilters && umapData && (
                 <FilterPanel>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Cell Types</Typography>
-                    <Stack spacing={1}>
+                    <Typography variant="subtitle2">Cell Types</Typography>
+                    <Stack spacing={0.5}>
                         {umapData.metadata.unique_cell_types.map(cellType => (
-                            <Box key={cellType} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box key={cellType} sx={{ display: 'flex', alignItems: 'center', gap: 0.1 }}>
                                 <input
                                     type="checkbox"
                                     checked={selectedCellTypes.includes(cellType)}
@@ -410,37 +393,23 @@ export const PseudoTemporalViewer = () => {
                 </FilterPanel>
             )}
 
-            {showColorPicker && umapData && (
-                <ColorPickerPanel>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Customize Colors</Typography>
-                    <Stack spacing={1}>
-                        {umapData.metadata.unique_cell_types.map((cellType, index) => (
-                            <Box key={cellType} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="body2">{cellType}</Typography>
-                                <input
-                                    type="color"
-                                    value={customColors[cellType] || getDefaultColor(index)}
-                                    onChange={(e) => handleColorChange(cellType, e.target.value)}
-                                />
-                            </Box>
-                        ))}
-                    </Stack>
-                </ColorPickerPanel>
-            )}
-
             <ControlPanel>
+                <Typography variant="subtitle2" sx={{ fontSize: '0.6rem', fontWeight: 'small' }}>
+                    Sample%
+                </Typography>
                 <TextField
-                    label="Sample %"
+                    label=" "
                     type="number"
                     value={samplePercent}
                     onChange={handleSampleChange}
                     size="small"
-                    inputProps={{ 
-                        min: 0.1, 
-                        max: 100, 
-                        step: 0.1 
+                    InputProps={{ 
+                        inputProps: {
+                            min: 0.1, 
+                            max: 100, 
+                            step: 0.1 
+                        }
                     }}
-                    sx={{ width: 80 }}
                 />
             </ControlPanel>
         </Box>
