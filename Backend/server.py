@@ -16,6 +16,9 @@ from process import (
     # get_gene_list,
     # get_specific_gene_expression
 )
+import matplotlib.pyplot as plt
+import seaborn as sns
+import scanpy as sc
 
 # Define workspace root
 workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -254,6 +257,41 @@ def get_deaplog_results():
         error_msg = f'Internal server error: {str(e)}'
         print(f"Error: {error_msg}")
         return jsonify({'error': error_msg}), 500
+
+@app.route('/run_deaplog', methods=['POST'])
+def run_deaplog():
+    try:
+        # Get parameters from request
+        data = request.get_json()
+        sample_percent = float(data.get('sample_percent', 0.1))
+        
+        # Run DEAPLOG analysis
+        results = run_deaplog_analysis(adata, sample_percent)
+        
+        # Save results to files
+        with open('static/deaplog_results.json', 'w') as f:
+            json.dump(results, f)
+        
+        # Save UMAP plot
+        plt.figure(figsize=(10, 10))
+        sc.pl.umap(adata, color='leiden', save='_deaplog.png')
+        
+        # Save PAGA plot
+        plt.figure(figsize=(10, 10))
+        sc.pl.paga(adata, save='_deaplog.png')
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'DEAPLOG analysis completed successfully',
+            'results': results
+        })
+        
+    except Exception as e:
+        print(f"Error in DEAPLOG analysis: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
