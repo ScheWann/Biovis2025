@@ -216,7 +216,7 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
 
                 expr_df = expr_df[['id'] + gene_names]
 
-                coord_df = get_cell_type_coordinates(sample_id).reset_index(drop=True)
+                coord_df = get_coordinates(sample_id).reset_index(drop=True)
 
                 merged_df = pd.merge(expr_df, coord_df, on="id", how="inner")
 
@@ -232,6 +232,14 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
                 results[sample_id] = merged_df
 
         return results
+
+    def get_coordinates(sample_id):
+        if sample_id in SAMPLES:
+            adata = sc.read_h5ad(SAMPLES[sample_id]["adata"])
+            df = adata.obsm["spatial"].copy()
+            df["cell_type"] = adata.obs["cell_type"]
+            df["id"] = adata.obs.index
+            return df
 
     def filter_and_cumsum(merged_df, selected_columns):
         def conditional_cumsum(row, selected_columns):

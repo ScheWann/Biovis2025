@@ -26,11 +26,6 @@ const stringToHash = (str) => {
     return Math.abs(hash);
 };
 
-const rgbToArray = rgbStr => {
-    const [r, g, b] = rgbStr.match(/\d+/g);
-    return [parseInt(r), parseInt(g), parseInt(b)];
-};
-
 const radioOptions = [
     {
         label: 'Cell Type',
@@ -921,7 +916,7 @@ export const MultiSampleViewer = ({
         });
         return [
             ...generateWholePngLayers(),
-            // ...generateTileLayers(),
+            ...generateTileLayers(),
             ...generateMarkerImageLayers(),
             ...generateCellLayers(),
             ...generateEditLayers(),
@@ -954,7 +949,7 @@ export const MultiSampleViewer = ({
         ].filter(Boolean);
     }, [
         generateWholePngLayers,
-        // generateTileLayers,
+        generateTileLayers,
         generateMarkerImageLayers,
         generateCellLayers,
         generateEditLayers,
