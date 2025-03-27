@@ -27,7 +27,7 @@ const data = {
 
 export const GeneExpressionViewer = ({}) => {
   const d3Container = useRef(null);
-  const [svg, height, width, tTip] = useSVGCanvas(d3Container);
+  const [svg, height, width] = useSVGCanvas(d3Container);
 
   const margin = { top: 20, right: 50, bottom: 50, left: 20 };
 

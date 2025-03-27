@@ -35,7 +35,7 @@ const data = {
 
 export const Cell2CellViewer = ({}) => {
   const d3Container = useRef(null);
-  const [svg, height, width, tTip] = useSVGCanvas(d3Container);
+  const [svg, height, width] = useSVGCanvas(d3Container);
 
   const margin = { top: 40, right: 40, bottom: 60, left: 60 };
 
