@@ -7,13 +7,15 @@ echo "Activating virtual environment..."
 source venv/bin/activate
 
 echo "Running the Backend..."
-python server.py
+python server.py &
 
 
 cd ..
 
 cd Frontend
 echo "Running the Frontend..."
-npm start
+npm start &
 
 echo "Project started successfully!"
+
+wait
