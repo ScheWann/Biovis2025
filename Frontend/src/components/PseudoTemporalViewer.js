@@ -22,9 +22,9 @@ const ControlPanel = styled(Box)(({ theme }) => ({
     boxShadow: theme.shadows[2],
     zIndex: 1000,
     '& .MuiTextField-root': {
-        width: '60px',
+        width: '75px',
         '& .MuiInputBase-root': {
-            height: '25px',
+            height: '20px',
             fontSize: '0.8rem',
         },
         '& .MuiInputLabel-root': {
@@ -110,6 +110,7 @@ export const PseudoTemporalViewer = () => {
     const [umapData, setUmapData] = useState(null);
     const [selectedCellTypes, setSelectedCellTypes] = useState([]);
     const [showFilters, setShowFilters] = useState(false);
+    const [showArrows, setShowArrows] = useState(true);
     const svgRef = useRef(null);
     const zoomRef = useRef(null);
 
@@ -174,11 +175,10 @@ export const PseudoTemporalViewer = () => {
             .domain(umapData.metadata.unique_cell_types)
             .range(d3.schemeCategory10);
 
-        // Create a container for static elements (axes, labels, legend)
+        // Create containers
         const staticContainer = svg.append("g");
-
-        // Create a container for interactive elements (points)
         const interactiveContainer = svg.append("g");
+        const arrowsContainer = svg.append("g");  // Container for arrows
 
         // Add static elements
         staticContainer.append("text")
@@ -331,9 +331,102 @@ export const PseudoTemporalViewer = () => {
                 }
             });
 
+        // Add arrows for each cell type if showArrows is true
+        if (showArrows) {
+            // Group data by cell type
+            const cellTypeData = {};
+            umapData.cell_types.forEach((cellType, i) => {
+                if (!selectedCellTypes.includes(cellType)) return;
+                
+                if (!cellTypeData[cellType]) {
+                    cellTypeData[cellType] = {
+                        x: [],
+                        y: [],
+                        pseudotime: []
+                    };
+                }
+                cellTypeData[cellType].x.push(umapData.umap_coordinates.x[i]);
+                cellTypeData[cellType].y.push(umapData.umap_coordinates.y[i]);
+                cellTypeData[cellType].pseudotime.push(umapData.pseudotime[i]);
+            });
+
+            // Calculate arrows for each cell type
+            Object.entries(cellTypeData).forEach(([cellType, data]) => {
+                // Sort by pseudotime
+                const sortedIndices = data.pseudotime
+                    .map((time, i) => ({ time, i }))
+                    .sort((a, b) => a.time - b.time)
+                    .map(item => item.i);
+
+                // Get points for three arrows
+                const totalPoints = sortedIndices.length;
+                const points = [
+                    {
+                        start: {
+                            x: data.x[sortedIndices[0]],
+                            y: data.y[sortedIndices[0]]
+                        },
+                        end: {
+                            x: data.x[sortedIndices[Math.floor(totalPoints * 0.3)]],
+                            y: data.y[sortedIndices[Math.floor(totalPoints * 0.3)]]
+                        }
+                    },
+                    {
+                        start: {
+                            x: data.x[sortedIndices[Math.floor(totalPoints * 0.3)]],
+                            y: data.y[sortedIndices[Math.floor(totalPoints * 0.3)]]
+                        },
+                        end: {
+                            x: data.x[sortedIndices[Math.floor(totalPoints * 0.6)]],
+                            y: data.y[sortedIndices[Math.floor(totalPoints * 0.6)]]
+                        }
+                    },
+                    {
+                        start: {
+                            x: data.x[sortedIndices[Math.floor(totalPoints * 0.6)]],
+                            y: data.y[sortedIndices[Math.floor(totalPoints * 0.6)]]
+                        },
+                        end: {
+                            x: data.x[sortedIndices[totalPoints - 1]],
+                            y: data.y[sortedIndices[totalPoints - 1]]
+                        }
+                    }
+                ];
+
+                // Draw three arrows for each cell type
+                points.forEach(({ start, end }) => {
+                    // Calculate arrow properties
+                    const dx = end.x - start.x;
+                    const dy = end.y - start.y;
+                    const angle = Math.atan2(dy, dx);
+
+                    // Draw arrow line
+                    arrowsContainer.append("line")
+                        .attr("x1", xScale(start.x))
+                        .attr("y1", yScale(start.y))
+                        .attr("x2", xScale(end.x))
+                        .attr("y2", yScale(end.y))
+                        .attr("stroke", "black")
+                        .attr("stroke-width", 1)
+                        .attr("opacity", 0.8);
+
+                    // Draw arrow head
+                    arrowsContainer.append("path")
+                        .attr("d", `M ${xScale(end.x)} ${yScale(end.y)} 
+                                  L ${xScale(end.x - 0.3 * Math.cos(angle - Math.PI / 6))} 
+                                    ${yScale(end.y - 0.3 * Math.sin(angle - Math.PI / 6))}
+                                  L ${xScale(end.x - 0.3 * Math.cos(angle + Math.PI / 6))} 
+                                    ${yScale(end.y - 0.3 * Math.sin(angle + Math.PI / 6))}
+                                  Z`)
+                        .attr("fill", "black")
+                        .attr("opacity", 0.8);
+                });
+            });
+        }
+
         zoomRef.current = zoom;
 
-    }, [umapData, selectedCellTypes]);
+    }, [umapData, selectedCellTypes, showArrows]);
 
     const handleSampleChange = (event) => {
         const value = Math.min(Math.max(0.1, parseFloat(event.target.value) || 0.1), 100);
@@ -400,6 +493,11 @@ export const PseudoTemporalViewer = () => {
                 <Tooltip title="Filter Cell Types">
                     <IconButton onClick={() => setShowFilters(!showFilters)} size="small" sx={{ padding: '3px' }}>
                         <FilterListIcon sx={{ fontSize: '1.0rem' }} />
+                    </IconButton>
+                </Tooltip>
+                <Tooltip title="Toggle Arrows">
+                    <IconButton onClick={() => setShowArrows(!showArrows)} size="small" sx={{ padding: '3px' }}>
+                        <PanToolIcon sx={{ fontSize: '1.0rem' }} />
                     </IconButton>
                 </Tooltip>
             </ToolPanel>
