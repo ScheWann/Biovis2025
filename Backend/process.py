@@ -283,31 +283,43 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
 def get_selected_region_data(sample_id, cell_ids):
     if sample_id not in SAMPLES:
         raise ValueError(f"Sample ID '{sample_id}' not found in SAMPLES.")
-
+    
     adata_path = SAMPLES[sample_id]["adata"]
     adata = sc.read_h5ad(adata_path)
 
     # filter cells based on cell_ids
     selected_cells_mask = adata.obs.index.isin(cell_ids)
     filtered_adata = adata[selected_cells_mask]
+    
+    all_genes = set()
+    cell_expressions = {}
 
-    genes = list(filtered_adata.var.index)
+    for i, cell in enumerate(filtered_adata.obs.index):
+        expression_values = filtered_adata[i].X.A[0] if hasattr(filtered_adata[i].X, 'A') else filtered_adata[i].X[0]
+        nonzero_indices = np.where(expression_values > 0)[0]
+        cell_expression = {filtered_adata.var.index[j]: float(expression_values[j]) for j in nonzero_indices}
 
-    cell_type_annotations = filtered_adata.obs["cell_type"].to_dict()
+        cell_expressions[cell] = cell_expression
+        all_genes.update(cell_expression.keys())
+
+    all_genes = sorted(all_genes)
 
     expression_data = [
         {
             "cell_id": cell,
-            "expression": list(map(float, filtered_adata[i].X.A[0] if hasattr(filtered_adata[i].X, 'A') else filtered_adata[i].X[0]))
+            "expression": [cell_expressions[cell].get(gene, 0.0) for gene in all_genes]
         }
-        for i, cell in enumerate(filtered_adata.obs.index)
+        for cell in filtered_adata.obs.index
     ]
+
+    cell_type_annotations = filtered_adata.obs["cell_type"].to_dict()
 
     return {
         "metadata": {
-            "cell_ids": cell_ids,
-            "genes": genes,
+            "cell_ids": list(filtered_adata.obs.index),
+            "genes": all_genes,
             "cell_type_annotations": cell_type_annotations,
         },
         "expression_data": expression_data,
     }
+
