@@ -104,7 +104,7 @@ const defaultColors = [
 ];
 
 export const PseudoTemporalViewer = () => {
-    const [samplePercent, setSamplePercent] = useState(0.01);
+    const [samplePercent, setSamplePercent] = useState(0.001);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [umapData, setUmapData] = useState(null);
@@ -230,35 +230,36 @@ export const PseudoTemporalViewer = () => {
             .attr("dy", "0.32em")
             .text(d => d);
 
-        // Add zoom behavior only to interactive container
+        // Add zoom behavior to the entire SVG
         const zoom = d3.zoom()
             .scaleExtent([0.1, 10])
             .on("zoom", (event) => {
                 interactiveContainer.attr("transform", event.transform);
+                arrowsContainer.attr("transform", event.transform);
             });
 
-        interactiveContainer.call(zoom);
+        svg.call(zoom);
 
-        // Add pan behavior
+        // Add pan behavior to the entire SVG
         let isPanning = false;
         let startX, startY;
 
-        interactiveContainer.on("mousedown", function(event) {
+        svg.on("mousedown", function(event) {
             isPanning = true;
             startX = event.clientX;
             startY = event.clientY;
         });
 
-        interactiveContainer.on("mousemove", function(event) {
+        svg.on("mousemove", function(event) {
             if (!isPanning) return;
             
             const dx = event.clientX - startX;
             const dy = event.clientY - startY;
             
-            const currentTransform = d3.zoomTransform(interactiveContainer.node());
+            const currentTransform = d3.zoomTransform(svg.node());
             const newTransform = currentTransform.translate(dx / currentTransform.k, dy / currentTransform.k);
             
-            interactiveContainer.transition()
+            svg.transition()
                 .duration(0)
                 .call(zoom.transform, newTransform);
             
@@ -266,15 +267,15 @@ export const PseudoTemporalViewer = () => {
             startY = event.clientY;
         });
 
-        interactiveContainer.on("mouseup", function() {
+        svg.on("mouseup", function() {
             isPanning = false;
         });
 
-        interactiveContainer.on("mouseleave", function() {
+        svg.on("mouseleave", function() {
             isPanning = false;
         });
 
-        // Add points to interactive container with reduced number of points
+        // Add points to interactive container
         const points = interactiveContainer.selectAll("circle")
             .data(umapData.umap_coordinates.x)
             .enter()
@@ -297,25 +298,41 @@ export const PseudoTemporalViewer = () => {
                         .attr("r", 3)
                         .attr("opacity", 1);
 
-                    const tooltip = d3.select("body")
-                        .append("div")
-                        .attr("class", "tooltip")
-                        .style("opacity", 0)
-                        .style("position", "absolute")
-                        .style("background-color", "white")
-                        .style("border", "1px solid #ddd")
-                        .style("border-radius", "4px")
-                        .style("padding", "8px")
-                        .style("pointer-events", "none")
-                        .style("box-shadow", "0 2px 4px rgba(0,0,0,0.1)")
-                        .style("font-size", "12px")
-                        .style("z-index", "1000");
+                    // Create tooltip div if it doesn't exist
+                    let tooltip = d3.select(".tooltip");
+                    if (tooltip.empty()) {
+                        tooltip = d3.select("body")
+                            .append("div")
+                            .attr("class", "tooltip")
+                            .style("position", "absolute")
+                            .style("background-color", "white")
+                            .style("border", "1px solid #ddd")
+                            .style("border-radius", "4px")
+                            .style("padding", "8px")
+                            .style("pointer-events", "none")
+                            .style("box-shadow", "0 2px 4px rgba(0,0,0,0.1)")
+                            .style("font-size", "12px")
+                            .style("z-index", "1000");
+                    }
 
-                    tooltip.transition()
-                        .duration(200)
-                        .style("opacity", .9);
-
-                    tooltip.html(`Cell Type: ${cellType}<br>Index: ${index}`)
+                    // Get the first 3 genes for this cell
+                    const genes = umapData.gene_names.slice(0, 3);
+                    
+                    tooltip
+                        .style("opacity", 1)
+                        .html(`
+                            <strong>Cell Type:</strong> ${cellType}<br>
+                            <strong>Top 3 Genes:</strong><br>
+                            ${genes.map((gene, i) => `${i + 1}. ${gene}`).join('<br>')}
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                }
+            })
+            .on("mousemove", function(event, d) {
+                const tooltip = d3.select(".tooltip");
+                if (!tooltip.empty()) {
+                    tooltip
                         .style("left", (event.pageX + 10) + "px")
                         .style("top", (event.pageY - 28) + "px");
                 }
@@ -327,7 +344,9 @@ export const PseudoTemporalViewer = () => {
                         .attr("r", 2)
                         .attr("opacity", 0.6);
                     
-                    d3.selectAll(".tooltip").remove();
+                    d3.select(".tooltip")
+                        .style("opacity", 0)
+                        .remove();
                 }
             });
 
