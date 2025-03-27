@@ -104,7 +104,7 @@ const defaultColors = [
 ];
 
 export const PseudoTemporalViewer = () => {
-    const [samplePercent, setSamplePercent] = useState(1);
+    const [samplePercent, setSamplePercent] = useState(0.01);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [umapData, setUmapData] = useState(null);
@@ -129,7 +129,8 @@ export const PseudoTemporalViewer = () => {
                 }
             });
             
-            console.log('Received UMAP data:', response.data);
+            console.log('Raw response data:', response.data);
+            
             if (!response.data || !response.data.umap_coordinates) {
                 throw new Error('Invalid data format received from server');
             }
@@ -273,14 +274,14 @@ export const PseudoTemporalViewer = () => {
             isPanning = false;
         });
 
-        // Add points to interactive container
+        // Add points to interactive container with reduced number of points
         const points = interactiveContainer.selectAll("circle")
             .data(umapData.umap_coordinates.x)
             .enter()
             .append("circle")
             .attr("cx", (d, i) => xScale(d))
             .attr("cy", (d, i) => yScale(umapData.umap_coordinates.y[i]))
-            .attr("r", 3)
+            .attr("r", 2)  // کاهش اندازه نقاط
             .attr("fill", (d, i) => {
                 const cellType = umapData.cell_types[i];
                 return selectedCellTypes.includes(cellType) 
@@ -293,7 +294,7 @@ export const PseudoTemporalViewer = () => {
                 const cellType = umapData.cell_types[index];
                 if (selectedCellTypes.includes(cellType)) {
                     d3.select(this)
-                        .attr("r", 5)
+                        .attr("r", 3)
                         .attr("opacity", 1);
 
                     const tooltip = d3.select("body")
@@ -323,7 +324,7 @@ export const PseudoTemporalViewer = () => {
                 const cellType = umapData.cell_types[event.target.__data__];
                 if (selectedCellTypes.includes(cellType)) {
                     d3.select(this)
-                        .attr("r", 3)
+                        .attr("r", 2)
                         .attr("opacity", 0.6);
                     
                     d3.selectAll(".tooltip").remove();

@@ -19,18 +19,106 @@ from process import (
 import matplotlib.pyplot as plt
 import seaborn as sns
 import scanpy as sc
+import sys
+from functools import lru_cache
+import time
 
-# Define workspace root
+# Add the Python directory to the system path for importing DEAPLOG module
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'Python'))
+
+from DEAPLOG import run_deaplog_analysis
+
+# Define workspace root for file paths
 workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
+# Initialize Flask app with static folder
 app = Flask(__name__, static_folder='static')
 CORS(app)  # Enable CORS for all routes
 
-# Ensure static directories exist
+# Ensure static directories exist for storing figures
 os.makedirs(os.path.join(app.static_folder, 'figures'), exist_ok=True)
+
+# Cache for DEAPLOG results
+@lru_cache(maxsize=10)
+def get_cached_deaplog_results(sample_percent, step):
+    """Cached version of DEAPLOG results"""
+    try:
+        # Path to the DEAPLOG script and data
+        script_path = os.path.join(workspace_root, 'Python', 'DEAPLOG.py')
+        data_path = os.path.join(workspace_root, 'Data', 'skin_TXK6Z4X_A1_processed', 'tmap', 'weighted_by_area_celltypist_cells_adata.h5')
+        
+        print(f"Debug - Parameters:")
+        print(f"sample_percent: {sample_percent}")
+        print(f"step: {step}")
+        print(f"workspace_root: {workspace_root}")
+        print(f"script_path: {script_path}")
+        print(f"data_path: {data_path}")
+        
+        # Ensure the script exists
+        if not os.path.exists(script_path):
+            error_msg = f'DEAPLOG script not found at: {script_path}'
+            print(f"Error: {error_msg}")
+            return {'error': error_msg}, 500
+
+        # Ensure the data file exists
+        if not os.path.exists(data_path):
+            error_msg = f'Data file not found at: {data_path}'
+            print(f"Error: {error_msg}")
+            return {'error': error_msg}, 500
+
+        # Run the DEAPLOG script
+        cmd = ['python', script_path, '--sample_percent', str(sample_percent), '--step', str(step), '--data_path', data_path]
+        print(f"Debug - Running command: {' '.join(cmd)}")
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=workspace_root
+        )
+        
+        print("Debug - Command output:")
+        print("STDOUT:", result.stdout)
+        print("STDERR:", result.stderr)
+        
+        if result.returncode != 0:
+            error_msg = f'DEAPLOG process failed with code {result.returncode}: {result.stderr}'
+            print(f"Error: {error_msg}")
+            return {'error': error_msg}, 500
+            
+        # Parse JSON output
+        try:
+            output_lines = result.stdout.strip().split('\n')
+            json_data = None
+            for line in reversed(output_lines):
+                if line.strip().startswith('{'):
+                    try:
+                        json_data = json.loads(line)
+                        break
+                    except json.JSONDecodeError:
+                        continue
+                        
+            if not json_data:
+                error_msg = 'No valid JSON data found in DEAPLOG output'
+                print(f"Error: {error_msg}")
+                return {'error': error_msg}, 500
+                
+            print("Debug - Parsed JSON data:", json_data)
+            return json_data
+            
+        except Exception as e:
+            error_msg = f'Error parsing DEAPLOG output: {str(e)}'
+            print(f"Error: {error_msg}")
+            return {'error': error_msg}, 500
+            
+    except Exception as e:
+        error_msg = f'Internal server error: {str(e)}'
+        print(f"Error: {error_msg}")
+        return {'error': error_msg}, 500
 
 @app.route('/test-image')
 def test_image():
+    """Test endpoint to check available images in the figures directory"""
     try:
         # Get the absolute path to the figures directory
         figures_dir = os.path.join(workspace_root, 'Python', 'figures')
@@ -52,6 +140,7 @@ def test_image():
 
 @app.route('/figures/<path:filename>')
 def serve_figure(filename):
+    """Serve figure files from the figures directory"""
     try:
         # Get the absolute path to the figures directory
         figures_dir = os.path.join(workspace_root, 'Python', 'figures')
@@ -66,7 +155,7 @@ def serve_figure(filename):
             print(f"File not found: {file_path}")
             return jsonify({'error': 'Image not found'}), 404
             
-        # Serve the file
+        # Serve the file with no caching
         response = send_file(file_path)
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
@@ -78,28 +167,29 @@ def serve_figure(filename):
 
 @app.route('/', methods=['GET'])
 def get_helloword():
+    """Basic test endpoint"""
     return 'Hello World!'
-
 
 @app.route('/get_available_samples', methods=['GET'])
 def get_available_samples():
+    """Get list of available samples"""
     return jsonify(get_samples())
-
 
 @app.route('/get_hires_image_size', methods=['POST'])
 def get_hires_image_size_route():
+    """Get high-resolution image size for a sample"""
     sample_id = request.json['sample_id']
     return jsonify(get_hires_image_size(sample_id))
 
-
 @app.route('/get_unique_cell_types', methods=['POST'])
 def get_unique_cell_types_route():
+    """Get unique cell types for a sample"""
     sample_id = request.json['sample_id']
     return jsonify(get_unique_cell_types(sample_id))
 
-
 @app.route('/get_tile', methods=['GET'])
 def serve_tile():
+    """Serve image tiles for visualization"""
     sample_id = request.args.get('sample_id')
     x = request.args.get('x', type=int)
     y = request.args.get('y', type=int)
@@ -115,21 +205,21 @@ def serve_tile():
 
     return send_from_directory(tile_dir, filename)
 
-
 @app.route('/get_cell_type_coordinates', methods=['POST'])
 def get_cell_type_coordinates_route():
+    """Get cell type coordinates for a sample"""
     sample_id = request.json['sample_id']
     return jsonify(get_cell_type_coordinates(sample_id).to_dict(orient='records'))
 
-
 @app.route('/get_all_gene_list', methods=['POST'])
 def get_all_gene_list():
+    """Get list of all genes for selected samples"""
     sample_names = request.json['sample_names']
     return jsonify(get_gene_list(sample_names))
 
-
 @app.route('/get_kosara_data', methods=['POST'])
 def get_kosara_data_route():
+    """Get Kosara visualization data"""
     sample_ids = request.json['sample_ids']
     gene_list = request.json['gene_list']
     cell_list = request.json['cell_list']
@@ -152,6 +242,7 @@ def get_umap_positions_route():
 
 @app.route('/get_gene_name_search')
 def get_gene_name_search():
+    """Search for genes by name"""
     query = request.args.get('q', '').strip().lower()
     gene_list = get_gene_list()
     
@@ -173,86 +264,18 @@ def get_specific_gene_expression_route():
 @app.route('/get_deaplog_results', methods=['GET'])
 def get_deaplog_results():
     try:
-        sample_percent = request.args.get('sample_percent', default=1.0, type=float)
+        sample_percent = request.args.get('sample_percent', default=0.01, type=float)  # تغییر از 1.0 به 0.01
         step = request.args.get('step', default=0, type=int)
         
-        # Path to the DEAPLOG script and data
-        workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        script_path = os.path.join(workspace_root, 'Python', 'DEAPLOG.py')
-        data_path = 'Data/skin_TXK6Z4X_A1_processed/tmap/weighted_by_area_celltypist_cells_adata.h5'  # Using relative path
+        # Get cached results
+        results = get_cached_deaplog_results(sample_percent, step)
         
-        print(f"Debug - Parameters:")
-        print(f"sample_percent: {sample_percent}")
-        print(f"step: {step}")
-        print(f"workspace_root: {workspace_root}")
-        print(f"script_path: {script_path}")
-        print(f"data_path: {data_path}")
-        
-        # Ensure the script exists
-        if not os.path.exists(script_path):
-            error_msg = f'DEAPLOG script not found at: {script_path}'
-            print(f"Error: {error_msg}")
-            return jsonify({'error': error_msg}), 500
-
-        # Ensure the data file exists
-        abs_data_path = os.path.join(workspace_root, data_path)
-        if not os.path.exists(abs_data_path):
-            error_msg = f'Data file not found at: {abs_data_path}'
-            print(f"Error: {error_msg}")
-            return jsonify({'error': error_msg}), 500
-
-        # Run the DEAPLOG script from workspace root
-        cmd = ['python', script_path, '--sample_percent', str(sample_percent), '--step', str(step), '--data_path', data_path]
-        print(f"Debug - Running command: {' '.join(cmd)}")
-        
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            cwd=workspace_root  # Set working directory to workspace root
-        )
-        
-        print("Debug - Command output:")
-        print("STDOUT:", result.stdout)
-        print("STDERR:", result.stderr)
-        
-        if result.returncode != 0:
-            error_msg = f'DEAPLOG process failed with code {result.returncode}: {result.stderr}'
-            print(f"Error: {error_msg}")
-            return jsonify({'error': error_msg}), 500
-        
-        # Try to parse the JSON output from the script
-        try:
-            # Split the output into lines and find the last line that looks like JSON
-            lines = result.stdout.strip().split('\n')
-            response_data = {
-                'sample_percent': sample_percent,
-                'step': step,
-                'n_cells': 0,
-                'n_clusters': 0,
-                'marker_genes': [],
-            }
+        # If results is a tuple (error case), return it directly
+        if isinstance(results, tuple):
+            return jsonify(results[0]), results[1]
             
-            for line in reversed(lines):
-                line = line.strip()
-                if line.startswith('{') and line.endswith('}'):
-                    try:
-                        parsed_data = json.loads(line)
-                        print("Debug - Parsed JSON data:", parsed_data)
-                        response_data.update(parsed_data)
-                        break
-                    except json.JSONDecodeError as e:
-                        print(f"Warning - Failed to parse JSON line: {e}")
-                        continue
-            
-            print("Debug - Final response data:", response_data)
-            return jsonify(response_data)
-            
-        except Exception as e:
-            error_msg = f'Error parsing DEAPLOG output: {str(e)}'
-            print(f"Error: {error_msg}")
-            return jsonify({'error': error_msg}), 500
-            
+        return jsonify(results)
+        
     except Exception as e:
         error_msg = f'Internal server error: {str(e)}'
         print(f"Error: {error_msg}")
@@ -292,6 +315,30 @@ def run_deaplog():
             'status': 'error',
             'message': str(e)
         }), 500
+
+@app.route('/api/analyze', methods=['POST'])
+def analyze():
+    """Run DEAPLOG analysis on the provided data"""
+    try:
+        # Get parameters from request
+        data = request.get_json()
+        data_path = data.get('data_path')
+        sample_percent = data.get('sample_percent')
+        
+        if not data_path:
+            return jsonify({'error': 'data_path is required'}), 400
+            
+        # Load data
+        adata = sc.read_h5ad(data_path)
+        rdata = adata.copy()
+        
+        # Run analysis
+        results = run_deaplog_analysis(rdata, adata, sample_percent)
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

@@ -710,7 +710,10 @@ def run_deaplog_analysis(rdata, adata, sample_percent=None):
             "pseudotime": pseudotime,
             "metadata": {
                 "unique_cell_types": sorted(list(set(cell_types))),
-                "unique_clusters": sorted(list(set(clusters)))
+                "unique_clusters": sorted(list(set(clusters))),
+                "total_cells": len(adata),
+                "sampled_cells": len(adata) if sample_percent is None else int(len(adata) * sample_percent),
+                "root_cell_index": int(adata.uns['iroot'])
             }
         }
         
@@ -731,8 +734,8 @@ def run_deaplog_analysis(rdata, adata, sample_percent=None):
 
 def main():
     parser = argparse.ArgumentParser(description='Run DEAPLOG analysis')
-    parser.add_argument('--sample_percent', type=float, default=1.0,
-                      help='Percentage of cells to sample for analysis (default: 1.0 for full dataset)')
+    parser.add_argument('--sample_percent', type=float, default=0.01,
+                      help='Percentage of cells to sample for analysis (default: 0.01 for 1% of data)')
     parser.add_argument('--step', type=int, default=0,
                       help='Analysis step to run')
     parser.add_argument('--data_path', type=str, required=True,
