@@ -286,9 +286,20 @@ export const MultiSampleViewer = ({
         let originalPointX = pointX - baseRadius * Math.cos(45 * Math.PI / 180);
         let originalPointY = pointY + baseRadius * Math.sin(45 * Math.PI / 180);
 
-        let cellIndices = ratios.filter(item => item[1] !== 0 && cellTypes.includes(item[0])).sort((a, b) => b[1] - a[1]).slice(0, 9).map(item => item[0]);
+        let cellIndices = ratios
+            .filter(item => item[1] !== 0 && cellTypes.includes(item[0]))
+            .sort((a, b) => cellTypes.indexOf(a[0]) - cellTypes.indexOf(b[0]))
+            .slice(0, 9)
+            .map(item => item[0]);
+
+        let cellColors = cellIndices.map(index => {
+            const positionInSelectedGenes = selectedGenes.indexOf(index);
+            return CELL_COLORS[positionInSelectedGenes % CELL_COLORS.length];
+        });
         let cellAngles = cellIndices.map(index => angles.find(item => item[0] === index));
         let cellRadius = cellIndices.map(index => cal_radius.find(item => item[0] === index));
+
+        const ratioSum = ratios.reduce((acc, item) => acc + item[1], 0);
 
         // If no selected cells are shown, draw an empty circle
         if (cellAngles.length === 0) {
@@ -298,6 +309,7 @@ export const MultiSampleViewer = ({
             cellAngles = cellAngles.map(angle => [angle[0], angle[1]]);
             cellRadius = cellRadius.map(rad => [rad[0], rad[1]]);
 
+            // console.log(cellRadius, '////', cellAngles);
             cellAngles.forEach((angle, index) => {
                 let cal_cell_radius = cellRadius[index][1];
                 let points = [];
@@ -320,7 +332,7 @@ export const MultiSampleViewer = ({
                         { large: isLargeArcInner ? 1 : 0, sweep: 1 }
                     );
                 }
-                else if (index === cellAngles.length - 1) {
+                else if (index === cellAngles.length - 1 && ratioSum == 1) {
                     const isLargeArcInner = lastCircleRadius <= Math.sqrt(3) * baseRadius;
                     points = generateComplexArcPoints(
                         lastStartPointX,
@@ -370,7 +382,7 @@ export const MultiSampleViewer = ({
 
                 paths.push({
                     path: points,
-                    color: CELL_COLORS[index % CELL_COLORS.length]
+                    color: cellColors[index]
                 });
 
                 lastCircleRadius = cal_cell_radius;
@@ -380,9 +392,7 @@ export const MultiSampleViewer = ({
                 lastEndPointY = endpointY;
             });
 
-            const lastAngle = cellAngles[cellAngles.length - 1][1];
-
-            if (lastAngle < 90) {
+            if (ratioSum < 1) {
                 let points = [];
                 const isLargeArcInner = lastCircleRadius <= Math.sqrt(3) * baseRadius;
                 points = generateComplexArcPoints(
@@ -398,7 +408,7 @@ export const MultiSampleViewer = ({
 
                 paths.push({
                     path: points,
-                    color: '#FFFFFF'
+                    color: '#333333'
                 });
             }
         }
@@ -916,10 +926,10 @@ export const MultiSampleViewer = ({
         });
         return [
             ...generateWholePngLayers(),
-            ...generateTileLayers(),
+            // ...generateTileLayers(),
             ...generateMarkerImageLayers(),
             ...generateCellLayers(),
-            ...generateEditLayers(),
+            // ...generateEditLayers(),
             ...regions.map(region => {
                 const offset = sampleOffsets[region.sampleId] || [0, 0];
                 const globalFeature = {
@@ -949,10 +959,10 @@ export const MultiSampleViewer = ({
         ].filter(Boolean);
     }, [
         generateWholePngLayers,
-        generateTileLayers,
+        // generateTileLayers,
         generateMarkerImageLayers,
         generateCellLayers,
-        generateEditLayers,
+        // generateEditLayers,
         regions,
         sampleOffsets
     ]);
