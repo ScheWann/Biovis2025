@@ -1,0 +1,24 @@
+Metadata-Version: 2.1
+Name: deaplog
+Version: 0.0.5
+Summary: A tool to perform differentially expression analysis and calculate the pseudotime and coodinates of genes by using single cell RNA-seq data
+Project-URL: Homepage, https://github.com/ZhangHongbo-Lab/DEAPLOG
+Project-URL: Bug Tracker, https://github.com/ZhangHongbo-Lab/DEAPLOG/issues
+Author-email: BaoZhang <zhangb267@mail2.sysu.edu.cn>
+License-File: LICENSE
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.7
+Requires-Dist: anndata
+Requires-Dist: fisher
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: scipy
+Requires-Dist: scikit-learn
+Requires-Dist: sympy
+Description-Content-Type: text/markdown
+
+# DEAPLOG(Differentially Expression Analysis and Pseudotemporal Locating and Ordering of Gene by Single-cell RNA-seq data)
+
+DEAPLOG is a tool to perform differentially expression analysis for cell clusters and other conditions, calculate the pseudotime of genes and profile genes coordinates accoding to the embedding coordinates of cells.

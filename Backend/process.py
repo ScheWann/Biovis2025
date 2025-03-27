@@ -18,7 +18,7 @@ SAMPLES = {
     "skin_TXK6Z4X_A1": {
         "id": "skin_TXK6Z4X_A1",
         "name": "skin_TXK6Z4X_A1",
-        "adata": "../Data/skin_TXK6Z4X_A1_processed/tmap/weighted_by_area|celltypist_cells_adata.h5",
+        "adata": "../Data/skin_TXK6Z4X_A1_processed/tmap/weighted_by_area_celltypist_cells_adata.h5",
         "wsi": "../Data/skin_TXK6Z4X_A1_processed/tmap/wsi.tif",
         "tiles": "../Data/skin_TXK6Z4X_A1_processed/skin_TXK6Z4X_A1_processed_tiles",
         "cells_layer": "../Data/skin_TXK6Z4X_A1_processed/cells_layer.png",
@@ -26,7 +26,7 @@ SAMPLES = {
     "skin_TXK6Z4X_D1": {
         "id": "skin_TXK6Z4X_D1",
         "name": "skin_TXK6Z4X_D1",
-        "adata": "../Data/skin_TXK6Z4X_D1_processed/tmap/weighted_by_area|celltypist_cells_adata.h5",
+        "adata": "../Data/skin_TXK6Z4X_D1_processed/tmap/weighted_by_area_celltypist_cells_adata.h5",
         "wsi": "../Data/skin_TXK6Z4X_D1_processed/tmap/wsi.tif",
         "tiles": "../Data/skin_TXK6Z4X_D1_processed/skin_TXK6Z4X_D1_processed_tiles",
         "cells_layer": "../Data/skin_TXK6Z4X_D1_processed/cells_layer.png",
