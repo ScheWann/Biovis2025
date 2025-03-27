@@ -91,7 +91,8 @@ export const MultiSampleViewer = ({
     cellTypeCoordinatesData,
     cellTypeDir,
     regions,
-    setRegions
+    setRegions,
+    setSelectedRegionGeneExpressionData
 }) => {
     const [imageSizes, setImageSizes] = useState({});
     const [tileSize] = useState(256);
@@ -204,6 +205,18 @@ export const MultiSampleViewer = ({
             samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
         );
     }, [imageSizes, samples]);
+
+    const fetchGeneExpressionData = (sampleId, cell_ids) => {
+        fetch('/get_selected_region_data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sample_id: sampleId, cell_list: cell_ids })
+        })
+            .then(res => res.json())
+            .then(data => {
+                setSelectedRegionGeneExpressionData(data);
+            });
+    }
 
     // save filtered cell data, only recalculate when dependencies change
     const filteredCellData = useMemo(() => {
@@ -929,8 +942,10 @@ export const MultiSampleViewer = ({
             // ...generateTileLayers(),
             ...generateMarkerImageLayers(),
             ...generateCellLayers(),
-            // ...generateEditLayers(),
+            ...generateEditLayers(),
+            regionLabelLayer,
             ...regions.map(region => {
+                console.log(region, 'region');
                 const offset = sampleOffsets[region.sampleId] || [0, 0];
                 const globalFeature = {
                     ...region.feature,
@@ -941,28 +956,36 @@ export const MultiSampleViewer = ({
                             coordinates: f.geometry.coordinates.map(ring =>
                                 ring.map(([x, y]) => [x + offset[0], y + offset[1]])
                             )
-                        }
+                        },
+                        properties: {
+                            ...(f.properties || {}),
+                            __regionMeta: {
+                                id: region.id,
+                                name: region.name,
+                                sampleId: region.sampleId,
+                                cell_ids: region.cellIds,
+                            }
+                        },
                     }))
                 };
                 return new GeoJsonLayer({
-                    id: `region-${region.id}`,
+                    id: `Selected-region-${region.id}`,
                     data: globalFeature,
+                    pickable: true,
                     stroked: true,
                     filled: true,
                     lineWidthMinPixels: 2,
                     getLineColor: () => [...region.color, 200],
                     getFillColor: () => [...region.color, 30],
-                    pickable: false
                 });
             }),
-            regionLabelLayer
         ].filter(Boolean);
     }, [
         generateWholePngLayers,
         // generateTileLayers,
         generateMarkerImageLayers,
         generateCellLayers,
-        // generateEditLayers,
+        generateEditLayers,
         regions,
         sampleOffsets
     ]);
@@ -1004,6 +1027,12 @@ export const MultiSampleViewer = ({
                     }}
                     onViewStateChange={({ viewState }) => {
                         debouncedSetZoom(viewState.zoom);
+                    }}
+                    onClick={info => {
+                        if (info.object && info.layer.id.startsWith('Selected-')) {
+                            console.log(info.object, 'clicked region');
+                            fetchGeneExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
+                        }   
                     }}
                     onHover={info => {
                         if (info.object && info.layer.id.startsWith('Scatters-')) {

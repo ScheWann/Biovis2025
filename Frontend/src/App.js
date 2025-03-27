@@ -15,6 +15,7 @@ function App() {
   const [cellTypeDir, setCellTypeDir] = useState({});
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedRegionGeneExpressionData, setSelectedRegionGeneExpressionData] = useState({});
 
   // get all aviailable samples
   const fetchAvailableSamples = () => {
@@ -123,12 +124,15 @@ function App() {
                 cellTypeDir={cellTypeDir}
                 regions={regions}
                 setRegions={setRegions}
+                setSelectedRegionGeneExpressionData={setSelectedRegionGeneExpressionData}
               />
 
               <div className="auxiliaryViews">
                 <PseudoTemporalViewer />
                 <Cell2CellViewer />
-                <GeneExpressionViewer />
+                <GeneExpressionViewer 
+                  data={selectedRegionGeneExpressionData}
+                />
               </div>
             </>
           ) : (
