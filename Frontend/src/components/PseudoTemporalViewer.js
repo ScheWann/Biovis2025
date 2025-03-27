@@ -454,8 +454,10 @@ export const PseudoTemporalViewer = () => {
         let newValue;
         
         if (value > samplePercent) {
+            // افزایش مقدار
             newValue = currentIndex < validValues.length - 1 ? validValues[currentIndex + 1] : validValues[validValues.length - 1];
         } else if (value < samplePercent) {
+            // کاهش مقدار
             newValue = currentIndex > 0 ? validValues[currentIndex - 1] : validValues[0];
         } else {
             newValue = value;
