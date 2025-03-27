@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Select, Spin, message } from 'antd';
+import { Select, Spin, message, Button } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
 import { Cell2CellViewer } from './components/Cell2CellViewer';
@@ -9,80 +9,66 @@ import { PseudoTemporalViewer } from './components/PseudoTemporalViewer';
 
 function App() {
   const [cellTypeCoordinatesData, setCellTypeCoordinatesData] = useState({});
-  const [samples, setSamples] = useState([]);
+  const [selectOptions, setSelectOptions] = useState([]);
+  const [samples, setSamples] = useState([]); // [{id: 'sample_id', name: 'sample_id'}, ...]
   const [selectedSamples, setSelectedSamples] = useState([]);
   const [cellTypeDir, setCellTypeDir] = useState({});
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedRegionGeneExpressionData, setSelectedRegionGeneExpressionData] = useState({});
 
   // get all aviailable samples
-  const fetchAvailableSamples = async () => {
-    try {
-      const response = await fetch('/get_available_samples');
-      const data = await response.json();
-      setSamples(data.map(sample => ({
-        id: sample.id,
-        name: sample.name || `${sample.id}`
-      })));
-    } catch (error) {
-      message.error('Get samples failed');
-      console.error(error);
-    }
+  const fetchAvailableSamples = () => {
+    fetch('/get_available_samples')
+      .then(response => response.json())
+      .then(data => {
+        setSelectOptions(data);
+      })
+      .catch(error => {
+        message.error('Get samples failed');
+        console.error(error);
+      });
   };
 
   // get cell information(cell_type, cell_x, cell_y, id) for selected samples
-  const fetchCellTypeData = async (sampleIds) => {
+  const fetchCellTypeData = (sampleIds) => {
     setLoading(true);
-    try {
-      const responses = await Promise.all(
-        sampleIds.map(sampleId =>
-          fetch('/get_cell_type_coordinates', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sample_id: sampleId })
-          })
-            .then(res => {
-              if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-              return res.json();
-            })
-        )
-      );
-
-      // save all samples data when merge data
-      const newData = sampleIds.reduce((acc, sampleId, index) => {
-        acc[sampleId] = responses[index];
-        return acc;
-      }, {});
-
-      setCellTypeCoordinatesData(prev => ({ ...prev, ...newData }));
-    } catch (error) {
-      message.error(`Error fetching cell data: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
+    fetch('/get_cell_type_coordinates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sample_ids: sampleIds })
+    })
+      .then(res => res.json())
+      .then(data => {
+        setCellTypeCoordinatesData(data);
+        setLoading(false);
+      })
   };
 
   // get cell type directory for each selected sample
-  const fetchCellTypeDirectory = async (sampleIds) => {
-    try {
-      const cellTypeMap = {};
-      await Promise.all(
-        sampleIds.map(sampleId =>
-          fetch('/get_unique_cell_types', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sample_id: sampleId })
-          })
-            .then(res => res.json())
-            .then(data => {
-              cellTypeMap[sampleId] = data;
-            })
-        )
-      );
-      setCellTypeDir(cellTypeMap);
-    } catch (error) {
-      message.error('Get cell type directory failed');
-      console.error(error);
+  const fetchCellTypeDirectory = (sampleIds) => {
+    fetch('/get_unique_cell_types', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sample_ids: sampleIds })
+    })
+      .then(res => res.json())
+      .then(data => {
+        setCellTypeDir(data);
+      }).catch(error => {
+        message.error('Get cell type directory failed');
+        console.error(error);
+      });
+  };
+
+  // confirm selected samples
+  const confirmSamples = () => {
+    if (selectedSamples.length === 0) {
+      message.warning('Please select at least one sample');
+    } else {
+      fetchCellTypeData(selectedSamples);
+      fetchCellTypeDirectory(selectedSamples);
+      setSamples(selectedSamples.map(sample => ({ id: sample, name: sample })));
     }
   };
 
@@ -91,32 +77,24 @@ function App() {
     fetchAvailableSamples();
   }, []);
 
-  // loading data for selected samples
-  useEffect(() => {
-    if (selectedSamples.length > 0) {
-      fetchCellTypeData(selectedSamples);
-      fetchCellTypeDirectory(selectedSamples);
-    }
-  }, [selectedSamples]);
-
   return (
     <div className="App">
       <div className='main'>
         {/* select samples */}
-        <Select
-          size='small'
-          mode="multiple"
-          placeholder="Select samples"
-          value={selectedSamples}
-          onChange={setSelectedSamples}
-          options={samples.map(sample => ({
-            label: sample.name,
-            value: sample.id
-          }))}
-          style={{ width: '100%', margin: 8 }}
-          maxTagCount="responsive"
-          loading={loading}
-        />
+        <div className="selectSamples">
+          <Select
+            size='small'
+            mode="multiple"
+            placeholder="Select samples"
+            value={selectedSamples}
+            onChange={setSelectedSamples}
+            options={selectOptions}
+            style={{ width: '100%', margin: 8 }}
+            maxTagCount="responsive"
+            loading={loading}
+          />
+          <Button size='small' onClick={confirmSamples}>Confirm</Button>
+        </div>
 
         {/* all views */}
         <div className="content" style={{ position: "relative" }}>
@@ -131,27 +109,30 @@ function App() {
               justifyContent: "center",
               alignItems: "center",
               background: "rgba(0, 0, 0, 0.5)",
-              zIndex: 10
+              zIndex: 20
             }}>
               <Spin spinning={true} size="large" />
             </div>
           )}
 
-          {selectedSamples.length > 0 ? (
+          {samples.length > 0 ? (
             <>
               <MultiSampleViewer
                 setLoading={setLoading}
-                samples={samples.filter(s => selectedSamples.includes(s.id))}
+                samples={samples}
                 cellTypeCoordinatesData={cellTypeCoordinatesData}
                 cellTypeDir={cellTypeDir}
                 regions={regions}
                 setRegions={setRegions}
+                setSelectedRegionGeneExpressionData={setSelectedRegionGeneExpressionData}
               />
 
               <div className="auxiliaryViews">
                 <PseudoTemporalViewer />
                 <Cell2CellViewer />
-                <GeneExpressionViewer />
+                <GeneExpressionViewer 
+                  data={selectedRegionGeneExpressionData}
+                />
               </div>
             </>
           ) : (

@@ -12,6 +12,7 @@ from process import (
     get_samples,
     get_gene_list,
     get_kosara_data,
+    get_selected_region_data
     # get_umap_positions_with_clusters,
     # get_gene_list,
     # get_specific_gene_expression
@@ -177,15 +178,15 @@ def get_available_samples():
 
 @app.route('/get_hires_image_size', methods=['POST'])
 def get_hires_image_size_route():
-    """Get high-resolution image size for a sample"""
-    sample_id = request.json['sample_id']
-    return jsonify(get_hires_image_size(sample_id))
+    """Get high-resolution image size for selected samples"""
+    sample_ids = request.json['sample_ids']
+    return jsonify(get_hires_image_size(sample_ids))
 
 @app.route('/get_unique_cell_types', methods=['POST'])
 def get_unique_cell_types_route():
-    """Get unique cell types for a sample"""
-    sample_id = request.json['sample_id']
-    return jsonify(get_unique_cell_types(sample_id))
+    """Get unique cell types for selected samples"""
+    sample_ids = request.json['sample_ids']
+    return jsonify(get_unique_cell_types(sample_ids))
 
 @app.route('/get_tile', methods=['GET'])
 def serve_tile():
@@ -207,9 +208,9 @@ def serve_tile():
 
 @app.route('/get_cell_type_coordinates', methods=['POST'])
 def get_cell_type_coordinates_route():
-    """Get cell type coordinates for a sample"""
-    sample_id = request.json['sample_id']
-    return jsonify(get_cell_type_coordinates(sample_id).to_dict(orient='records'))
+    """Get cell type coordinates for selected samples"""
+    sample_ids = request.json['sample_ids']
+    return jsonify(get_cell_type_coordinates(sample_ids))
 
 @app.route('/get_all_gene_list', methods=['POST'])
 def get_all_gene_list():
@@ -224,6 +225,13 @@ def get_kosara_data_route():
     gene_list = request.json['gene_list']
     cell_list = request.json['cell_list']
     return jsonify(get_kosara_data(sample_ids, gene_list, cell_list))
+
+@app.route('/get_selected_region_data', methods=['POST'])
+def get_selected_region_data_route():
+    """Get gene expressiondata for selected regions"""
+    sample_id = request.json['sample_id']
+    cell_list = request.json['cell_list']
+    return jsonify(get_selected_region_data(sample_id, cell_list))
 
 #################### OLD CODE ####################
 @app.route('/get_um_positions_with_clusters', methods=['POST'])
@@ -264,7 +272,7 @@ def get_specific_gene_expression_route():
 @app.route('/get_deaplog_results', methods=['GET'])
 def get_deaplog_results():
     try:
-        sample_percent = request.args.get('sample_percent', default=0.01, type=float)  # تغییر از 1.0 به 0.01
+        sample_percent = request.args.get('sample_percent', default=0.01, type=float)
         step = request.args.get('step', default=0, type=int)
         
         # Get cached results

@@ -26,11 +26,6 @@ const stringToHash = (str) => {
     return Math.abs(hash);
 };
 
-const rgbToArray = rgbStr => {
-    const [r, g, b] = rgbStr.match(/\d+/g);
-    return [parseInt(r), parseInt(g), parseInt(b)];
-};
-
 const radioOptions = [
     {
         label: 'Cell Type',
@@ -96,7 +91,8 @@ export const MultiSampleViewer = ({
     cellTypeCoordinatesData,
     cellTypeDir,
     regions,
-    setRegions
+    setRegions,
+    setSelectedRegionGeneExpressionData
 }) => {
     const [imageSizes, setImageSizes] = useState({});
     const [tileSize] = useState(256);
@@ -115,14 +111,14 @@ export const MultiSampleViewer = ({
     const [visibleSamples, setVisibleSamples] = useState(
         samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
     );
-    const [geneList, setGeneList] = useState([]);
+    const [geneList, setGeneList] = useState({});
     const [selectedGenes, setSelectedGenes] = useState([]);
     const [regionName, setRegionName] = useState('');
     const [regionColor, setRegionColor] = useState(generateRandomColor());
     const [isDrawingActive, setIsDrawingActive] = useState(false);
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
     const [currentZoom, setCurrentZoom] = useState(-3);
-    const [radioCellGeneMode, setRadioCellGeneMode] = useState('cellTypes');
+    const [radioCellGeneModes, setRadioCellGeneModes] = useState(samples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {}));
     const [partWholeMode, setPartWholeMode] = useState(false); // defaultly showing gene expression value in the whole regions
     const [geneExpressionData, setGeneExpressionData] = useState([]);
     const TILE_LOAD_ZOOM_THRESHOLD = 0;
@@ -130,17 +126,23 @@ export const MultiSampleViewer = ({
     // fetch gene list
     useEffect(() => {
         const sampleNames = samples.map(item => item.id);
+        const missingSampleNames = sampleNames.filter(id => !geneList[id]);
+
+        if (missingSampleNames.length === 0) return;
 
         fetch('/get_all_gene_list', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sample_names: sampleNames })
+            body: JSON.stringify({ sample_names: missingSampleNames })
         })
             .then(res => res.json())
             .then(data => {
-                setGeneList(data);
+                setGeneList(prev => ({
+                    ...prev,
+                    ...data
+                }));
             });
-    }, [setGeneList]);
+    }, [samples]);
 
     // Initialize color map and visible cell types for each sample
     useEffect(() => {
@@ -168,31 +170,24 @@ export const MultiSampleViewer = ({
 
     // get image sizes for all samples
     useEffect(() => {
-        const fetchImageSizes = async () => {
-            const samplesToFetch = samples.filter(sample => !imageSizes.hasOwnProperty(sample.id));
-            if (samplesToFetch.length === 0) return;
+        const fetchImageSizes = () => {
+            const sampleIds = samples.map(sample => sample.id);
 
-            const newSizes = {};
-            await Promise.all(samplesToFetch.map(async (sample) => {
-                const response = await fetch("/get_hires_image_size", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sample_id: sample.id })
-                });
-                const data = await response.json();
-                newSizes[sample.id] = data;
-            }));
-
-            setImageSizes(prev => ({
-                ...prev,
-                ...newSizes
-            }));
+            fetch('/get_hires_image_size', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sample_ids: sampleIds })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    setImageSizes(data);
+                })
         };
 
         if (samples.length) {
             fetchImageSizes();
         }
-    }, [samples, imageSizes]);
+    }, [samples]);
 
     useEffect(() => {
         if (Object.keys(imageSizes).length === samples.length) {
@@ -211,6 +206,18 @@ export const MultiSampleViewer = ({
         );
     }, [imageSizes, samples]);
 
+    const fetchGeneExpressionData = (sampleId, cell_ids) => {
+        fetch('/get_selected_region_data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sample_id: sampleId, cell_list: cell_ids })
+        })
+            .then(res => res.json())
+            .then(data => {
+                setSelectedRegionGeneExpressionData(data);
+            });
+    }
+
     // save filtered cell data, only recalculate when dependencies change
     const filteredCellData = useMemo(() => {
         return samples.reduce((acc, sample) => {
@@ -225,9 +232,12 @@ export const MultiSampleViewer = ({
         setCurrentZoom(zoom);
     }, 100), []);
 
-    const changeCellGeneMode = (e) => {
-        setRadioCellGeneMode(e.target.value);
-    }
+    const changeCellGeneMode = (sampleId, e) => {
+        setRadioCellGeneModes(prev => ({
+            ...prev,
+            [sampleId]: e.target.value
+        }));
+    };
 
     const onVisibilityGeneChange = (gene) => {
         setSelectedGenes([...selectedGenes, gene]);
@@ -289,9 +299,20 @@ export const MultiSampleViewer = ({
         let originalPointX = pointX - baseRadius * Math.cos(45 * Math.PI / 180);
         let originalPointY = pointY + baseRadius * Math.sin(45 * Math.PI / 180);
 
-        let cellIndices = ratios.filter(item => item[1] !== 0 && cellTypes.includes(item[0])).sort((a, b) => b[1] - a[1]).slice(0, 9).map(item => item[0]);
+        let cellIndices = ratios
+            .filter(item => item[1] !== 0 && cellTypes.includes(item[0]))
+            .sort((a, b) => cellTypes.indexOf(a[0]) - cellTypes.indexOf(b[0]))
+            .slice(0, 9)
+            .map(item => item[0]);
+
+        let cellColors = cellIndices.map(index => {
+            const positionInSelectedGenes = selectedGenes.indexOf(index);
+            return CELL_COLORS[positionInSelectedGenes % CELL_COLORS.length];
+        });
         let cellAngles = cellIndices.map(index => angles.find(item => item[0] === index));
         let cellRadius = cellIndices.map(index => cal_radius.find(item => item[0] === index));
+
+        const ratioSum = ratios.reduce((acc, item) => acc + item[1], 0);
 
         // If no selected cells are shown, draw an empty circle
         if (cellAngles.length === 0) {
@@ -301,6 +322,7 @@ export const MultiSampleViewer = ({
             cellAngles = cellAngles.map(angle => [angle[0], angle[1]]);
             cellRadius = cellRadius.map(rad => [rad[0], rad[1]]);
 
+            // console.log(cellRadius, '////', cellAngles);
             cellAngles.forEach((angle, index) => {
                 let cal_cell_radius = cellRadius[index][1];
                 let points = [];
@@ -323,7 +345,7 @@ export const MultiSampleViewer = ({
                         { large: isLargeArcInner ? 1 : 0, sweep: 1 }
                     );
                 }
-                else if (index === cellAngles.length - 1) {
+                else if (index === cellAngles.length - 1 && ratioSum == 1) {
                     const isLargeArcInner = lastCircleRadius <= Math.sqrt(3) * baseRadius;
                     points = generateComplexArcPoints(
                         lastStartPointX,
@@ -373,7 +395,7 @@ export const MultiSampleViewer = ({
 
                 paths.push({
                     path: points,
-                    color: CELL_COLORS[index % CELL_COLORS.length]
+                    color: cellColors[index]
                 });
 
                 lastCircleRadius = cal_cell_radius;
@@ -383,9 +405,7 @@ export const MultiSampleViewer = ({
                 lastEndPointY = endpointY;
             });
 
-            const lastAngle = cellAngles[cellAngles.length - 1][1];
-
-            if (lastAngle < 90) {
+            if (ratioSum < 1) {
                 let points = [];
                 const isLargeArcInner = lastCircleRadius <= Math.sqrt(3) * baseRadius;
                 points = generateComplexArcPoints(
@@ -401,7 +421,7 @@ export const MultiSampleViewer = ({
 
                 paths.push({
                     path: points,
-                    color: '#FFFFFF'
+                    color: '#333333'
                 });
             }
         }
@@ -520,13 +540,21 @@ export const MultiSampleViewer = ({
         return points;
     }
 
-    const collapseItems = samples.map((sample, index) => ({
+    const collapseItems = samples.map((sample) => ({
         key: sample.id,
         label: sample.name,
         children: (
             <>
-                <Radio.Group block options={radioOptions} size='small' defaultValue="cellTypes" optionType="button" style={{ marginBottom: 10 }} onChange={changeCellGeneMode} />
-                {radioCellGeneMode === 'cellTypes' ? (
+                <Radio.Group
+                    block
+                    options={radioOptions}
+                    size='small'
+                    value={radioCellGeneModes[sample.id]}
+                    optionType="button"
+                    style={{ marginBottom: 10 }}
+                    onChange={(e) => changeCellGeneMode(sample.id, e)}
+                />
+                {radioCellGeneModes[sample.id] === 'cellTypes' ? (
                     <CellTypeSettings
                         cellTypes={cellTypeDir[sample.id] || []}
                         cellData={cellTypeCoordinatesData[sample.id]}
@@ -633,7 +661,7 @@ export const MultiSampleViewer = ({
                 parameters: { depthTest: false }
             });
         }).filter(Boolean);
-    }, [samples, imageSizes, visibleSamples, sampleOffsets, currentZoom]);
+    }, [imageSizes, visibleSamples, sampleOffsets, currentZoom]);
 
     // cell boundaries image layers
     const generateMarkerImageLayers = useCallback(() => {
@@ -911,11 +939,13 @@ export const MultiSampleViewer = ({
         });
         return [
             ...generateWholePngLayers(),
-            ...generateTileLayers(),
+            // ...generateTileLayers(),
             ...generateMarkerImageLayers(),
             ...generateCellLayers(),
             ...generateEditLayers(),
+            regionLabelLayer,
             ...regions.map(region => {
+                console.log(region, 'region');
                 const offset = sampleOffsets[region.sampleId] || [0, 0];
                 const globalFeature = {
                     ...region.feature,
@@ -926,25 +956,33 @@ export const MultiSampleViewer = ({
                             coordinates: f.geometry.coordinates.map(ring =>
                                 ring.map(([x, y]) => [x + offset[0], y + offset[1]])
                             )
-                        }
+                        },
+                        properties: {
+                            ...(f.properties || {}),
+                            __regionMeta: {
+                                id: region.id,
+                                name: region.name,
+                                sampleId: region.sampleId,
+                                cell_ids: region.cellIds,
+                            }
+                        },
                     }))
                 };
                 return new GeoJsonLayer({
-                    id: `region-${region.id}`,
+                    id: `Selected-region-${region.id}`,
                     data: globalFeature,
+                    pickable: true,
                     stroked: true,
                     filled: true,
                     lineWidthMinPixels: 2,
                     getLineColor: () => [...region.color, 200],
-                    getFillColor: () => [...region.color, 0],
-                    pickable: false
+                    getFillColor: () => [...region.color, 30],
                 });
             }),
-            regionLabelLayer
         ].filter(Boolean);
     }, [
         generateWholePngLayers,
-        generateTileLayers,
+        // generateTileLayers,
         generateMarkerImageLayers,
         generateCellLayers,
         generateEditLayers,
@@ -989,6 +1027,12 @@ export const MultiSampleViewer = ({
                     }}
                     onViewStateChange={({ viewState }) => {
                         debouncedSetZoom(viewState.zoom);
+                    }}
+                    onClick={info => {
+                        if (info.object && info.layer.id.startsWith('Selected-')) {
+                            console.log(info.object, 'clicked region');
+                            fetchGeneExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
+                        }   
                     }}
                     onHover={info => {
                         if (info.object && info.layer.id.startsWith('Scatters-')) {
@@ -1078,7 +1122,7 @@ export const MultiSampleViewer = ({
                     position: 'absolute',
                     top: 10,
                     right: 10,
-                    zIndex: 20,
+                    zIndex: 10,
                     width: 250
                 }}>
                     {/* region drawing controls */}

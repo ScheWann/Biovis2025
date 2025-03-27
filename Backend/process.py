@@ -36,41 +36,49 @@ SAMPLES = {
 
 # return sample list
 def get_samples():
-    return [{"id": sample["id"], "name": sample["name"]} for sample in SAMPLES.values()]
+    return [
+        {"value": sample["id"], "label": sample["name"]} for sample in SAMPLES.values()
+    ]
 
 
 # return tissue width and height size
-def get_hires_image_size(sample_id):
+def get_hires_image_size(sample_ids):
     Image.MAX_IMAGE_PIXELS = None
-    if sample_id == "skin_TXK6Z4X_A1":
-        image = Image.open(SAMPLES["skin_TXK6Z4X_A1"]["wsi"])
-    elif sample_id == "skin_TXK6Z4X_D1":
-        image = Image.open(SAMPLES["skin_TXK6Z4X_D1"]["wsi"])
+    sizes = {}
 
-    return image.size
+    for sample_id in sample_ids:
+        if sample_id in SAMPLES:
+            image = Image.open(SAMPLES[sample_id]["wsi"])
+        sizes[sample_id] = image.size
+
+    return sizes
 
 
 # return unique cell types
-def get_unique_cell_types(sample_id):
-    if sample_id == "skin_TXK6Z4X_A1":
-        adata = sc.read_h5ad(SAMPLES["skin_TXK6Z4X_A1"]["adata"])
-    elif sample_id == "skin_TXK6Z4X_D1":
-        adata = sc.read_h5ad(SAMPLES["skin_TXK6Z4X_D1"]["adata"])
+def get_unique_cell_types(sample_ids):
+    result = {}
 
-    return adata.obs["cell_type"].unique().tolist()
+    for sample_id in sample_ids:
+        if sample_id in SAMPLES:
+            adata = sc.read_h5ad(SAMPLES[sample_id]["adata"])
+            result[sample_id] = adata.obs["cell_type"].unique().tolist()
+
+    return result
 
 
 # return cell type, and cell coordinates
-def get_cell_type_coordinates(sample_id):
-    if sample_id == "skin_TXK6Z4X_A1":
-        adata = sc.read_h5ad(SAMPLES["skin_TXK6Z4X_A1"]["adata"])
-    elif sample_id == "skin_TXK6Z4X_D1":
-        adata = sc.read_h5ad(SAMPLES["skin_TXK6Z4X_D1"]["adata"])
+def get_cell_type_coordinates(sample_ids):
+    result = {}
 
-    df = adata.obsm["spatial"].copy()
-    df["cell_type"] = adata.obs["cell_type"]
-    df["id"] = adata.obs.index
-    return df
+    for sample_id in sample_ids:
+        if sample_id in SAMPLES:
+            adata = sc.read_h5ad(SAMPLES[sample_id]["adata"])
+            df = adata.obsm["spatial"].copy()
+            df["cell_type"] = adata.obs["cell_type"]
+            df["id"] = adata.obs.index
+            result[sample_id] = df.to_dict(orient="records")
+
+    return result
 
 
 # return gene list
@@ -146,7 +154,7 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
         result_df = originaldf.copy()
         for index, row in originaldf.iterrows():
             for col in gene_list:
-                a_value = row[col]
+                a_value = row[col + "_original_ratio"]
                 if a_value == 0:
                     cal_radius = 0
                     angle = 0
@@ -184,9 +192,13 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
                 if not cell_ids:
                     valid_cell_ids = adata.obs_names.tolist()
                 else:
-                    valid_cell_ids = [cell for cell in cell_ids if cell in adata.obs_names]
+                    valid_cell_ids = [
+                        cell for cell in cell_ids if cell in adata.obs_names
+                    ]
 
-                valid_gene_names = [gene for gene in gene_names if gene in adata.var_names]
+                valid_gene_names = [
+                    gene for gene in gene_names if gene in adata.var_names
+                ]
 
                 if valid_gene_names:
                     filtered_adata = adata[valid_cell_ids, valid_gene_names].copy()
@@ -204,13 +216,15 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
 
                 expr_df = expr_df.reset_index().rename(columns={"index": "id"})
 
-                missing_genes = [gene for gene in gene_names if gene not in expr_df.columns]
+                missing_genes = [
+                    gene for gene in gene_names if gene not in expr_df.columns
+                ]
                 for gene in missing_genes:
                     expr_df[gene] = 0
 
-                expr_df = expr_df[['id'] + gene_names]
+                expr_df = expr_df[["id"] + gene_names]
 
-                coord_df = get_cell_type_coordinates(sample_id).reset_index(drop=True)
+                coord_df = get_coordinates(sample_id).reset_index(drop=True)
 
                 merged_df = pd.merge(expr_df, coord_df, on="id", how="inner")
 
@@ -227,28 +241,18 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
 
         return results
 
-    def filter_and_cumsum(merged_df, selected_columns):
-        def conditional_cumsum(row, selected_columns):
-            cumsum = 0
-            for col in selected_columns:
-                if row[col] != 0:
-                    cumsum += row[col]
-                    row[col] = cumsum
-            return row
-
-        filtered_df = merged_df[["id", "cell_x", "cell_y"] + selected_columns].copy()
-        filtered_df[selected_columns] = filtered_df[selected_columns].apply(
-            conditional_cumsum, axis=1, selected_columns=selected_columns
-        )
-        return filtered_df
+    def get_coordinates(sample_id):
+        if sample_id in SAMPLES:
+            adata = sc.read_h5ad(SAMPLES[sample_id]["adata"])
+            df = adata.obsm["spatial"].copy()
+            df["cell_type"] = adata.obs["cell_type"]
+            df["id"] = adata.obs.index
+            return df
 
     position_cell_ratios_dict = filter_and_merge(cell_list, gene_list, sample_ids)
     results = {}
 
     for sample_id, merged_df in position_cell_ratios_dict.items():
-        # cumsum_df = filter_and_cumsum(merged_df, gene_list)
-
-        # kosara_df = calculate_radius(cumsum_df, merged_df, radius)
         kosara_df = calculate_radius(merged_df, radius)
         formatted_results = []
         for _, row in kosara_df.iterrows():
@@ -260,16 +264,62 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
                 "total_expression": row["total_expression"],
                 "angles": {},
                 "radius": {},
-                "ratios": {}
+                "ratios": {},
             }
-            
+
             for gene in gene_list:
                 transformed_entry["angles"][gene] = row.get(f"{gene}_angle", 0)
                 transformed_entry["radius"][gene] = row.get(f"{gene}_radius", 0)
                 transformed_entry["ratios"][gene] = row.get(f"{gene}_original_ratio", 0)
-            
+
             formatted_results.append(transformed_entry)
 
         results[sample_id] = formatted_results
 
     return results
+
+
+# get selected region's gene expression data
+def get_selected_region_data(sample_id, cell_ids):
+    if sample_id not in SAMPLES:
+        raise ValueError(f"Sample ID '{sample_id}' not found in SAMPLES.")
+    
+    adata_path = SAMPLES[sample_id]["adata"]
+    adata = sc.read_h5ad(adata_path)
+
+    # filter cells based on cell_ids
+    selected_cells_mask = adata.obs.index.isin(cell_ids)
+    filtered_adata = adata[selected_cells_mask]
+    
+    all_genes = set()
+    cell_expressions = {}
+
+    for i, cell in enumerate(filtered_adata.obs.index):
+        expression_values = filtered_adata[i].X.A[0] if hasattr(filtered_adata[i].X, 'A') else filtered_adata[i].X[0]
+        nonzero_indices = np.where(expression_values > 0)[0]
+        cell_expression = {filtered_adata.var.index[j]: float(expression_values[j]) for j in nonzero_indices}
+
+        cell_expressions[cell] = cell_expression
+        all_genes.update(cell_expression.keys())
+
+    all_genes = sorted(all_genes)
+
+    expression_data = [
+        {
+            "cell_id": cell,
+            "expression": [cell_expressions[cell].get(gene, 0.0) for gene in all_genes]
+        }
+        for cell in filtered_adata.obs.index
+    ]
+
+    cell_type_annotations = filtered_adata.obs["cell_type"].to_dict()
+
+    return {
+        "metadata": {
+            "cell_ids": list(filtered_adata.obs.index),
+            "genes": all_genes,
+            "cell_type_annotations": cell_type_annotations,
+        },
+        "expression_data": expression_data,
+    }
+
