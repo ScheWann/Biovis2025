@@ -448,8 +448,22 @@ export const PseudoTemporalViewer = () => {
     }, [umapData, selectedCellTypes, showArrows]);
 
     const handleSampleChange = (event) => {
-        const value = Math.min(Math.max(0.1, parseFloat(event.target.value) || 0.1), 100);
-        setSamplePercent(value);
+        const value = parseFloat(event.target.value) || 0.001;
+        const validValues = [0.001, 0.01, 0.1, 1];
+        const currentIndex = validValues.indexOf(samplePercent);
+        let newValue;
+        
+        if (value > samplePercent) {
+            // افزایش مقدار
+            newValue = currentIndex < validValues.length - 1 ? validValues[currentIndex + 1] : validValues[validValues.length - 1];
+        } else if (value < samplePercent) {
+            // کاهش مقدار
+            newValue = currentIndex > 0 ? validValues[currentIndex - 1] : validValues[0];
+        } else {
+            newValue = value;
+        }
+        
+        setSamplePercent(newValue);
     };
 
     const handleZoomIn = () => {
