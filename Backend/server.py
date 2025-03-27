@@ -261,7 +261,7 @@ def get_specific_gene_expression_route():
 @app.route('/get_deaplog_results', methods=['GET'])
 def get_deaplog_results():
     try:
-        sample_percent = request.args.get('sample_percent', default=0.01, type=float)  # تغییر از 1.0 به 0.01
+        sample_percent = request.args.get('sample_percent', default=0.01, type=float)
         step = request.args.get('step', default=0, type=int)
         
         # Get cached results
