@@ -20,7 +20,7 @@ from sympy import *
 from multiprocessing import Pool
 from functools import partial
 import datetime
-# import fisher
+import fisher
 import networkx as nx
 import itertools
 
@@ -114,7 +114,25 @@ def curve_fitting_2(sort_data, power=11):
             matAA = curve_fitting(sort_data, power=power)
             return matAA
 
-def get_highly_cells_for_each_gene(rdata_df, gene, power=11):
+def get_highly_cells_for_each_gene(rdata_df:'dataFrame of raw data',
+                                  gene:'gene name',
+                                  power=11):
+    
+    """
+    Get highly expressed cells for each gene.
+    
+    Parameters
+    ----------
+    rdata_df : DataFrame of raw data
+    gene : gene name
+    power : int, default 11, parameter for curve fitting of gene expression pattern
+    
+    Returns
+    -------
+    tuple
+        Contains dictionaries with highly expressed cells and mean expression value for each gene
+    """
+    
     power = power
     gene_list = rdata_df[gene]
     gene_filter = gene_list.loc[gene_list > 0]
@@ -145,7 +163,19 @@ def get_highly_cells_for_each_gene(rdata_df, gene, power=11):
         
         return (gene_highly_cells, gene_mean_exvalue)
 
-def bh_qvalues(pv):
+def bh_qvalues(pv:'list of p-values'):
+    """
+    Calculate Benjamini-Hochberg q-values.
+    
+    Parameters
+    ----------
+    pv : list of p-values
+    
+    Returns
+    -------
+    list
+        List of q-values
+    """
     if pv == []:
         return []
     m = len(pv)
@@ -163,7 +193,29 @@ def bh_qvalues(pv):
     
     return qvalues
 
-def Fisher_test_for_each_gene(rdata_df, cell_sets, num_allCells, gene, power=11):
+def Fisher_test_for_each_gene(rdata_df:'dataFrame of raw data',
+                             cell_sets:'all cell sets',
+                             num_allCells:'number of all cells',
+                             gene:'gene name',
+                             power=11):
+    
+    """
+    Fisher test for each gene to identify differentially expressed genes.
+    
+    Parameters
+    ----------
+    rdata_df : DataFrame of raw data
+    cell_sets : all cell sets
+    num_allCells : number of all cells
+    gene : gene name
+    power : int, default 11, parameter for curve fitting of gene expression pattern
+    
+    Returns
+    -------
+    tuple
+        Contains dictionaries with ratio, p-value, q-value, score and mean expression value for each gene
+    """
+    
     power = power
     gene = gene
     gene_highly_cells, gene_mean_exvalue = get_highly_cells_for_each_gene(rdata_df, gene, power)
@@ -200,7 +252,6 @@ def Fisher_test_for_each_gene(rdata_df, cell_sets, num_allCells, gene, power=11)
             c = num_cell_set-a
             d = num_allCells-num_cell_set
             ra = a/float(num_test_cells)
-            # pv = (fisher.pvalue(a, b, c, d).right_tail)+1e-300
             _, pv = fisher_exact([[a, b], [c, d]], alternative='greater')
             pv = pv + 1e-300
             score = ((((-np.log10(pv))*ra)*gene_mean)*100)/num_cell_set
@@ -220,13 +271,48 @@ def Fisher_test_for_each_gene(rdata_df, cell_sets, num_allCells, gene, power=11)
         
         return (gene_ratio, gene_pv, gene_qv, gene_score, gene_means)
 
-def get_DEG_uniq(rdata, adata, group_key, power=11, ratio=0.2, p_threshold=0.01, q_threshold=0.05):
+def get_DEG_uniq(rdata:'raw annoData',
+                   adata:'annoData',
+                   group_key:'cell type of annoData',
+                   power=11,
+                   ratio = 0.2,
+                   p_threshold=0.01,
+                   q_threshold=0.05):
+    
+    """
+    Get the differentially expressed genes of each cell cluster. These genes are unique in each cell cluster.
+    
+    Parameters
+    ----------
+    rdata : raw annoData, we recommend using normalized and log2 transformed raw data
+    adata : annoData, the annoData filtered by HVG is recommended
+    group_key : the cluster of cell, default 'louvain', also 'leiden' or cell_type which defined by user
+    power : int, default 11, parameter for curve fitting of gene expression pattern
+    ratio : float, default 0.2, the possibility whether gene is a differentially expressed gene (0-1)
+    p_threshold : float, default 0.01, the threshold of p-value (0-1)
+    q_threshold : float, default 0.05, the threshold of q_value (0-1)
+    
+    Returns
+    -------
+    DataFrame
+        Contains differentially expressed genes in each cell type, with columns:
+        - cell_type: type of cell
+        - gene_name: name of the gene
+        - ratio: expression ratio
+        - p_value: statistical p-value
+        - q_value: adjusted p-value
+        - score: gene expression score
+        - mean_exValue: mean expression value
+    """
+    
+    # get the raw data frame
     power = power
     print('power: ', power)
     print('get the raw data frame...')
     rdata_df = rdata.to_df()
     num_allCells = len(rdata_df.index)
     
+    # struct the cell type sets for enrichment analysis
     print('struct the cell type sets for enrichment analysis...')
     adata_cell_type_df = pd.DataFrame(adata.obs[group_key])
     cell_type_index = pd.Categorical(adata.obs[group_key]).categories
@@ -306,12 +392,48 @@ def get_DEG_uniq(rdata, adata, group_key, power=11, ratio=0.2, p_threshold=0.01,
     print('Done!')
     return markers_s
 
-def get_DEG_multi(rdata, adata, group_key, power=11, ratio=0.2, p_threshold=0.01, q_threshold=0.05):
+def get_DEG_multi(rdata:'raw annoData',
+                     adata:'annoData',
+                     group_key:'cell type of annoData',
+                     power=11,
+                     ratio=0.2,
+                     p_threshold=0.01,
+                     q_threshold=0.05):
+    
+    """
+    Get the differentially expressed genes of each cell cluster. These genes are not unique in each cell cluster,
+    which means a gene could be differentially expressed in two or more cell clusters.
+    
+    Parameters
+    ----------
+    rdata : raw annoData, we recommend using normalized and log2 transformed raw data
+    adata : annoData, the annoData filtered by HVG is recommended
+    group_key : the cluster of cell, default 'louvain', also 'leiden' or cell_type which defined by user
+    power : int, default 11, parameter for curve fitting of gene expression pattern
+    ratio : float, default 0.2, the possibility whether gene is a differentially expressed gene (0-1)
+    p_threshold : float, default 0.01, the threshold of p-value (0-1)
+    q_threshold : float, default 0.05, the threshold of q_value (0-1)
+    
+    Returns
+    -------
+    DataFrame
+        Contains differentially expressed genes in each cell type, with columns:
+        - cell_type: type of cell
+        - gene_name: name of the gene
+        - ratio: expression ratio
+        - p_value: statistical p-value
+        - q_value: adjusted p-value
+        - score: gene expression score
+        - mean_exValue: mean expression value
+    """
+    
+    # get the raw data frame
     power = power
     print('get the raw data frame...')
     rdata_df = rdata.to_df()
     num_allCells = len(rdata.obs_names)
     
+    # struct the cell type sets for enrichment analysis
     print('struct the cell type sets for enrichment analysis...')
     adata_cell_type_df = pd.DataFrame(adata.obs[group_key])
     cell_type_index = pd.Categorical(adata.obs[group_key]).categories
@@ -399,7 +521,31 @@ def get_DEG_multi(rdata, adata, group_key, power=11, ratio=0.2, p_threshold=0.01
     print('Done!')
     return markers_m
 
-def calculate_genes_pseudotime_location(rdata_df, cell_sets, markers_s_LGPS_rdata, adata_obsm_df, gene, power=11):
+def calculate_genes_pseudotime_location(rdata_df:'dataFrame of raw data',
+                                        cell_sets:'all cell sets',
+                                        markers_s_LGPS_rdata:'markers matrix',
+                                        adata_obsm_df:'obsm dataframe',
+                                        gene:'gene name',
+                                        power=11):
+    
+    """
+    Calculate the location and pseudotime of each gene.
+    
+    Parameters
+    ----------
+    rdata_df : DataFrame of raw data
+    cell_sets : all cell sets
+    markers_s_LGPS_rdata : markers matrix from results by get_DEG_single or get_DEG_multiple
+    adata_obsm_df : the obsm of adata
+    gene : gene name
+    power : int, default 11, parameter for curve fitting of gene expression pattern
+    
+    Returns
+    -------
+    list
+        List of dictionaries containing the location and pseudotime of each gene
+    """
+    
     gene = gene
     gene_pseudotime_locate = list()
     gene_highly_cells = get_highly_cells_for_each_gene(rdata_df, gene, power)[0][gene]
@@ -550,7 +696,31 @@ def calculate_genes_pseudotime_location(rdata_df, cell_sets, markers_s_LGPS_rdat
             gene_pseudotime_locate.append(gene_pseudotime_locate_dict)
     return gene_pseudotime_locate
 
-def get_genes_location_pseudotime(rdata, adata, group_key, gene_matrix, obsm, power=11):
+def get_genes_location_pseudotime(rdata:'annoData of rdata',
+                                  adata: 'annoData of adata',
+                                  group_key:'cell type of annoData',
+                                  gene_matrix:'fileName of markers matrix from results by get_DEG_single or get_DEG_multiple',
+                                  obsm:'obsm',
+                                 power=11):
+    
+    """
+    Get the location and pseudotime of each gene in the UMAP or tSNE space.
+    
+    Parameters
+    ----------
+    rdata : annoData of rdata, we recommend using normalized and log2 transformed raw data
+    adata : annoData of adata, the annoData filtered by HVG is recommended
+    group_key : the cluster of cell, default 'louvain', also 'leiden' or cell_type which defined by user
+    gene_matrix : fileName of markers matrix from results by get_DEG_single or get_DEG_multiple
+    obsm : obsm, the obsm of adata, which contains the UMAP or tSNE coordinates
+    power : int, default 11, parameter for curve fitting of gene expression pattern
+    
+    Returns
+    -------
+    DataFrame
+        Contains the location and pseudotime of each gene in the UMAP or tSNE space
+    """
+    
     start = datetime.datetime.now()
     
     rdata_df = rdata.to_df()
@@ -560,7 +730,7 @@ def get_genes_location_pseudotime(rdata, adata, group_key, gene_matrix, obsm, po
     adata_obsm_df['dpt_pseudotime'] = adata.obs.dpt_pseudotime
     
     markers_s_LGPS = adata.uns[gene_matrix]
-    markers_s_LGPS_rdata = markers_s_LGPS.loc[markers_s_LGPS['gene_name'].isin(list(rdata.var_names)), ]
+    markers_s_LGPS_rdata = markers_s_LGPS.loc[markers_s_LGPS['gene_name'].isin(list(rdata.var_names)),]
     
     adata_cell_type_df = pd.DataFrame(adata.obs[group_key])
     cell_type_index = pd.Categorical(adata.obs[group_key]).categories
@@ -568,7 +738,7 @@ def get_genes_location_pseudotime(rdata, adata, group_key, gene_matrix, obsm, po
     cell_sets = dict()
     
     for ct in cell_type_index:
-        cell_sets[ct] = list(adata_cell_type_df.loc[adata_cell_type_df[group_key] == ct, :].index)
+        cell_sets[ct] = list(adata_cell_type_df.loc[adata_cell_type_df[group_key] == ct,:].index)
 
     iter_genes = rdata_df.columns
     gene_pseudotime_locates = list()
@@ -584,11 +754,11 @@ def get_genes_location_pseudotime(rdata, adata, group_key, gene_matrix, obsm, po
         if g1_pseudotime_locates == []:
             continue
         else:
-            for i in range(0, len(g1_pseudotime_locates)):
+            for i in range(0,len(g1_pseudotime_locates)):
                 gene_pseudotime_locates.append(g1_pseudotime_locates[i])
         
-        if num % 1000 == 0:
-            print('whole ', num, ' genes have been done.')
+        if num%1000 == 0:
+            print('whole ',num,' genes have been done.')
     
     gene_pseudotime_locates_df = pd.DataFrame(gene_pseudotime_locates)
     
@@ -691,6 +861,16 @@ def run_deaplog_analysis(rdata, adata, sample_percent=None):
         # Get marker genes
         print("Getting marker genes...")
         markers_uniq = get_DEG_uniq(rdata, adata, group_key='leiden', power=11, ratio=0.2, p_threshold=0.01, q_threshold=0.05)
+        markers_multi = get_DEG_multi(rdata, adata, group_key='leiden')
+
+        # Get multi-marker genes
+        print("Getting multi-marker genes...")
+        markers_multi = get_DEG_multi(rdata, adata, group_key='leiden', power=11, ratio=0.2, p_threshold=0.01, q_threshold=0.05)
+        
+        # Get gene locations and pseudotime
+        print("Calculating gene locations and pseudotime...")
+        adata.uns['markers_s'] = markers_multi  # Store markers in adata.uns for get_genes_location_pseudotime
+        gene_locations = get_genes_location_pseudotime(rdata, adata, group_key='leiden', power=11, gene_matrix='markers_s', obsm='X_umap')
         
         # Extract UMAP coordinates and metadata
         print("Extracting visualization data...")
@@ -708,6 +888,8 @@ def run_deaplog_analysis(rdata, adata, sample_percent=None):
             "cell_types": cell_types,
             "cell_clusters": clusters,
             "pseudotime": pseudotime,
+            "gene_locations": gene_locations.to_dict('records'),  # Add gene locations to response
+            "markers_multi": markers_multi.to_dict('records'),  # Add multi-marker genes to response
             "metadata": {
                 "unique_cell_types": sorted(list(set(cell_types))),
                 "unique_clusters": sorted(list(set(clusters))),
