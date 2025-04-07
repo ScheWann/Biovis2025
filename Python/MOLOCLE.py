@@ -10,6 +10,9 @@ import networkx as nx
 from scipy.sparse import coo_matrix
 import warnings
 import scipy.sparse
+from statsmodels.stats.multitest import multipletests
+import os
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 # R code:
 # Make the CDS object
@@ -206,9 +209,12 @@ def graph_test(adata, neighbor_graph='knn', reduction_method='umap', k=25,
     
     # Check if principal graph exists when needed
     if neighbor_graph == 'principal_graph':
-        if 'principal_graph' not in adata.uns:
-            raise ValueError(f"No principal graph values for {reduction_method} found. "
-                           f"Please run sc.tl.learn_graph before running graph_test.")
+        if 'X_draw_graph_fa' not in adata.obsm:
+            # Try to create the principal graph
+            try:
+                sc.tl.draw_graph(adata)
+            except Exception as e:
+                raise ValueError(f"Could not create principal graph: {str(e)}")
     
     # Calculate spatial weights matrix
     if verbose:
@@ -266,10 +272,11 @@ def graph_test(adata, neighbor_graph='knn', reduction_method='umap', k=25,
     # Calculate q-values (Benjamini-Hochberg correction)
     results_df['q_value'] = 1.0
     ok_mask = results_df['status'] == 'OK'
-    results_df.loc[ok_mask, 'q_value'] = stats.multipletests(
-        results_df.loc[ok_mask, 'p_value'], 
-        method='fdr_bh'
-    )[1]
+    if any(ok_mask):
+        results_df.loc[ok_mask, 'q_value'] = multipletests(
+            results_df.loc[ok_mask, 'p_value'], 
+            method='fdr_bh'
+        )[1]
     
     # Set gene_id as index
     results_df.set_index('gene_id', inplace=True)
@@ -410,18 +417,27 @@ def calculate_lw(adata, k=25, neighbor_graph='knn', reduction_method='umap', ver
     
     # If using principal graph, modify the adjacency matrix
     if neighbor_graph == 'principal_graph':
-        if 'principal_graph' not in adata.uns:
-            raise ValueError("Principal graph not found. Please run sc.tl.learn_graph first.")
+        # Run draw_graph if not already run
+        if 'X_draw_graph_fa' not in adata.obsm:
+            sc.tl.draw_graph(adata)
         
-        # Get the principal graph
-        principal_graph = adata.uns['principal_graph']
+        # Create principal graph from force-directed layout
+        G = nx.Graph()
+        coords = adata.obsm['X_draw_graph_fa']
+        
+        # Add edges based on k-nearest neighbors in force-directed layout
+        nbrs = NearestNeighbors(n_neighbors=k+1, algorithm='auto').fit(coords)
+        distances, indices = nbrs.kneighbors(coords)
+        
+        for i in range(n_cells):
+            for j in range(1, k+1):
+                G.add_edge(i, indices[i, j])
         
         # Modify adjacency matrix based on principal graph
         for i in range(n_cells):
             for j in range(n_cells):
                 if adj_matrix[i, j] == 1:
-                    # Check if the edge exists in the principal graph
-                    if not principal_graph.has_edge(i, j):
+                    if not G.has_edge(i, j):
                         adj_matrix[i, j] = 0
     
     return adj_matrix
@@ -612,6 +628,9 @@ def perform_trajectory_analysis(adata):
     # Run diffusion map
     sc.tl.diffmap(adata)
     
+    # Set root cell as the cell with minimum diffusion pseudotime component
+    adata.uns['iroot'] = np.argmin(adata.obsm['X_diffmap'][:, 0])
+    
     # Calculate pseudotime
     sc.tl.dpt(adata)
     
@@ -622,6 +641,90 @@ def perform_trajectory_analysis(adata):
 #   ...
 # }
 
+def plot_genes_in_pseudotime(adata, gene_list, color_by='embryo.time.bin', ncol=1, figsize=(8, 12)):
+    """
+    Plot gene expression along pseudotime.
+    
+    Parameters:
+    -----------
+    adata : AnnData
+        Annotated data matrix
+    gene_list : list
+        List of genes to plot
+    color_by : str, optional (default: 'embryo.time.bin')
+        Column name in adata.obs to color cells by
+    ncol : int, optional (default: 1)
+        Number of columns in the plot grid
+    figsize : tuple, optional (default: (8, 12))
+        Figure size
+    """
+    # Check if pseudotime exists
+    if 'dpt_pseudotime' not in adata.obs:
+        raise ValueError("No pseudotime found. Please run trajectory analysis first.")
+    
+    # Check if genes exist in adata
+    missing_genes = [gene for gene in gene_list if gene not in adata.var_names]
+    if missing_genes:
+        raise ValueError(f"Genes not found in adata: {missing_genes}")
+    
+    # Calculate number of rows needed
+    nrow = (len(gene_list) + ncol - 1) // ncol
+    
+    # Create figure
+    fig, axes = plt.subplots(nrow, ncol, figsize=figsize)
+    if nrow == 1 and ncol == 1:
+        axes = np.array([axes])
+    axes = axes.flatten()
+    
+    # Plot each gene
+    for i, gene in enumerate(gene_list):
+        ax = axes[i]
+        
+        # Get expression values
+        if scipy.sparse.issparse(adata.X):
+            expr = adata[:, gene].X.toarray().flatten()
+        else:
+            expr = adata[:, gene].X.flatten()
+        
+        # Get pseudotime values
+        pseudotime = adata.obs['dpt_pseudotime'].values
+        
+        # Create scatter plot
+        scatter = ax.scatter(pseudotime, expr + 1, c=adata.obs[color_by].cat.codes, 
+                           cmap='tab20', alpha=0.7, s=10)
+        
+        # Add trend line using LOWESS
+        smoothed = lowess(expr, pseudotime, frac=0.3)
+        ax.plot(smoothed[:, 0], smoothed[:, 1] + 1, 'k-', linewidth=2)
+        
+        # Set labels and title
+        ax.set_xlabel('Pseudotime')
+        ax.set_ylabel('Expression')
+        ax.set_title(gene)
+        
+        # Set y-axis to log scale
+        ax.set_yscale('log')
+        ax.set_ylim(0.3, 100)  # Adjust limits as needed
+        
+        # Add colorbar if this is the first plot
+        if i == 0:
+            # Create custom legend
+            if color_by in adata.obs:
+                unique_categories = adata.obs[color_by].unique()
+                handles = [plt.scatter([], [], c=plt.cm.tab20(j/len(unique_categories)), 
+                                    label=cat, s=50) 
+                          for j, cat in enumerate(sorted(unique_categories))]
+                ax.legend(handles=handles, title=color_by, bbox_to_anchor=(1.05, 1), 
+                         loc='upper left')
+    
+    # Hide empty subplots
+    for i in range(len(gene_list), len(axes)):
+        axes[i].set_visible(False)
+    
+    # Adjust layout to prevent overlap
+    plt.tight_layout()
+    plt.show()
+
 def plot_results(adata):
     """
     Plot various results from the analysis.
@@ -631,30 +734,44 @@ def plot_results(adata):
     adata : AnnData
         Annotated data matrix
     """
+    # Create output directory if it doesn't exist
+    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'output')
+    os.makedirs(output_dir, exist_ok=True)
+    
     # Plot UMAP with cell types
     sc.pl.umap(adata, color='cell_type', title='Cell Types', show=False)
-    plt.savefig('umap_cell_types.png')
+    plt.savefig(os.path.join(output_dir, 'umap_cell_types.png'), dpi=300, bbox_inches='tight')
     plt.close()
     
     # Plot differentially expressed genes
     sc.pl.rank_genes_groups(adata, n_genes=25, sharey=False, show=False)
-    plt.savefig('deg_genes.png')
+    plt.savefig(os.path.join(output_dir, 'deg_genes.png'), dpi=300, bbox_inches='tight')
     plt.close()
     
     # Plot UMAP with module score
     sc.pl.umap(adata, color='module_score', title='Gene Module Score', show=False)
-    plt.savefig('umap_module_score.png')
+    plt.savefig(os.path.join(output_dir, 'umap_module_score.png'), dpi=300, bbox_inches='tight')
     plt.close()
     
     # Plot PAGA
     sc.pl.paga(adata, color='cell_type', show=False)
-    plt.savefig('paga.png')
+    plt.savefig(os.path.join(output_dir, 'paga.png'), dpi=300, bbox_inches='tight')
     plt.close()
     
     # Plot diffusion map
     sc.pl.diffmap(adata, color='cell_type', show=False)
-    plt.savefig('diffmap.png')
+    plt.savefig(os.path.join(output_dir, 'diffmap.png'), dpi=300, bbox_inches='tight')
     plt.close()
+    
+    # Plot genes in pseudotime if pseudotime exists
+    if 'dpt_pseudotime' in adata.obs and 'deg_genes' in adata.uns:
+        # Get top differentially expressed genes
+        deg_genes = adata.uns['deg_genes']
+        if len(deg_genes) > 0:
+            top_genes = deg_genes.head(6)['gene_id'].tolist()
+            plot_genes_in_pseudotime(adata, top_genes)
+    
+    print(f"Plots saved in: {output_dir}")
 
 # R code:
 # main <- function() {
