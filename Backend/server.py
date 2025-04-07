@@ -117,7 +117,54 @@ def get_cached_deaplog_results(sample_percent, step):
         print(f"Error: {error_msg}")
         return {'error': error_msg}, 500
 
+@app.route('/test-image')
+def test_image():
+    """Test endpoint to check available images in the figures directory"""
+    try:
+        # Get the absolute path to the figures directory
+        figures_dir = os.path.join(workspace_root, 'Python', 'figures')
+        print(f"Checking figures directory: {figures_dir}")
+        
+        # Check if the directory exists
+        if not os.path.exists(figures_dir):
+            print(f"Figures directory not found: {figures_dir}")
+            return jsonify({'images': []})
+            
+        # List all PNG files in the directory
+        images = [f for f in os.listdir(figures_dir) if f.endswith('.png')]
+        print(f"Found images: {images}")
+        
+        return jsonify({'images': images})
+    except Exception as e:
+        print(f"Error listing images: {str(e)}")
+        return jsonify({'images': []})
 
+@app.route('/figures/<path:filename>')
+def serve_figure(filename):
+    """Serve figure files from the figures directory"""
+    try:
+        # Get the absolute path to the figures directory
+        figures_dir = os.path.join(workspace_root, 'Python', 'figures')
+        print(f"Serving figure from: {figures_dir}")
+        
+        # Construct the full path to the requested file
+        file_path = os.path.join(figures_dir, filename)
+        print(f"Requested file path: {file_path}")
+        
+        # Check if the file exists
+        if not os.path.exists(file_path):
+            print(f"File not found: {file_path}")
+            return jsonify({'error': 'Image not found'}), 404
+            
+        # Serve the file with no caching
+        response = send_file(file_path)
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        print(f"Error serving figure: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/', methods=['GET'])
 def get_helloword():
