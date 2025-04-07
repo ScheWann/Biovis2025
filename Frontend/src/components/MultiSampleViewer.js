@@ -4,7 +4,7 @@ import { Collapse, Button, Input, ColorPicker, Checkbox, TreeSelect, message, Sw
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, TextLayer, GeoJsonLayer, PolygonLayer, PathLayer } from '@deck.gl/layers';
-import { booleanPointInPolygon, centroid } from '@turf/turf';
+import { booleanPointInPolygon, centroid, sample } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
@@ -218,6 +218,20 @@ export const MultiSampleViewer = ({
             });
     }
 
+    const fetchCell2CellInteractionData = (regionName, sampleId, cell_ids) => {
+        const regions = { [regionName]: { sampleId, cellIds: cell_ids } };
+        fetch('/get_cell_cell_interaction_data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ regions: regions })
+        })
+            .then(res => res.json())
+            .then(data => {
+                setSelectedRegionGeneExpressionData(data);
+            });
+    };
+
+
     // save filtered cell data, only recalculate when dependencies change
     const filteredCellData = useMemo(() => {
         return samples.reduce((acc, sample) => {
@@ -322,7 +336,6 @@ export const MultiSampleViewer = ({
             cellAngles = cellAngles.map(angle => [angle[0], angle[1]]);
             cellRadius = cellRadius.map(rad => [rad[0], rad[1]]);
 
-            // console.log(cellRadius, '////', cellAngles);
             cellAngles.forEach((angle, index) => {
                 let cal_cell_radius = cellRadius[index][1];
                 let points = [];
@@ -945,7 +958,6 @@ export const MultiSampleViewer = ({
             ...generateEditLayers(),
             regionLabelLayer,
             ...regions.map(region => {
-                console.log(region, 'region');
                 const offset = sampleOffsets[region.sampleId] || [0, 0];
                 const globalFeature = {
                     ...region.feature,
@@ -1030,9 +1042,9 @@ export const MultiSampleViewer = ({
                     }}
                     onClick={info => {
                         if (info.object && info.layer.id.startsWith('Selected-')) {
-                            console.log(info.object, 'clicked region');
                             fetchGeneExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
-                        }   
+                            fetchCell2CellInteractionData(info.object.properties.__regionMeta.name, info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
+                        }
                     }}
                     onHover={info => {
                         if (info.object && info.layer.id.startsWith('Scatters-')) {

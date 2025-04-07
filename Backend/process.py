@@ -323,3 +323,54 @@ def get_selected_region_data(sample_id, cell_ids):
         "expression_data": expression_data,
     }
 
+def get_cell_cell_interaction_data(input_data):
+    result = {}
+    
+    for sample_key, sample_info in input_data.items():
+        sample_id = sample_info["sampleId"]
+        cell_ids = sample_info["cellIds"]
+
+        if sample_id not in SAMPLES:
+            print(f"Error: Sample ID {sample_id} not found in SAMPLES.")
+            continue
+        
+        adata_path = SAMPLES[sample_id]["adata"]
+        adata = sc.read_h5ad(adata_path)
+        
+        filtered_adata = adata[adata.obs.index.isin(cell_ids)]
+        
+        filtered_spatial = pd.DataFrame(
+            filtered_adata.obsm["spatial"],
+            columns=["cell_x", "cell_y"],
+            index=filtered_adata.obs.index,
+        )
+        filtered_spatial["cell_type"] = filtered_adata.obs["cell_type"]
+        filtered_spatial.rename(columns={"cell_x": "X", "cell_y": "Y"}, inplace=True)
+        
+        spatial_file = f"{sample_id}_spatial.txt"
+        filtered_spatial.to_csv(spatial_file, sep="\t")
+        
+        counts_data = filtered_adata.to_df()
+        counts_file = f"{sample_id}_counts.txt"
+        counts_data.to_csv(counts_file, sep="\t")
+        
+        script_path = "../Spacia/spacia.py"
+        output_path = "cell2cellinteractionOutput"
+        meta_fn = spatial_file
+        counts_fn = counts_file
+        
+        params = '-rc cms2 -sc myofibroblasts -rf "COL1A1|COL3A1" -sf COL3A1 -d 30 -nc 20'
+        
+        cmd = f"python {script_path} {counts_fn} {meta_fn} {params} -o {output_path}"
+        print(f"Running command: {cmd}")
+        
+        os.system(cmd)
+        
+        interaction_file = os.path.join(output_path, "interaction.txt")
+        if os.path.exists(interaction_file):
+            interaction_df = pd.read_csv(interaction_file, sep="\t")
+            result[sample_key] = interaction_df.to_dict(orient="records")
+        else:
+            print(f"Error: Interaction file for {sample_key} not found.")
+    
+    return result

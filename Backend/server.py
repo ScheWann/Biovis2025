@@ -12,7 +12,8 @@ from process import (
     get_samples,
     get_gene_list,
     get_kosara_data,
-    get_selected_region_data
+    get_selected_region_data,
+    get_cell_cell_interaction_data
     # get_umap_positions_with_clusters,
     # get_gene_list,
     # get_specific_gene_expression
@@ -233,6 +234,12 @@ def get_selected_region_data_route():
     cell_list = request.json['cell_list']
     return jsonify(get_selected_region_data(sample_id, cell_list))
 
+@app.route('/get_cell_cell_interaction_data', methods=['POST'])
+def get_cell_cell_interaction_data_route():
+    """Get cell-cell interaction data"""
+    regions = request.json['regions']
+    return jsonify(get_cell_cell_interaction_data(regions))
+
 #################### OLD CODE ####################
 @app.route('/get_um_positions_with_clusters', methods=['POST'])
 def get_um_positions_with_clusters_route():
@@ -349,4 +356,4 @@ def analyze():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5003)
