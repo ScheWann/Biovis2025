@@ -13,6 +13,7 @@ from process import (
     get_gene_list,
     get_kosara_data,
     get_selected_region_data,
+    get_NMF_GO_data,
     get_cell_cell_interaction_data
     # get_umap_positions_with_clusters,
     # get_gene_list,
@@ -233,6 +234,13 @@ def get_selected_region_data_route():
     sample_id = request.json['sample_id']
     cell_list = request.json['cell_list']
     return jsonify(get_selected_region_data(sample_id, cell_list))
+
+@app.route('/get_NMF_GO_data', methods=['POST'])
+def get_NMF_GO_data_route():
+    """Get NMF GO data"""
+    sample_id = request.json['sample_id']
+    cell_list = request.json['cell_list']
+    return jsonify(get_NMF_GO_data(sample_id, cell_list))
 
 @app.route('/get_cell_cell_interaction_data', methods=['POST'])
 def get_cell_cell_interaction_data_route():

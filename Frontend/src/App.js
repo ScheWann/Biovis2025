@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Select, Spin, message, Button, Splitter } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
+import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
 import { Cell2CellViewer } from './components/Cell2CellViewer';
 import { GeneExpressionViewer } from './components/GeneExpressionViewer';
 import { PseudoTemporalViewer } from './components/PseudoTemporalViewer';
@@ -15,6 +16,8 @@ function App() {
   const [cellTypeDir, setCellTypeDir] = useState({});
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [NMFGOData, setNMFGOData] = useState({});
+  const [NMFGODataLoading, setNMFGODataLoading] = useState(false);
   const [selectedRegionGeneExpressionData, setSelectedRegionGeneExpressionData] = useState({});
 
   // get all aviailable samples
@@ -125,14 +128,20 @@ function App() {
                   cellTypeDir={cellTypeDir}
                   regions={regions}
                   setRegions={setRegions}
+                  setNMFGOData={setNMFGOData}
+                  setNMFGODataLoading={setNMFGODataLoading}
                   setSelectedRegionGeneExpressionData={setSelectedRegionGeneExpressionData}
                 />
               </Splitter.Panel>
               <Splitter.Panel defaultSize="30%" min="20%" max="50%">
                 <Splitter lazy layout='vertical'>
                   <Splitter.Panel defaultSize="33%" min="20%" max="45%">
-                    <GeneExpressionViewer
+                    {/* <GeneExpressionViewer
                       data={selectedRegionGeneExpressionData}
+                    /> */}
+                    <NMFGOExpressionViewer 
+                      NMFGOData={NMFGOData}
+                      NMFGODataLoading={NMFGODataLoading}
                     />
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="33%" min="20%" max="45%">

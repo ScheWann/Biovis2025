@@ -92,6 +92,8 @@ export const MultiSampleViewer = ({
     cellTypeDir,
     regions,
     setRegions,
+    setNMFGOData,
+    setNMFGODataLoading,
     setSelectedRegionGeneExpressionData
 }) => {
     const [imageSizes, setImageSizes] = useState({});
@@ -215,6 +217,21 @@ export const MultiSampleViewer = ({
             .then(res => res.json())
             .then(data => {
                 setSelectedRegionGeneExpressionData(data);
+            });
+    }
+
+    const fetchNMFGOExpressionData = (sampleId, cell_ids) => {
+        setNMFGODataLoading(true);
+        fetch('/get_NMF_GO_data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sample_id: sampleId, cell_list: cell_ids })
+        })
+            .then(res => res.json())
+            .then(data => {
+                setNMFGODataLoading(false);
+                setNMFGOData(data);
+                console.log(data,'//////');
             });
     }
 
@@ -1042,8 +1059,9 @@ export const MultiSampleViewer = ({
                     }}
                     onClick={info => {
                         if (info.object && info.layer.id.startsWith('Selected-')) {
-                            fetchGeneExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
-                            fetchCell2CellInteractionData(info.object.properties.__regionMeta.name, info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
+                            // fetchGeneExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
+                            fetchNMFGOExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
+                            // fetchCell2CellInteractionData(info.object.properties.__regionMeta.name, info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
                         }
                     }}
                     onHover={info => {

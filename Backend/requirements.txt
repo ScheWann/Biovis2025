@@ -30,6 +30,7 @@ fonttools==4.55.8
 frozenlist==1.5.0
 fsspec==2023.6.0
 geopandas==1.0.1
+gseapy==1.1.8
 h5py==3.12.1
 idna==3.10
 igraph==0.11.8
