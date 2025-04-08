@@ -10,7 +10,9 @@ from process import (
     get_unique_cell_types,
     get_cell_type_coordinates,
     get_samples,
+    get_cell_types,
     get_gene_list,
+    get_gene_list_for_cell2cellinteraction,
     get_kosara_data,
     get_selected_region_data,
     get_NMF_GO_data,
@@ -214,11 +216,23 @@ def get_cell_type_coordinates_route():
     sample_ids = request.json['sample_ids']
     return jsonify(get_cell_type_coordinates(sample_ids))
 
+@app.route('/get_cell_types', methods=['POST'])
+def get_cell_types_route():
+    """Get cell types for selected samples"""
+    sample_name = request.json['sample_name']
+    return jsonify(get_cell_types(sample_name))
+
 @app.route('/get_all_gene_list', methods=['POST'])
 def get_all_gene_list():
     """Get list of all genes for selected samples"""
     sample_names = request.json['sample_names']
     return jsonify(get_gene_list(sample_names))
+
+@app.route('/get_cell2cell_gene_list', methods=['POST'])
+def get_cell2cell_gene_list_route():
+    """Get list of all genes for selected samples"""
+    sample_name = request.json['sample_name']
+    return jsonify(get_gene_list_for_cell2cellinteraction(sample_name))
 
 @app.route('/get_kosara_data', methods=['POST'])
 def get_kosara_data_route():

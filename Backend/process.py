@@ -86,7 +86,44 @@ def get_cell_type_coordinates(sample_ids):
     return result
 
 
+# return cell type
+def get_cell_types(sample_id):
+    sample_info = SAMPLES.get(sample_id)
+    if not sample_info:
+        return []
+
+    adata = sc.read_h5ad(sample_info["adata"])
+    cell_types = adata.obs["cell_type"].unique().tolist()
+
+    return [{"value": ct, "label": ct} for ct in cell_types]
+
+
 # return gene list
+def get_gene_list_for_cell2cellinteraction(sample_id):
+    sample_info_list = []
+
+    sample_info = SAMPLES.get(sample_id)
+    if not sample_info:
+        return sample_info_list
+
+    h5ad_path = sample_info.get("adata")
+
+    try:
+        adata = sc.read_h5ad(h5ad_path)
+
+        for gene in adata.var_names:
+            sample_info_list.append({
+                'value': gene,
+                'label': gene 
+            })
+
+    except Exception as e:
+        print(f"Failed to read {h5ad_path}: {str(e)}")
+
+    return sample_info_list
+
+
+# return gene list(including gene numbers)
 def get_gene_list(sample_names):
     sample_gene_dict = {}
 

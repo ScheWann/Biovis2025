@@ -4,6 +4,7 @@ import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
 import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
 import { Cell2CellViewer } from './components/Cell2CellViewer';
+import { Cell2CellViewer2 } from './components/Cell2CellViewer2';
 import { GeneExpressionViewer } from './components/GeneExpressionViewer';
 import { PseudoTemporalViewer } from './components/PseudoTemporalViewer';
 
@@ -20,6 +21,8 @@ function App() {
   const [NMFGOData, setNMFGOData] = useState({});
   const [NMFGODataLoading, setNMFGODataLoading] = useState(false);
   const [NMFclusterCells, setNMFclusterCells] = useState([]);
+  const [cell2cellData, setCell2cellData] = useState({});
+  const [cell2cellDataLoading, setCell2cellDataLoading] = useState(false);
   const [selectedRegionGeneExpressionData, setSelectedRegionGeneExpressionData] = useState({});
 
   // get all aviailable samples
@@ -154,7 +157,14 @@ function App() {
                     <PseudoTemporalViewer />
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="33%" min="20%" max="45%">
-                    <Cell2CellViewer />
+                    {/* <Cell2CellViewer /> */}
+                    <Cell2CellViewer2
+                      regions={regions}
+                      analyzedRegion={analyzedRegion}
+                      cell2cellData={cell2cellData}
+                      setCell2cellData={setCell2cellData}
+                      cell2cellDataLoading={cell2cellDataLoading}
+                    />
                   </Splitter.Panel>
                 </Splitter>
               </Splitter.Panel>
