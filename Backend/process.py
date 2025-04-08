@@ -233,7 +233,7 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
 
                 merged_df = pd.merge(expr_df, coord_df, on="id", how="inner")
 
-                merged_df["total_expression"] = adata.X.sum(axis=1)
+                merged_df["total_expression"] = adata[valid_cell_ids, :].X.sum(axis=1)
 
                 for gene in gene_names:
                     merged_df[f"{gene}_original_ratio"] = np.where(

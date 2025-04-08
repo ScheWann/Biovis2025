@@ -124,7 +124,7 @@ export const MultiSampleViewer = ({
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
     const [currentZoom, setCurrentZoom] = useState(-3);
     const [radioCellGeneModes, setRadioCellGeneModes] = useState(samples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {}));
-    const [partWholeMode, setPartWholeMode] = useState(false); // defaultly showing gene expression value in the whole regions
+    const [partWholeMode, setPartWholeMode] = useState(true); // defaultly showing gene expression value in the whole regions
     const [geneExpressionData, setGeneExpressionData] = useState([]);
     const TILE_LOAD_ZOOM_THRESHOLD = 0;
 
@@ -304,7 +304,8 @@ export const MultiSampleViewer = ({
                 })
                     .then(res => res.json())
                     .then(data => {
-                        console.log(data)
+                        setGeneExpressionData(data[sample]);
+                        setLoading(false);
                     });
             });
         } else {
@@ -730,50 +731,124 @@ export const MultiSampleViewer = ({
                 selectedGenes.length > 0 &&
                 geneExpressionData.length > 0;
 
+            const analyzedRegionCells = analyzedRegionData?.cellIds || [];
+            const isPartMode = partWholeMode && analyzedRegionCells.length > 0;
+
             let data;
             let getFillColor;
 
             if (useGeneData) {
-                const optimizedPathData = geneExpressionData.flatMap(d => {
-                    const angles = Object.entries(d.angles);
-                    const ratios = Object.entries(d.ratios);
-                    const radius = Object.entries(d.radius);
-                    const offset = sampleOffsets[d.sampleId] || [0, 0];
+                let regionLayers = [];
+                if (isPartMode) {
+                    const inRegionData = geneExpressionData.filter(d => analyzedRegionCells.includes(d.id));
+                    const outRegionData = filteredCellData[sampleId].filter(d => !analyzedRegionCells.includes(d.id));
 
-                    return generateKosaraPath(
-                        d.cell_x + offset[0],
-                        d.cell_y + offset[1],
-                        angles,
-                        ratios,
-                        radius
-                    ).map(path => ({
-                        id: d.id,
-                        cell_type: d.cell_type,
-                        points: path.path,
-                        color: path.color,
-                        total_expression: d.total_expression,
-                        ratios: d.ratios,
-                    }));
-                });
+                    // kosara path layer for inRegionData
+                    if (inRegionData.length > 0) {
+                        const optimizedPathData = inRegionData.flatMap(d => {
+                            const angles = Object.entries(d.angles);
+                            const ratios = Object.entries(d.ratios);
+                            const radius = Object.entries(d.radius);
+                            const offset = sampleOffsets[d.sampleId] || [0, 0];
 
-                return new PolygonLayer({
-                    id: `Scatters-${sampleId}`,
-                    data: optimizedPathData,
-                    getPolygon: d => d.points,
-                    getFillColor: d => {
-                        const rgbColor = hexToRgbs(d.color);
-                        return [...rgbColor, 255];
-                    },
-                    pickable: true,
-                    stroked: false,
-                    parameters: { depthTest: false, blend: true },
-                    updateTriggers: {
-                        data: [geneExpressionData, sampleOffsets]
+                            return generateKosaraPath(
+                                d.cell_x + offset[0],
+                                d.cell_y + offset[1],
+                                angles,
+                                ratios,
+                                radius
+                            ).map(path => ({
+                                id: d.id,
+                                cell_type: d.cell_type,
+                                points: path.path,
+                                color: path.color,
+                                total_expression: d.total_expression,
+                                ratios: d.ratios,
+                            }));
+                        });
+
+                        regionLayers.push(new PolygonLayer({
+                            id: `Scatters-${sampleId}`,
+                            data: optimizedPathData,
+                            getPolygon: d => d.points,
+                            getFillColor: d => {
+                                const rgbColor = hexToRgbs(d.color);
+                                return [...rgbColor, 255];
+                            },
+                            pickable: true,
+                            stroked: false,
+                            parameters: { depthTest: false, blend: true },
+                            updateTriggers: {
+                                data: [inRegionData, sampleOffsets]
+                            }
+                        }));
                     }
-                });
+
+                    // scatterplot layer for outRegionData
+                    if (outRegionData.length > 0) {
+                        const offset = sampleOffsets[sampleId] || [0, 0];
+                        regionLayers.push(new ScatterplotLayer({
+                            id: `Scatters-${sampleId}-out`,
+                            data: outRegionData,
+                            getPosition: d => [d.cell_x + offset[0], d.cell_y + offset[1]],
+                            getFillColor: d => {
+                                const defaultColor = colorMaps[sampleId]?.[d.cell_type] || [0, 0, 0];
+                                return [...defaultColor, 255];
+                            },
+                            getRadius: 5,
+                            pickable: true,
+                            parameters: { depthTest: false },
+                            updateTriggers: {
+                                getFillColor: [colorMaps[sampleId], visibleCellTypes[sampleId]],
+                                data: [outRegionData]
+                            }
+                        }));
+                    }
+                } else {
+                    if (geneExpressionData.length > 0) {
+                        const optimizedPathData = geneExpressionData.flatMap(d => {
+                            const angles = Object.entries(d.angles);
+                            const ratios = Object.entries(d.ratios);
+                            const radius = Object.entries(d.radius);
+                            const offset = sampleOffsets[d.sampleId] || [0, 0];
+
+                            return generateKosaraPath(
+                                d.cell_x + offset[0],
+                                d.cell_y + offset[1],
+                                angles,
+                                ratios,
+                                radius
+                            ).map(path => ({
+                                id: d.id,
+                                cell_type: d.cell_type,
+                                points: path.path,
+                                color: path.color,
+                                total_expression: d.total_expression,
+                                ratios: d.ratios,
+                            }));
+                        });
+
+                        regionLayers.push(new PolygonLayer({
+                            id: `Scatters-${sampleId}`,
+                            data: optimizedPathData,
+                            getPolygon: d => d.points,
+                            getFillColor: d => {
+                                const rgbColor = hexToRgbs(d.color);
+                                return [...rgbColor, 255];
+                            },
+                            pickable: true,
+                            stroked: false,
+                            parameters: { depthTest: false, blend: true },
+                            updateTriggers: {
+                                data: [geneExpressionData, sampleOffsets]
+                            }
+                        }));
+                    }
+                }
+                return regionLayers;
             } else {
                 data = filteredCellData[sampleId] || [];
-                data = filteredCellData[sampleId] || [];
+
                 getFillColor = d => {
                     const defaultColor = colorMaps[sampleId]?.[d.cell_type] || [0, 0, 0];
 
@@ -806,7 +881,7 @@ export const MultiSampleViewer = ({
                 });
             }
         }).filter(Boolean);
-    }, [samples, filteredCellData, colorMaps, visibleSamples, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes, analyzedRegion, NMFclusterCells]);
+    }, [samples, filteredCellData, colorMaps, visibleSamples, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes, analyzedRegion, NMFclusterCells, partWholeMode, regions]);
 
     // update current region data
     const handleRegionUpdate = (sampleId, updatedData) => {
@@ -995,7 +1070,7 @@ export const MultiSampleViewer = ({
         });
         return [
             ...generateWholePngLayers(),
-            // ...generateTileLayers(),
+            ...generateTileLayers(),
             ...generateMarkerImageLayers(),
             ...generateCellLayers(),
             ...generateEditLayers(),
@@ -1037,7 +1112,7 @@ export const MultiSampleViewer = ({
         ].filter(Boolean);
     }, [
         generateWholePngLayers,
-        // generateTileLayers,
+        generateTileLayers,
         generateMarkerImageLayers,
         generateCellLayers,
         generateEditLayers,
