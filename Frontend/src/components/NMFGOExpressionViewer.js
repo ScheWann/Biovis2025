@@ -23,7 +23,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
 
     useEffect(() => {
         console.log(NMFGODataLoading, 'NMFGODataLoading')
-        if (dimensions.width === 0 || dimensions.height === 0 || Object.keys(NMFGOData).length === 0 || !NMFGODataLoading) return;
+        if (dimensions.width === 0 || dimensions.height === 0 || Object.keys(NMFGOData).length === 0 || NMFGODataLoading) return;
 
         const svg = d3.select(svgRef.current);
         // clear previous SVG

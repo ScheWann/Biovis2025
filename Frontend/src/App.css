@@ -60,3 +60,11 @@ body {
 .ant-spin-container {
   height: 100%;
 }
+
+.ant-spin-dot-holder {
+  margin-top: 100px;
+}
+
+.ant-empty-image {
+  margin-top: 100px;
+}
