@@ -135,7 +135,7 @@ function App() {
               </Splitter.Panel>
               <Splitter.Panel defaultSize="30%" min="20%" max="50%">
                 <Splitter lazy layout='vertical'>
-                  <Splitter.Panel defaultSize="33%" min="20%" max="45%">
+                  <Splitter.Panel defaultSize="33%" min="20%" max="45%" style={{ borderBottom: "1px solid #e8e8e8" }}>
                     {/* <GeneExpressionViewer
                       data={selectedRegionGeneExpressionData}
                     /> */}
@@ -144,7 +144,7 @@ function App() {
                       NMFGODataLoading={NMFGODataLoading}
                     />
                   </Splitter.Panel>
-                  <Splitter.Panel defaultSize="33%" min="20%" max="45%">
+                  <Splitter.Panel defaultSize="33%" min="20%" max="45%" style={{ borderBottom: "1px solid #e8e8e8" }}>
                     <PseudoTemporalViewer />
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="33%" min="20%" max="45%">
