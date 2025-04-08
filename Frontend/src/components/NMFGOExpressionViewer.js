@@ -126,7 +126,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                 // barchart svg
                 const barWidth = 500;
                 const barHeight = 200;
-                const margin = { top: 15, right: 10, bottom: 35, left: 100 };
+                const margin = { top: 50, right: 10, bottom: 35, left: 100 };
                 const innerWidth = barWidth - margin.left - margin.right;
                 const innerHeight = barHeight - margin.top - margin.bottom;
 
@@ -139,7 +139,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                 // Go barchart Title
                 svg.append("text")
                     .attr("x", innerWidth / 2)
-                    .attr("y", -5)
+                    .attr("y", -35)
                     .attr("text-anchor", "middle")
                     .attr("font-size", "14px")
                     .attr("font-weight", "bold")
@@ -154,6 +154,10 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                     .domain([0, d3.max(tooltipData, d => d['Combined Score'])])
                     .range([0, innerWidth]);
 
+                const oddsX = d3.scaleLinear()
+                    .domain([0, d3.max(tooltipData, d => d['Odds Ratio'])])
+                    .range([0, innerWidth]);
+                
                 svg.selectAll('.bar')
                     .data(tooltipData)
                     .enter()
@@ -164,19 +168,21 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                     .attr('height', y.bandwidth())
                     .attr('fill', '#69b3a2');
 
+                // add the y axis
                 svg.append('g')
                     .call(d3.axisLeft(y).tickSize(0).tickPadding(5).tickFormat(d => d))
                     .selectAll("text")
                     .style("font-size", "10px");
                 
-                svg.append("text")
-                    .attr("text-anchor", "middle")
-                    .attr("transform", `rotate(-90)`)
-                    .attr("x", -innerHeight / 2)
-                    .attr("y", -margin.left + 15)
-                    .attr("font-size", "12px")
-                    .text("GO Term");
+                // svg.append("text")
+                //     .attr("text-anchor", "middle")
+                //     .attr("transform", `rotate(-90)`)
+                //     .attr("x", -innerHeight / 2)
+                //     .attr("y", -margin.left + 15)
+                //     .attr("font-size", "12px")
+                //     .text("GO Term");
 
+                // add the x axis
                 svg.append('g')
                     .attr('transform', `translate(0, ${innerHeight})`)
                     .call(d3.axisBottom(x).ticks(4))
@@ -184,11 +190,49 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                     .style("font-size", "10px");
                 
                 svg.append("text")
-                    .attr("x", innerWidth / 2)
+                    .attr("x", innerWidth - 40)
                     .attr("y", innerHeight + 35)
                     .attr("text-anchor", "middle")
                     .attr("font-size", "12px")
                     .text("Combined Score");
+                
+                // add the odds ratio axis
+                svg.append('g')
+                    .attr('transform', `translate(0, 0)`)
+                    .call(d3.axisTop(oddsX).ticks(4))
+                    .selectAll("text")
+                    .style("font-size", "10px");
+                
+                svg.append("text")
+                    .attr("x", innerWidth - 30)
+                    .attr("y", -margin.top + 25)
+                    .attr("text-anchor", "middle")
+                    .attr("font-size", "12px")
+                    .text("Odds Ratio");
+                
+                // add the odds ratio dot
+                svg.selectAll(".odds-dot")
+                    .data(tooltipData)
+                    .enter()
+                    .append("circle")
+                    .attr("cx", d => oddsX(d["Odds Ratio"]))
+                    .attr("cy", d => y(d.Term) + y.bandwidth() / 2)
+                    .attr("r", 3)
+                    .attr("fill", "#d62728")
+                    .attr("stroke", "#000")
+                    .attr("stroke-width", 0.5);
+                
+                // add the genes label
+                svg.selectAll(".genes-label")
+                    .data(tooltipData)
+                    .enter()
+                    .append("text")
+                    .attr("x", d => x(d["Combined Score"]) / 2)
+                    .attr("y", d => y(d.Term) + y.bandwidth() / 2 + 4) // vertical center
+                    .attr("text-anchor", "middle")
+                    .attr("font-size", "9px")
+                    .attr("fill", "white")
+                    .text(d => d.Genes);
                 
                 // position the tooltip
                 // wait for the tooltip to be added to the DOM
