@@ -1125,7 +1125,9 @@ export const MultiSampleViewer = ({
                             <>
                                 <div><strong>Sample:</strong> {hoveredCell.sampleId}</div>
                                 <div><strong>Cell Type:</strong> {hoveredCell.cell_type}</div>
-                                <div><strong>Total Expression:</strong> {hoveredCell.total_expression}</div>
+                                {hoveredCell.total_expression && (
+                                    <div><strong>Total Expression:</strong> {hoveredCell.total_expression}</div>
+                                )}
                                 {hoveredCell.ratios &&
                                     Object.entries(hoveredCell.ratios).map(([gene, expression]) => (
                                         <div key={gene}>
