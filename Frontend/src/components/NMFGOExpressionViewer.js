@@ -22,6 +22,52 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
         return () => observer.disconnect();
     }, [NMFGODataLoading]);
 
+    // function to wrap text by chunks
+    const wrapByChunks = (text, maxCharsPerLine) => {
+        text.each(function () {
+            const text = d3.select(this);
+            const fullText = text.text();
+            const parts = fullText.split(' ');
+
+            const totalLength = fullText.length;
+            if (totalLength <= maxCharsPerLine) {
+                text.text(null)
+                    .append("tspan")
+                    .attr("x", 0)
+                    .attr("y", 0)
+                    .attr("dy", "0em")
+                    .attr("alignment-baseline", "middle")
+                    .attr("text-anchor", "end")
+                    .text(fullText);
+            } else {
+                let line = [];
+                let tspan = text.text(null)
+                    .append("tspan")
+                    .attr("x", 0)
+                    .attr("dy", "0em");
+    
+                parts.forEach((word, i) => {
+                    line.push(word);
+                    const currentLine = line.join(' ');
+                    if (currentLine.length > maxCharsPerLine || i === parts.length - 1) {
+                        if (currentLine.length > maxCharsPerLine) {
+                            line.pop(); // remove last word
+                            tspan.text(line.join(' '));
+                            line = [word];
+                        } else {
+                            tspan.text(currentLine);
+                            line = [];
+                        }
+                        tspan = text.append("tspan")
+                            .attr("x", 0)
+                            .attr("dy", "1em");
+                    }
+                });
+            }
+        });
+    };
+    
+
     useEffect(() => {
         if (dimensions.width === 0 || dimensions.height === 0 || Object.keys(NMFGOData).length === 0 || NMFGODataLoading) return;
 
@@ -127,7 +173,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                 // barchart svg
                 const barWidth = 500;
                 const barHeight = 200;
-                const margin = { top: 50, right: 10, bottom: 35, left: 100 };
+                const margin = { top: 50, right: 10, bottom: 35, left: 170 };
                 const innerWidth = barWidth - margin.left - margin.right;
                 const innerHeight = barHeight - margin.top - margin.bottom;
 
@@ -171,9 +217,14 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
 
                 // add the y axis
                 svg.append('g')
-                    .call(d3.axisLeft(y).tickSize(0).tickPadding(5).tickFormat(d => d))
+                    .call(d3.axisLeft(y)
+                        .tickSize(0)
+                        .tickPadding(5)
+                        .tickFormat(d => d.replace(/_/g, ' '))
+                    )
                     .selectAll("text")
-                    .style("font-size", "10px");
+                    .style("font-size", "10px")
+                    .call(wrapByChunks, 25);
 
                 // svg.append("text")
                 //     .attr("text-anchor", "middle")
@@ -207,7 +258,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
 
                 svg.append("text")
                     .attr("x", innerWidth - 30)
-                    .attr("y", -margin.top + 35)
+                    .attr("y", -margin.top + 30)
                     .attr("text-anchor", "middle")
                     .attr("font-size", "10px")
                     .style("font-weight", "bold")
