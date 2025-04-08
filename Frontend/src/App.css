@@ -68,3 +68,7 @@ body {
 .ant-empty-image {
   margin-top: 100px;
 }
+
+.ant-splitter-panel {
+  height: 100%;
+}

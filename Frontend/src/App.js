@@ -119,7 +119,7 @@ function App() {
           )}
 
           {samples.length > 0 ? (
-            <Splitter lazy>
+            <Splitter lazy style={{ width: "100%", height: "100%" }}>
               <Splitter.Panel defaultSize="70%" min="50%" max="80%">
                 <MultiSampleViewer
                   setLoading={setLoading}

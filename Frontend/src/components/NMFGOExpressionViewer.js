@@ -12,7 +12,6 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
         const observer = new ResizeObserver(entries => {
             entries.forEach(entry => {
                 const { width, height } = entry.contentRect;
-                console.log('ResizeObserver:', width, height);
                 setDimensions({ width, height });
             });
         });
@@ -20,12 +19,14 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
             observer.observe(containerRef.current);
         }
         return () => observer.disconnect();
-    }, []);
+    }, [NMFGODataLoading]);
 
     useEffect(() => {
         if (dimensions.width === 0 || dimensions.height === 0 || Object.keys(NMFGOData).length === 0 || NMFGODataLoading) return;
 
         const svg = d3.select(svgRef.current);
+        svg.attr("width", dimensions.width).attr("height", dimensions.height);
+
         // clear previous SVG
         svg.selectAll('*').remove();
 
@@ -120,7 +121,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
             .text('Cluster');
 
         // legend
-        const legendWidth = 20;
+        const legendWidth = 10;
         const legendHeight = dimensions.height - margin.top - margin.bottom;
 
         const legend = svg.append('g')
@@ -168,7 +169,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
         ) : (
             Object.keys(NMFGOData).length > 0 && NMFGOData.cluster_means && Object.keys(NMFGOData.cluster_means).length > 0 ? (
                 <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
-                    <svg ref={svgRef} width={dimensions.width} height={dimensions.height}></svg>
+                    <svg ref={svgRef}></svg>
                 </div>
             ) : (
                 <Empty

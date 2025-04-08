@@ -362,7 +362,7 @@ def get_NMF_GO_data(sample_id, cell_list):
             return np.nan
 
     # finding the best k for NMF
-    def auto_select_nmf_k_from_expr(expr_matrix, k_range=range(2, 21), n_repeats=5, random_state=42, coph_threshold=0.99):
+    def auto_select_nmf_k_from_expr(expr_matrix, k_range=range(2, 21), n_repeats=5, random_state=42, coph_threshold=0.98):
         results = []
 
         for k in k_range:
