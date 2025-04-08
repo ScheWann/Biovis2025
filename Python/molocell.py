@@ -10,17 +10,24 @@ import os
 import scipy.sparse
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.colors import LinearSegmentedColormap
+import matplotlib.patches as mpatches
+from matplotlib.lines import Line2D
 
 def monocle_theme_opts():
     """Set the theme options for monocle plots"""
-    plt.style.use('seaborn-white')
-    plt.rcParams['figure.facecolor'] = 'white'
-    plt.rcParams['axes.facecolor'] = 'white'
-    plt.rcParams['axes.edgecolor'] = 'black'
-    plt.rcParams['axes.linewidth'] = 0.25
-    plt.rcParams['grid.color'] = 'none'
-    plt.rcParams['legend.frameon'] = False
-    plt.rcParams['legend.key'] = 'white'
+    plt.rcParams.update({
+        'figure.facecolor': 'white',
+        'axes.facecolor': 'white',
+        'axes.edgecolor': 'black',
+        'axes.linewidth': 0.25,
+        'grid.color': 'none',
+        'legend.frameon': False,
+        'figure.figsize': [10, 10],
+        'axes.grid': False,
+        'axes.spines.top': False,
+        'axes.spines.right': False
+    })
 
 class CellDataSet:
     def __init__(self, expression_matrix, cell_metadata, gene_metadata):
@@ -45,6 +52,10 @@ class CellDataSet:
         self.pca = None
         self.umap = None
         self.clusters = None
+        
+        # Principal graph for trajectory
+        self.principal_graph = {}
+        self.principal_graph_aux = {}
         
     def get_colData(self):
         return self.colData
@@ -177,9 +188,13 @@ class CellDataSet:
             
         # Check if reduction exists
         if reduction_method == "UMAP" and self.umap is None:
-            raise ValueError("UMAP reduction not found. Please run reduce_dimension first.")
+            raise ValueError(f"No dimensionality reduction for {reduction_method} calculated. "
+                            f"Please run reduce_dimension with reduction_method = {reduction_method} "
+                            f"before attempting to plot.")
         elif reduction_method == "PCA" and self.pca is None:
-            raise ValueError("PCA reduction not found. Please run reduce_dimension first.")
+            raise ValueError(f"No dimensionality reduction for {reduction_method} calculated. "
+                            f"Please run reduce_dimension with reduction_method = {reduction_method} "
+                            f"before attempting to plot.")
             
         # Get reduction coordinates
         if reduction_method == "UMAP":
@@ -187,37 +202,157 @@ class CellDataSet:
         elif reduction_method == "PCA":
             coords = self.pca
             
-        # Create plot
-        plt.figure(figsize=(10, 10))
+        # Check if x and y are valid dimensions
+        if coords.shape[1] < max(x, y):
+            raise ValueError(f"x and/or y is too large. x and y must be dimensions in reduced dimension space.")
+            
+        # Check if color_cells_by is valid
+        if color_cells_by is not None:
+            valid_color_by = ["cluster", "partition", "pseudotime"]
+            if color_cells_by not in valid_color_by and color_cells_by not in self.colData.columns:
+                raise ValueError(f"color_cells_by must be one of {valid_color_by} or a column in the colData table.")
+                
+            # Check if pseudotime exists if color_cells_by is pseudotime
+            if color_cells_by == "pseudotime":
+                if not hasattr(self, 'pseudotime') or self.pseudotime is None:
+                    raise ValueError(f"No pseudotime for {reduction_method} calculated. "
+                                    f"Please run order_cells with reduction_method = {reduction_method} "
+                                    f"before attempting to color by pseudotime.")
+                    
+        # Check if group_cells_by is valid
+        if group_cells_by not in ["cluster", "partition"] and group_cells_by not in self.colData.columns:
+            raise ValueError(f"group_cells_by must be one of ['cluster', 'partition'] or a column in the colData table.")
+            
+        # Check if trajectory graph exists
+        if show_trajectory_graph and reduction_method not in self.principal_graph:
+            print("No trajectory to plot. Has learn_graph() been called yet?")
+            show_trajectory_graph = False
+            
+        # Check if principal points can be labeled
+        if label_principal_points and reduction_method not in self.principal_graph:
+            print("Cannot label principal points when no trajectory to plot. Has learn_graph() been called yet?")
+            label_principal_points = False
+            
+        # If label_principal_points is True, disable other labels
+        if label_principal_points:
+            label_branch_points = False
+            label_leaves = False
+            label_roots = False
+            
+        # Create data frame for plotting
+        data_df = pd.DataFrame({
+            'data_dim_1': coords[:, x-1],
+            'data_dim_2': coords[:, y-1],
+            'sample_name': self.colData.index
+        })
+        
+        # Add colData to data_df
+        for col in self.colData.columns:
+            data_df[col] = self.colData[col].values
+            
+        # Add cell group based on group_cells_by
+        if group_cells_by == "cluster" and self.clusters is not None:
+            data_df['cell_group'] = self.clusters
+        elif group_cells_by == "partition" and hasattr(self, 'partitions') and self.partitions is not None:
+            data_df['cell_group'] = self.partitions
+        elif group_cells_by in self.colData.columns:
+            data_df['cell_group'] = self.colData[group_cells_by].values
+            
+        # Add cell color based on color_cells_by
+        if color_cells_by == "cluster" and self.clusters is not None:
+            data_df['cell_color'] = self.clusters
+        elif color_cells_by == "partition" and hasattr(self, 'partitions') and self.partitions is not None:
+            data_df['cell_color'] = self.partitions
+        elif color_cells_by == "pseudotime" and hasattr(self, 'pseudotime') and self.pseudotime is not None:
+            data_df['cell_color'] = self.pseudotime
+        elif color_cells_by in self.colData.columns:
+            data_df['cell_color'] = self.colData[color_cells_by].values
+            
+        # Create figure
+        fig, ax = plt.subplots(figsize=(10, 10))
         
         # Plot cells
-        if color_cells_by == "cluster" and self.clusters is not None:
-            scatter = plt.scatter(coords[:, x-1], coords[:, y-1], 
-                                c=self.clusters, cmap='viridis',
-                                s=cell_size*100, alpha=alpha)
-            plt.colorbar(scatter, label='Cluster')
+        if genes is not None:
+            # Handle gene expression coloring
+            # This is a simplified version - in the full implementation, you would need to
+            # calculate gene expression values and normalize them
+            if norm_method == "size_only":
+                # Simplified gene expression coloring
+                scatter = ax.scatter(data_df['data_dim_1'], data_df['data_dim_2'], 
+                                    c=data_df['cell_color'], cmap='viridis',
+                                    s=cell_size*100, alpha=alpha)
+                plt.colorbar(scatter, label='Expression')
+            else:
+                # Log-transformed gene expression coloring
+                scatter = ax.scatter(data_df['data_dim_1'], data_df['data_dim_2'], 
+                                    c=np.log10(data_df['cell_color'] + min_expr), cmap='viridis',
+                                    s=cell_size*100, alpha=alpha)
+                plt.colorbar(scatter, label='log10(Expression)')
         else:
-            plt.scatter(coords[:, x-1], coords[:, y-1], 
-                       s=cell_size*100, alpha=alpha)
+            # Color by cell attribute
+            if color_cells_by in ["cluster", "partition"]:
+                if data_df['cell_color'] is None:
+                    # Default coloring if no cluster/partition data
+                    ax.scatter(data_df['data_dim_1'], data_df['data_dim_2'], 
+                              color='gray', s=cell_size*100, alpha=alpha)
+                    print(f"{color_cells_by} not found in colData(cds), cells will not be colored")
+                else:
+                    # Color by cluster/partition
+                    scatter = ax.scatter(data_df['data_dim_1'], data_df['data_dim_2'], 
+                                        c=data_df['cell_color'], cmap='viridis',
+                                        s=cell_size*100, alpha=alpha)
+                    plt.colorbar(scatter, label=color_cells_by)
+            elif pd.api.types.is_numeric_dtype(data_df['cell_color']):
+                # Color by numeric value
+                scatter = ax.scatter(data_df['data_dim_1'], data_df['data_dim_2'], 
+                                    c=data_df['cell_color'], cmap='viridis',
+                                    s=cell_size*100, alpha=alpha)
+                plt.colorbar(scatter, label=color_cells_by)
+            else:
+                # Color by categorical value
+                scatter = ax.scatter(data_df['data_dim_1'], data_df['data_dim_2'], 
+                                    c=pd.Categorical(data_df['cell_color']).codes, cmap='viridis',
+                                    s=cell_size*100, alpha=alpha)
+                plt.colorbar(scatter, label=color_cells_by)
+                
+        # Add trajectory graph if available
+        if show_trajectory_graph and reduction_method in self.principal_graph:
+            # This is a simplified version - in the full implementation, you would need to
+            # extract the graph edges and nodes from the principal graph
+            pass
             
-        # Add labels
-        if label_cell_groups:
-            if group_cells_by == "cluster" and self.clusters is not None:
-                for cluster in np.unique(self.clusters):
-                    mask = self.clusters == cluster
-                    center_x = np.mean(coords[mask, x-1])
-                    center_y = np.mean(coords[mask, y-1])
-                    plt.text(center_x, center_y, f'Cluster {cluster}',
-                            fontsize=group_label_size*5)
-                    
-        plt.title(f'{reduction_method} Plot')
-        plt.xlabel(f'{reduction_method} {x}')
-        plt.ylabel(f'{reduction_method} {y}')
+        # Add labels for cell groups
+        if label_cell_groups and data_df['cell_color'] is not None:
+            if group_cells_by == "cluster" and data_df['cell_group'] is not None:
+                # Group by cluster and color
+                for cluster in data_df['cell_group'].unique():
+                    cluster_data = data_df[data_df['cell_group'] == cluster]
+                    for color in cluster_data['cell_color'].unique():
+                        color_data = cluster_data[cluster_data['cell_color'] == color]
+                        if len(color_data) > 0:
+                            center_x = color_data['data_dim_1'].median()
+                            center_y = color_data['data_dim_2'].median()
+                            ax.text(center_x, center_y, f'{color}', 
+                                    fontsize=group_label_size*5)
+            else:
+                # Group by color only
+                for color in data_df['cell_color'].unique():
+                    color_data = data_df[data_df['cell_color'] == color]
+                    if len(color_data) > 0:
+                        center_x = color_data['data_dim_1'].median()
+                        center_y = color_data['data_dim_2'].median()
+                        ax.text(center_x, center_y, f'{color}', 
+                                fontsize=group_label_size*5)
+                
+        # Set title and labels
+        ax.set_title(f'{reduction_method} Plot')
+        ax.set_xlabel(f'{reduction_method} {x}')
+        ax.set_ylabel(f'{reduction_method} {y}')
         
         # Apply monocle theme
         monocle_theme_opts()
         
-        return plt.gcf()
+        return fig
 
 def read_and_sample_data(file_path: str, sample_fraction: float = 0.01):
     if not os.path.exists(file_path):
@@ -257,9 +392,10 @@ if __name__ == "__main__":
     sample_cell = cds.colData['cell_name'].iloc[0]
     print(f"\nUsing sample cell: {sample_cell}")
     
-    # Create a test cell type assignment using the sample cell name
-    cds.colData['assigned_cell_type'] = 'Other'
-    cds.colData.loc[sample_cell, 'assigned_cell_type'] = 'TestCell'
+    # Create cell type assignments for all cells
+    # Assign random cell types to all cells for demonstration
+    cell_types = ['Type_A', 'Type_B', 'Type_C', 'Type_D', 'Type_E']
+    cds.colData['assigned_cell_type'] = np.random.choice(cell_types, size=len(cds.colData))
     
     # Create dummy clusters and UMAP coordinates with correct dimensions
     n_cells = cds.expression_matrix.shape[0]  # Use first dimension for cells
@@ -272,14 +408,16 @@ if __name__ == "__main__":
     print(f"UMAP shape: {cds.umap.shape}")
     print(f"Clusters shape: {cds.clusters.shape}")
     
-    # Filter test cells
-    test_cells = cds.filter_cells("TestCell")
+    # Plot all cells
+    print("\nPlotting all cells...")
+    fig = cds.plot_cells(color_cells_by="assigned_cell_type")
+    plt.savefig('all_cells_plot.png')
+    plt.close()
     
-    if test_cells.expression_matrix.shape[1] > 0:  # Check second dimension for cells after transpose
-        # Plot test cells using the new plot_cells function
-        fig = test_cells.plot_cells(color_cells_by="cluster")
-        plt.savefig('test_cells_plot.png')
-        plt.close()
-        print(f"\nFound {test_cells.expression_matrix.shape[1]} test cells")
-    else:
-        print("No test cells found in the dataset") 
+    # Also plot cells colored by cluster
+    print("Plotting cells colored by cluster...")
+    fig = cds.plot_cells(color_cells_by="cluster")
+    plt.savefig('all_cells_cluster_plot.png')
+    plt.close()
+    
+    print(f"\nPlots saved as 'all_cells_plot.png' and 'all_cells_cluster_plot.png'") 
