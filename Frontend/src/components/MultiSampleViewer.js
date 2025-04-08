@@ -1003,7 +1003,7 @@ export const MultiSampleViewer = ({
     ]);
 
     return (
-        <div style={{ width: '70%', height: '100%', display: 'flex', borderRight: '2px solid #e8e8e8' }}>
+        <div style={{ width: '100%', height: '100%', display: 'flex', borderRight: '2px solid #e8e8e8' }}>
             <div
                 style={{
                     flex: 1,

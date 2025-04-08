@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Select, Spin, message, Button } from 'antd';
+import { Select, Spin, message, Button, Splitter } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
 import { Cell2CellViewer } from './components/Cell2CellViewer';
@@ -116,25 +116,34 @@ function App() {
           )}
 
           {samples.length > 0 ? (
-            <>
-              <MultiSampleViewer
-                setLoading={setLoading}
-                samples={samples}
-                cellTypeCoordinatesData={cellTypeCoordinatesData}
-                cellTypeDir={cellTypeDir}
-                regions={regions}
-                setRegions={setRegions}
-                setSelectedRegionGeneExpressionData={setSelectedRegionGeneExpressionData}
-              />
-
-              <div className="auxiliaryViews">
-                <PseudoTemporalViewer />
-                <Cell2CellViewer />
-                <GeneExpressionViewer 
-                  data={selectedRegionGeneExpressionData}
+            <Splitter lazy>
+              <Splitter.Panel defaultSize="70%" min="50%" max="80%">
+                <MultiSampleViewer
+                  setLoading={setLoading}
+                  samples={samples}
+                  cellTypeCoordinatesData={cellTypeCoordinatesData}
+                  cellTypeDir={cellTypeDir}
+                  regions={regions}
+                  setRegions={setRegions}
+                  setSelectedRegionGeneExpressionData={setSelectedRegionGeneExpressionData}
                 />
-              </div>
-            </>
+              </Splitter.Panel>
+              <Splitter.Panel defaultSize="30%" min="20%" max="50%">
+                <Splitter lazy layout='vertical'>
+                  <Splitter.Panel defaultSize="33%" min="20%" max="45%">
+                    <GeneExpressionViewer
+                      data={selectedRegionGeneExpressionData}
+                    />
+                  </Splitter.Panel>
+                  <Splitter.Panel defaultSize="33%" min="20%" max="45%">
+                    <PseudoTemporalViewer />
+                  </Splitter.Panel>
+                  <Splitter.Panel defaultSize="33%" min="20%" max="45%">
+                    <Cell2CellViewer />
+                  </Splitter.Panel>
+                </Splitter>
+              </Splitter.Panel>
+            </Splitter>
           ) : (
             <div style={{
               display: "flex",
