@@ -1,11 +1,13 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button, Select, Spin, Empty } from 'antd';
 
 export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCell2cellData, cell2cellDataLoading }) => {
+    const [cellTypeList, setCellTypeList] = useState([]);
+    const [genelist, setGenelist] = useState([]);
     const [receiver, setReceiver] = useState(null);
     const [sender, setSender] = useState(null);
-    const [receiverGenes, setReceiverGenes] = useState([]);
-    const [senderGenes, setSenderGenes] = useState([]);
+    const [receiverGene, setReceiverGenes] = useState(null);
+    const [senderGene, setSenderGenes] = useState(null);
     const [selectedCellIds, setSelectedCellIds] = useState([]);
 
     const fetchCellTypeList = (sample_name) => {
@@ -16,11 +18,9 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
         })
             .then(res => res.json())
             .then(data => {
-                console.log(data, "cell type list");
-                setReceiver(data.receiver);
-                setSender(data.sender);
+                setCellTypeList(data);
             });
-    }
+    };
 
     const fetchGeneList = (sample_name) => {
         fetch('/get_cell2cell_gene_list', {
@@ -30,17 +30,14 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
         })
             .then(res => res.json())
             .then(data => {
-                console.log(data, "gene list");
-                setReceiverGenes(data);
-                setSenderGenes(data);
+                setGenelist(data);
             });
+    };
 
-    }
     // Method to find and store cellIds based on analyzedRegion
     const findCellIdsByRegion = () => {
         const region = regions.find(region => region.name === analyzedRegion);
         if (region) {
-            // Found the matching region
             const { sampleId, cellIds } = region;
             fetchCellTypeList(sampleId);
             fetchGeneList(sampleId);
@@ -48,7 +45,29 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
         }
     };
 
-    // Call findCellIdsByRegion once when the component is mounted or analyzedRegion changes
+    const confirmCell2cellparameters = () => {
+        if (!receiver || !sender || !receiverGene || !senderGene) {
+            alert('Please select all parameters');
+            return;
+        }
+        const params = {
+            receiver,
+            sender,
+            receiverGene,
+            senderGene,
+            cellIds: selectedCellIds
+        };
+        fetch('/get_cell_cell_interaction_data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params)
+        })
+            .then(res => res.json())
+            .then(data => {
+                setCell2cellData(data);
+            });
+    }
+
     useEffect(() => {
         if (analyzedRegion) {
             findCellIdsByRegion();
@@ -56,23 +75,77 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
     }, [analyzedRegion, regions]);
 
     return (
-        cell2cellDataLoading ? (
-            <Spin spinning={true} style={{ width: '100%', height: '100%' }} />
-        ) : (
-            Object.keys(cell2cellData).length > 0 ? (
-                <div style={{ width: '100%', height: '100%' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 5 }}>
-                        <Select>
-                        </Select>
-                    </div>
-                </div>
-            ) : (
-                <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description="Please set receiver and sender first"
-                    style={{ width: '100%', height: '100%' }}
+        <div style={{ width: '100%', height: '100%' }}>
+            <div style={{ margin: 5, fontSize: 14, fontWeight: 'bold' }}>Cell to Cell interaction Viewer</div>
+            {/* Selectors and Button */}
+            <div style={{ width: '100%', height: '10%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 10 }}>
+                <Select
+                    style={{ width: 120 }}
+                    size='small'
+                    value={receiver}
+                    options={cellTypeList}
+                    onChange={setReceiver}
+                    disabled={!analyzedRegion || cell2cellDataLoading}
+                    placeholder="Select Receiver"
                 />
-            )
-        )
+                <Select
+                    style={{ width: 120 }}
+                    size='small'
+                    value={sender}
+                    options={cellTypeList}
+                    onChange={setSender}
+                    disabled={!analyzedRegion || cell2cellDataLoading}
+                    placeholder="Select Sender"
+                />
+                <Select
+                    style={{ width: 120 }}
+                    size='small'
+                    value={receiverGene}
+                    options={genelist}
+                    onChange={setReceiverGenes}
+                    disabled={!analyzedRegion || cell2cellDataLoading}
+                    placeholder="Select Receiver Gene"
+                />
+                <Select
+                    style={{ width: 120 }}
+                    size='small'
+                    value={senderGene}
+                    options={genelist}
+                    onChange={setSenderGenes}
+                    disabled={!analyzedRegion || cell2cellDataLoading}
+                    placeholder="Select Sender Gene"
+                />
+                <Button
+                    style={{ width: 120 }}
+                    size='small'
+                    disabled={!analyzedRegion || cell2cellDataLoading}
+                    onClick={confirmCell2cellparameters}
+                >
+                    Confirm
+                </Button>
+            </div>
+
+            {cell2cellDataLoading ? (
+                <Spin spinning={true} style={{ width: '100%', height: '100%' }} />
+            ) : (
+                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    {!analyzedRegion && (
+                        <Empty
+                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                            description="Please set receiver and sender first"
+                            style={{ width: '100%', height: '100%' }}
+                        />
+                    )}
+
+                    {/* Show content only if cell2cellData is available */}
+                    {Object.keys(cell2cellData).length > 0 && analyzedRegion && (
+                        <div>
+                            {/* Render the actual content you want here */}
+                            <p>Content goes here...</p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
     );
 };
