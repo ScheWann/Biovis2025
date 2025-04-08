@@ -126,7 +126,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
                 // barchart svg
                 const barWidth = 500;
                 const barHeight = 200;
-                const margin = { top: 15, right: 10, bottom: 30, left: 100 };
+                const margin = { top: 15, right: 10, bottom: 35, left: 100 };
                 const innerWidth = barWidth - margin.left - margin.right;
                 const innerHeight = barHeight - margin.top - margin.bottom;
 

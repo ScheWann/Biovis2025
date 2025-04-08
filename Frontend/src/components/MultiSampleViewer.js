@@ -1119,6 +1119,7 @@ export const MultiSampleViewer = ({
                         boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                         transform: 'translateX(-50%)',
                         fontSize: 12,
+                        zIndex: 1000,
                         textAlign: 'left'
                     }}>
                         {hoveredCell.id ? (

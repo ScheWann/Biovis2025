@@ -11,7 +11,7 @@ import PaletteIcon from '@mui/icons-material/Palette';
 
 const ControlPanel = styled(Box)(({ theme }) => ({
     position: 'absolute',
-    bottom: 0,
+    bottom: 15,
     left: 0,
     display: 'flex',
     flexDirection: 'column',
@@ -183,25 +183,27 @@ export const PseudoTemporalViewer = () => {
         // Add static elements
         staticContainer.append("text")
             .attr("x", width / 2)
-            .attr("y", height - 10)
+            .attr("y", height - 25)
             .attr("text-anchor", "middle")
             .text("UMAP1")
-            .style("font-size", "14px")
+            .style("font-size", "12px")
             .style("font-weight", "bold");
 
         staticContainer.append("text")
             .attr("transform", "rotate(-90)")
             .attr("x", -height / 2)
-            .attr("y", 15)
+            .attr("y", 30)
             .attr("text-anchor", "middle")
             .text("UMAP2")
-            .style("font-size", "14px")
+            .style("font-size", "12px")
             .style("font-weight", "bold");
 
         staticContainer.append("text")
             .attr("x", width / 2)
             .attr("y", margin.top / 2)
             .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("font-weight", "bold")
             .text("Pseudo-temporal Gene Ordering");
 
         // Add legend
