@@ -20,7 +20,7 @@ const ControlPanel = styled(Box)(({ theme }) => ({
     padding: theme.spacing(1),
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[2],
-    zIndex: 1000,
+    zIndex: 10,
     '& .MuiTextField-root': {
         width: '75px',
         '& .MuiInputBase-root': {
@@ -45,7 +45,7 @@ const ToolPanel = styled(Box)(({ theme }) => ({
     padding: theme.spacing(0.1),
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[2],
-    zIndex: 1000,
+    zIndex: 10,
 }));
 
 const UMAPContainer = styled(Box)(({ theme }) => ({
@@ -66,7 +66,7 @@ const FilterPanel = styled(Box)(({ theme }) => ({
     padding: theme.spacing(0.5),
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[2],
-    zIndex: 1000,
+    zIndex: 10,
     maxHeight: '200px',
     overflowY: 'auto',
     '& .MuiTypography-root': {
@@ -95,7 +95,7 @@ const ColorPickerPanel = styled(Box)(({ theme }) => ({
     padding: theme.spacing(1),
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[2],
-    zIndex: 1000,
+    zIndex: 10,
 }));
 
 const defaultColors = [
