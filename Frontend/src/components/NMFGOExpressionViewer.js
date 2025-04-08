@@ -88,6 +88,14 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
         const xAxis = d3.axisBottom(xScale)
             .tickFormat(d => d.replace('Component_', ''));
 
+        svg.append("text")
+            .attr("x", dimensions.width / 2)
+            .attr("y", 35)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("font-weight", "bold")
+            .text("NMF Component Expression Heatmap");
+
         g.append('g')
             .attr('transform', `translate(0, ${height})`)
             .call(xAxis)
@@ -109,7 +117,8 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
                     .style('padding', '10px')
                     .style('box-shadow', '0px 0px 5px rgba(0,0,0,0.3)')
                     .style('pointer-events', 'none')
-                    .style('z-index', 1000);
+                    .style('z-index', 1000)
+                    .style('opacity', 0);
 
                 tooltip.style('left', (event.pageX + 15) + 'px')
                     .style('top', (event.pageY - 40) + 'px');
@@ -117,7 +126,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
                 // barchart svg
                 const barWidth = 500;
                 const barHeight = 200;
-                const margin = { top: 10, right: 10, bottom: 30, left: 100 };
+                const margin = { top: 15, right: 10, bottom: 30, left: 100 };
                 const innerWidth = barWidth - margin.left - margin.right;
                 const innerHeight = barHeight - margin.top - margin.bottom;
 
@@ -126,6 +135,15 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
                     .attr('height', barHeight)
                     .append('g')
                     .attr('transform', `translate(${margin.left},${margin.top})`);
+                
+                // Go barchart Title
+                svg.append("text")
+                    .attr("x", innerWidth / 2)
+                    .attr("y", -5)
+                    .attr("text-anchor", "middle")
+                    .attr("font-size", "14px")
+                    .attr("font-weight", "bold")
+                    .text("GO Term Enrichment");
 
                 const y = d3.scaleBand()
                     .domain(tooltipData.map(d => d.Term))
@@ -150,12 +168,53 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
                     .call(d3.axisLeft(y).tickSize(0).tickPadding(5).tickFormat(d => d))
                     .selectAll("text")
                     .style("font-size", "10px");
+                
+                svg.append("text")
+                    .attr("text-anchor", "middle")
+                    .attr("transform", `rotate(-90)`)
+                    .attr("x", -innerHeight / 2)
+                    .attr("y", -margin.left + 15)
+                    .attr("font-size", "12px")
+                    .text("GO Term");
 
                 svg.append('g')
                     .attr('transform', `translate(0, ${innerHeight})`)
                     .call(d3.axisBottom(x).ticks(4))
                     .selectAll("text")
                     .style("font-size", "10px");
+                
+                svg.append("text")
+                    .attr("x", innerWidth / 2)
+                    .attr("y", innerHeight + 35)
+                    .attr("text-anchor", "middle")
+                    .attr("font-size", "12px")
+                    .text("Combined Score");
+                
+                // position the tooltip
+                // wait for the tooltip to be added to the DOM
+                // before calculating its size and position
+                // to avoid flickering
+                // and to ensure the tooltip is positioned correctly
+                requestAnimationFrame(() => {
+                    const tooltipNode = tooltip.node();
+                    const rect = tooltipNode.getBoundingClientRect();
+            
+                    let left = event.pageX + 15;
+                    let top = event.pageY - 40;
+
+                    if (left + rect.width > window.innerWidth) {
+                        left = event.pageX - rect.width - 15;
+                    }
+            
+                    if (top + rect.height > window.innerHeight) {
+                        top = window.innerHeight - rect.height - 10;
+                    }
+            
+                    tooltip
+                        .style('left', `${left}px`)
+                        .style('top', `${top}px`)
+                        .style('opacity', 1);
+                });
             })
             .on("mouseout", function () {
                 d3.select('.go-tooltip').remove();
