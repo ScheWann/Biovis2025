@@ -11,7 +11,7 @@ import PaletteIcon from '@mui/icons-material/Palette';
 
 const ControlPanel = styled(Box)(({ theme }) => ({
     position: 'absolute',
-    bottom: 15,
+    bottom: 20,
     left: 0,
     display: 'flex',
     flexDirection: 'column',
