@@ -192,9 +192,10 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
 
                 svg.append("text")
                     .attr("x", innerWidth - 40)
-                    .attr("y", innerHeight + 35)
+                    .attr("y", innerHeight + 30)
                     .attr("text-anchor", "middle")
-                    .attr("font-size", "12px")
+                    .attr("font-size", "10px")
+                    .style("font-weight", "bold")
                     .text("Combined Score");
 
                 // add the odds ratio axis
@@ -206,9 +207,10 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
 
                 svg.append("text")
                     .attr("x", innerWidth - 30)
-                    .attr("y", -margin.top + 25)
+                    .attr("y", -margin.top + 35)
                     .attr("text-anchor", "middle")
-                    .attr("font-size", "12px")
+                    .attr("font-size", "10px")
+                    .style("font-weight", "bold")
                     .text("Odds Ratio");
 
                 // add the odds ratio dot
