@@ -23,7 +23,8 @@ from MOLOCLE import (
     find_gene_modules,
     perform_trajectory_analysis,
     plot_results,
-    plot_genes_in_pseudotime
+    plot_genes_in_pseudotime,
+    aggregate_gene_expression
 )
 
 # Create output directory if it doesn't exist
@@ -271,6 +272,84 @@ def test_plot_genes_in_pseudotime():
     
     print("plot_genes_in_pseudotime test completed successfully")
 
+def test_aggregate_gene_expression():
+    """
+    Test the aggregate_gene_expression function.
+    """
+    # Create dummy data
+    adata = create_dummy_data(n_cells=200, n_genes=500)
+    
+    # Create gene groups
+    gene_groups = pd.DataFrame({
+        'gene_id': adata.var_names,
+        'group': [f'group_{i//10}' for i in range(len(adata.var_names))]
+    })
+    
+    # Create cell groups based on cell types
+    cell_groups = pd.DataFrame({
+        'cell_id': adata.obs_names,
+        'group': adata.obs['cell_type']
+    })
+    
+    # Test aggregation with different parameters
+    print("Testing aggregate_gene_expression with default parameters...")
+    agg_mat = aggregate_gene_expression(adata, gene_groups, cell_groups)
+    print(f"Result shape: {agg_mat.shape}")
+    print("First few rows and columns:")
+    print(agg_mat.iloc[:5, :5])
+    
+    print("\nTesting with log normalization...")
+    agg_mat_log = aggregate_gene_expression(adata, gene_groups, cell_groups, 
+                                          norm_method='log', pseudocount=1)
+    print(f"Result shape: {agg_mat_log.shape}")
+    
+    print("\nTesting with mean aggregation...")
+    agg_mat_mean = aggregate_gene_expression(adata, gene_groups, cell_groups, 
+                                           gene_agg_fun='mean', cell_agg_fun='mean')
+    print(f"Result shape: {agg_mat_mean.shape}")
+    
+    print("aggregate_gene_expression test completed successfully")
+    return agg_mat
+
+def test_find_gene_modules():
+    """
+    Test the find_gene_modules function.
+    """
+    # Create dummy data
+    adata = create_dummy_data(n_cells=200, n_genes=500)
+    
+    # Basic preprocessing
+    sc.pp.filter_cells(adata, min_genes=200)
+    sc.pp.filter_genes(adata, min_cells=3)
+    sc.pp.normalize_total(adata, target_sum=1e4)
+    sc.pp.log1p(adata)
+    sc.pp.highly_variable_genes(adata, min_mean=0.0125, max_mean=3, min_disp=0.5)
+    adata = adata[:, adata.var.highly_variable]
+    sc.pp.scale(adata, max_value=10)
+    sc.tl.pca(adata, n_comps=30)
+    sc.pp.neighbors(adata, n_neighbors=15)
+    sc.tl.umap(adata)
+    
+    # Test with default parameters
+    print("Testing find_gene_modules with default parameters...")
+    gene_modules = find_gene_modules(adata)
+    print(f"Found {len(gene_modules['module'].unique())} gene modules")
+    print("First few rows:")
+    print(gene_modules.head())
+    
+    # Test with different resolution
+    print("\nTesting with different resolution...")
+    gene_modules_res = find_gene_modules(adata, resolution=0.5)
+    print(f"Found {len(gene_modules_res['module'].unique())} gene modules")
+    
+    # Test with weight=True
+    print("\nTesting with weight=True...")
+    gene_modules_weight = find_gene_modules(adata, weight=True)
+    print(f"Found {len(gene_modules_weight['module'].unique())} gene modules")
+    
+    print("find_gene_modules test completed successfully")
+    return gene_modules
+
 if __name__ == "__main__":
     # Create output directory if it doesn't exist
     output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'output')
@@ -336,5 +415,13 @@ if __name__ == "__main__":
     
     # Test plot_genes_in_pseudotime function
     test_plot_genes_in_pseudotime()
+    
+    # Test aggregate_gene_expression function
+    print("\nTesting aggregate_gene_expression function...")
+    test_aggregate_gene_expression()
+    
+    # Test find_gene_modules function
+    print("\nTesting find_gene_modules function...")
+    test_find_gene_modules()
     
     print("\nAll tests completed!") 
