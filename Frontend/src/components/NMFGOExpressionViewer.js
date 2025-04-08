@@ -5,6 +5,7 @@ import * as d3 from 'd3';
 export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclusterCells }) => {
     const containerRef = useRef(null);
     const svgRef = useRef(null);
+    const [activeCluster, setActiveCluster] = useState(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
     // observe container size changes
@@ -135,7 +136,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                     .attr('height', barHeight)
                     .append('g')
                     .attr('transform', `translate(${margin.left},${margin.top})`);
-                
+
                 // Go barchart Title
                 svg.append("text")
                     .attr("x", innerWidth / 2)
@@ -157,7 +158,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                 const oddsX = d3.scaleLinear()
                     .domain([0, d3.max(tooltipData, d => d['Odds Ratio'])])
                     .range([0, innerWidth]);
-                
+
                 svg.selectAll('.bar')
                     .data(tooltipData)
                     .enter()
@@ -173,7 +174,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                     .call(d3.axisLeft(y).tickSize(0).tickPadding(5).tickFormat(d => d))
                     .selectAll("text")
                     .style("font-size", "10px");
-                
+
                 // svg.append("text")
                 //     .attr("text-anchor", "middle")
                 //     .attr("transform", `rotate(-90)`)
@@ -188,28 +189,28 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                     .call(d3.axisBottom(x).ticks(4))
                     .selectAll("text")
                     .style("font-size", "10px");
-                
+
                 svg.append("text")
                     .attr("x", innerWidth - 40)
                     .attr("y", innerHeight + 35)
                     .attr("text-anchor", "middle")
                     .attr("font-size", "12px")
                     .text("Combined Score");
-                
+
                 // add the odds ratio axis
                 svg.append('g')
                     .attr('transform', `translate(0, 0)`)
                     .call(d3.axisTop(oddsX).ticks(4))
                     .selectAll("text")
                     .style("font-size", "10px");
-                
+
                 svg.append("text")
                     .attr("x", innerWidth - 30)
                     .attr("y", -margin.top + 25)
                     .attr("text-anchor", "middle")
                     .attr("font-size", "12px")
                     .text("Odds Ratio");
-                
+
                 // add the odds ratio dot
                 svg.selectAll(".odds-dot")
                     .data(tooltipData)
@@ -221,7 +222,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                     .attr("fill", "#d62728")
                     .attr("stroke", "#000")
                     .attr("stroke-width", 0.5);
-                
+
                 // add the genes label
                 svg.selectAll(".genes-label")
                     .data(tooltipData)
@@ -233,7 +234,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                     .attr("font-size", "9px")
                     .attr("fill", "white")
                     .text(d => d.Genes);
-                
+
                 // position the tooltip
                 // wait for the tooltip to be added to the DOM
                 // before calculating its size and position
@@ -242,18 +243,18 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
                 requestAnimationFrame(() => {
                     const tooltipNode = tooltip.node();
                     const rect = tooltipNode.getBoundingClientRect();
-            
+
                     let left = event.pageX + 15;
                     let top = event.pageY - 40;
 
                     if (left + rect.width > window.innerWidth) {
                         left = event.pageX - rect.width - 15;
                     }
-            
+
                     if (top + rect.height > window.innerHeight) {
                         top = window.innerHeight - rect.height - 10;
                     }
-            
+
                     tooltip
                         .style('left', `${left}px`)
                         .style('top', `${top}px`)
@@ -269,7 +270,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
         compKeys.forEach(comp => {
             if (!NMFGOData.GO_results[comp]) {
                 const xPos = xScale(comp) + xScale.bandwidth() / 2;
-        
+
                 g.append("text")
                     .attr("x", xPos)
                     .attr("y", height + 5)
@@ -297,17 +298,28 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
             .selectAll("text")
             .style("font-size", "10px")
             .style("cursor", "pointer")
-            .on("mouseover", (event, d) => {
-                const clusterIndex = d.replace('Cluster ', '');
-                const cellIds = NMFGOData.cell_ids_by_cluster[clusterIndex] || [];
-                
-                // Update the state with the cell IDs of the hovered cluster
-                setNMFclusterCells(cellIds);
-            })
-            .on("mouseout", () => {
-                setNMFclusterCells([]);
+            .style("fill", d => d === activeCluster ? "#CD853F" : "black")
+            .style("font-weight", d => d === activeCluster ? "bold" : "normal")
+            .on("click", (event, d) => {
+                const clusterIndex = d;
+                const isActive = activeCluster === clusterIndex;
+
+                if (isActive) {
+                    setActiveCluster(null);
+                    setNMFclusterCells([]);
+                } else {
+                    setActiveCluster(clusterIndex);
+                    const cellIds = NMFGOData.cell_ids_by_cluster[clusterIndex] || [];
+                    setNMFclusterCells(cellIds);
+                }
+
+                event.stopPropagation();
             });
-        
+
+        svg.on("click", () => {
+            setActiveCluster(null);
+            setNMFclusterCells([]);
+        });
 
         svg.append('text')
             .attr('class', 'y label')
@@ -360,7 +372,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclust
         legend.append('g')
             .attr('transform', `translate(${legendWidth},0)`)
             .call(legendAxis);
-    }, [NMFGOData, dimensions, NMFGODataLoading]);
+    }, [NMFGOData, dimensions, NMFGODataLoading, activeCluster]);
 
     return (
         NMFGODataLoading ? (
