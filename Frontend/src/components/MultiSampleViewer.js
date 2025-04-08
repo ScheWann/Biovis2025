@@ -1072,7 +1072,6 @@ export const MultiSampleViewer = ({
             ...generateWholePngLayers(),
             ...generateTileLayers(),
             ...generateMarkerImageLayers(),
-            ...generateCellLayers(),
             ...generateEditLayers(),
             regionLabelLayer,
             ...regions.map(region => {
@@ -1109,6 +1108,7 @@ export const MultiSampleViewer = ({
                     getFillColor: () => [...region.color, 30],
                 });
             }),
+            ...generateCellLayers(),
         ].filter(Boolean);
     }, [
         generateWholePngLayers,
