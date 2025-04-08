@@ -12,6 +12,7 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
         const observer = new ResizeObserver(entries => {
             entries.forEach(entry => {
                 const { width, height } = entry.contentRect;
+                console.log('ResizeObserver:', width, height);
                 setDimensions({ width, height });
             });
         });
@@ -22,7 +23,6 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
     }, []);
 
     useEffect(() => {
-        console.log(NMFGODataLoading, 'NMFGODataLoading')
         if (dimensions.width === 0 || dimensions.height === 0 || Object.keys(NMFGOData).length === 0 || NMFGODataLoading) return;
 
         const svg = d3.select(svgRef.current);
@@ -84,7 +84,9 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
         }
 
         // x axis
-        const xAxis = d3.axisBottom(xScale);
+        const xAxis = d3.axisBottom(xScale)
+            .tickFormat(d => d.replace('Component_', ''));
+
         g.append('g')
             .attr('transform', `translate(0, ${height})`)
             .call(xAxis)
