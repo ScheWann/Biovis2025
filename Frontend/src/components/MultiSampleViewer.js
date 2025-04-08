@@ -854,13 +854,19 @@ export const MultiSampleViewer = ({
 
                     if (analyzedRegionData && sampleId === analyzedRegionData.sampleId) {
                         const isInAnalyzedRegion = analyzedRegionData.cellIds.includes(d.id);
+
                         if (isInAnalyzedRegion) {
-                            const isHighlighted = NMFclusterCells.includes(d.id);
-                            return isHighlighted ?
-                                [...defaultColor, 255] :
-                                [...defaultColor, 50];
+                            if (NMFclusterCells && NMFclusterCells.length > 0) {
+                                const isHighlighted = NMFclusterCells.includes(d.id);
+                                return isHighlighted
+                                    ? [...defaultColor, 255]
+                                    : [...defaultColor, 50];
+                            }
+
+                            return [...defaultColor, 255];
                         }
                     }
+
                     return [...defaultColor, 255];
                 };
 
