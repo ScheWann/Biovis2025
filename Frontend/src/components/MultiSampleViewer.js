@@ -94,6 +94,9 @@ export const MultiSampleViewer = ({
     setRegions,
     setNMFGOData,
     setNMFGODataLoading,
+    analyzedRegion,
+    setAnalyzedRegion,
+    NMFclusterCells,
     setSelectedRegionGeneExpressionData
 }) => {
     const [imageSizes, setImageSizes] = useState({});
@@ -208,6 +211,16 @@ export const MultiSampleViewer = ({
         );
     }, [imageSizes, samples]);
 
+    const analyzedRegionData = useMemo(() => {
+        if (!analyzedRegion) return null;
+        const region = regions.find(r => r.name === analyzedRegion);
+        if (!region) return null;
+        return {
+            sampleId: region.sampleId,
+            cellIds: region.cellIds,
+        };
+    }, [analyzedRegion, regions]);
+
     const fetchGeneExpressionData = (sampleId, cell_ids) => {
         fetch('/get_selected_region_data', {
             method: 'POST',
@@ -231,7 +244,6 @@ export const MultiSampleViewer = ({
             .then(data => {
                 setNMFGODataLoading(false);
                 setNMFGOData(data);
-                console.log(data,'//////');
             });
     }
 
@@ -761,7 +773,21 @@ export const MultiSampleViewer = ({
                 });
             } else {
                 data = filteredCellData[sampleId] || [];
-                getFillColor = d => colorMaps[sampleId]?.[d.cell_type] || [0, 0, 0];
+                data = filteredCellData[sampleId] || [];
+                getFillColor = d => {
+                    const defaultColor = colorMaps[sampleId]?.[d.cell_type] || [0, 0, 0];
+
+                    if (analyzedRegionData && sampleId === analyzedRegionData.sampleId) {
+                        const isInAnalyzedRegion = analyzedRegionData.cellIds.includes(d.id);
+                        if (isInAnalyzedRegion) {
+                            const isHighlighted = NMFclusterCells.includes(d.id);
+                            return isHighlighted ?
+                                [...defaultColor, 255] :
+                                [...defaultColor, 50];
+                        }
+                    }
+                    return [...defaultColor, 255];
+                };
 
                 const offset = sampleOffsets[sampleId] || [0, 0];
                 return new ScatterplotLayer({
@@ -774,13 +800,13 @@ export const MultiSampleViewer = ({
                     pickable: true,
                     parameters: { depthTest: false },
                     updateTriggers: {
-                        getFillColor: [colorMaps[sampleId], visibleCellTypes[sampleId]],
+                        getFillColor: [colorMaps[sampleId], visibleCellTypes[sampleId], NMFclusterCells, analyzedRegionData],
                         data: [data]
                     }
                 });
             }
         }).filter(Boolean);
-    }, [samples, filteredCellData, colorMaps, visibleSamples, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes]);
+    }, [samples, filteredCellData, colorMaps, visibleSamples, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes, analyzedRegion, NMFclusterCells]);
 
     // update current region data
     const handleRegionUpdate = (sampleId, updatedData) => {
@@ -1060,6 +1086,7 @@ export const MultiSampleViewer = ({
                     onClick={info => {
                         if (info.object && info.layer.id.startsWith('Selected-')) {
                             // fetchGeneExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
+                            setAnalyzedRegion(info.object.properties.__regionMeta.name);
                             fetchNMFGOExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
                             // fetchCell2CellInteractionData(info.object.properties.__regionMeta.name, info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
                         }

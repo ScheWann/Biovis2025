@@ -16,8 +16,10 @@ function App() {
   const [cellTypeDir, setCellTypeDir] = useState({});
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [analyzedRegion, setAnalyzedRegion] = useState(null);
   const [NMFGOData, setNMFGOData] = useState({});
   const [NMFGODataLoading, setNMFGODataLoading] = useState(false);
+  const [NMFclusterCells, setNMFclusterCells] = useState([]);
   const [selectedRegionGeneExpressionData, setSelectedRegionGeneExpressionData] = useState({});
 
   // get all aviailable samples
@@ -128,8 +130,11 @@ function App() {
                   cellTypeDir={cellTypeDir}
                   regions={regions}
                   setRegions={setRegions}
+                  analyzedRegion={analyzedRegion}
+                  setAnalyzedRegion={setAnalyzedRegion}
                   setNMFGOData={setNMFGOData}
                   setNMFGODataLoading={setNMFGODataLoading}
+                  NMFclusterCells={NMFclusterCells}
                   setSelectedRegionGeneExpressionData={setSelectedRegionGeneExpressionData}
                 />
               </Splitter.Panel>
@@ -142,6 +147,7 @@ function App() {
                     <NMFGOExpressionViewer 
                       NMFGOData={NMFGOData}
                       NMFGODataLoading={NMFGODataLoading}
+                      setNMFclusterCells={setNMFclusterCells}
                     />
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="33%" min="20%" max="45%" style={{ borderBottom: "1px solid #e8e8e8" }}>

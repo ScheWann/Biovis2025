@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Empty, Spin } from 'antd';
 import * as d3 from 'd3';
 
-export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
+export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading, setNMFclusterCells }) => {
     const containerRef = useRef(null);
     const svgRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -247,8 +247,23 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
         // y axis
         const yAxis = d3.axisLeft(yScale)
             .tickFormat(d => `Cluster ${d}`);
+
         g.append('g')
-            .call(yAxis);
+            .call(yAxis)
+            .selectAll("text")
+            .style("font-size", "10px")
+            .style("cursor", "pointer")
+            .on("mouseover", (event, d) => {
+                const clusterIndex = d.replace('Cluster ', '');
+                const cellIds = NMFGOData.cell_ids_by_cluster[clusterIndex] || [];
+                
+                // Update the state with the cell IDs of the hovered cluster
+                setNMFclusterCells(cellIds);
+            })
+            .on("mouseout", () => {
+                setNMFclusterCells([]);
+            });
+        
 
         svg.append('text')
             .attr('class', 'y label')
