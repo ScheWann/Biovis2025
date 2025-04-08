@@ -161,6 +161,21 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
                 d3.select('.go-tooltip').remove();
             });
 
+        // for each component, check if it has a GO result
+        // if not, draw a red cross
+        compKeys.forEach(comp => {
+            if (!NMFGOData.GO_results[comp]) {
+                const xPos = xScale(comp) + xScale.bandwidth() / 2;
+        
+                g.append("text")
+                    .attr("x", xPos)
+                    .attr("y", height + 5)
+                    .attr("text-anchor", "middle")
+                    .attr("font-size", "14px")
+                    .attr("fill", "red")
+                    .text("×");
+            }
+        });
         svg.append('text')
             .attr('class', 'x label')
             .attr('text-anchor', 'middle')
