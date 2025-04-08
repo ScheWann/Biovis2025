@@ -93,7 +93,73 @@ export const NMFGOExpressionViewer = ({ NMFGOData, NMFGODataLoading }) => {
             .call(xAxis)
             .selectAll("text")
             .attr("dy", "1em")
-            .style("text-anchor", "middle");
+            .style("text-anchor", "middle")
+            .style("cursor", "pointer")
+            .on("mouseover", (event, d) => {
+                const tooltipData = NMFGOData.GO_results[d];
+                if (!tooltipData) return;
+
+                // barchart tooltip
+                const tooltip = d3.select('body')
+                    .append('div')
+                    .attr('class', 'go-tooltip')
+                    .style('position', 'absolute')
+                    .style('background', 'white')
+                    .style('border', '1px solid #ccc')
+                    .style('padding', '10px')
+                    .style('box-shadow', '0px 0px 5px rgba(0,0,0,0.3)')
+                    .style('pointer-events', 'none')
+                    .style('z-index', 1000);
+
+                tooltip.style('left', (event.pageX + 15) + 'px')
+                    .style('top', (event.pageY - 40) + 'px');
+
+                // barchart svg
+                const barWidth = 500;
+                const barHeight = 200;
+                const margin = { top: 10, right: 10, bottom: 30, left: 100 };
+                const innerWidth = barWidth - margin.left - margin.right;
+                const innerHeight = barHeight - margin.top - margin.bottom;
+
+                const svg = tooltip.append('svg')
+                    .attr('width', barWidth)
+                    .attr('height', barHeight)
+                    .append('g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+                const y = d3.scaleBand()
+                    .domain(tooltipData.map(d => d.Term))
+                    .range([0, innerHeight])
+                    .padding(0.1);
+
+                const x = d3.scaleLinear()
+                    .domain([0, d3.max(tooltipData, d => d['Combined Score'])])
+                    .range([0, innerWidth]);
+
+                svg.selectAll('.bar')
+                    .data(tooltipData)
+                    .enter()
+                    .append('rect')
+                    .attr('class', 'bar')
+                    .attr('y', d => y(d.Term))
+                    .attr('width', d => x(d['Combined Score']))
+                    .attr('height', y.bandwidth())
+                    .attr('fill', '#69b3a2');
+
+                svg.append('g')
+                    .call(d3.axisLeft(y).tickSize(0).tickPadding(5).tickFormat(d => d))
+                    .selectAll("text")
+                    .style("font-size", "10px");
+
+                svg.append('g')
+                    .attr('transform', `translate(0, ${innerHeight})`)
+                    .call(d3.axisBottom(x).ticks(4))
+                    .selectAll("text")
+                    .style("font-size", "10px");
+            })
+            .on("mouseout", function () {
+                d3.select('.go-tooltip').remove();
+            });
 
         svg.append('text')
             .attr('class', 'x label')
