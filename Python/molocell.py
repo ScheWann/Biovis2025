@@ -1236,7 +1236,7 @@ def main():
         print("✓ Data loaded successfully")
             
         print("\n=== Step 2: Creating new sample ===")
-        sample_fraction = 0.01
+        sample_fraction = 0.05
         print(f"Sampling data with fraction: {sample_fraction}...")
         cds = read_and_sample_data('Data/skin_TXK6Z4X_A1_processed/tmap/weighted_by_area_celltypist_cells_adata.h5', 
                                   sample_fraction=sample_fraction)
