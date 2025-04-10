@@ -66,7 +66,7 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
             .then(data => {
                 setCell2cellData(data);
             });
-    }
+    };
 
     useEffect(() => {
         if (analyzedRegion) {
@@ -74,12 +74,17 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
         }
     }, [analyzedRegion, regions]);
 
+    // A simple filter function (case-insensitive) for the Selects.
+    const filterSelect = (input, option) =>
+        option?.label?.toLowerCase().includes(input.toLowerCase());
+
     return (
         <div style={{ width: '100%', height: '100%' }}>
             <div style={{ margin: 5, fontSize: 14, fontWeight: 'bold' }}>Cell to Cell interaction Viewer</div>
             {/* Selectors and Button */}
             <div style={{ width: '100%', height: '10%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 10 }}>
                 <Select
+                    showSearch
                     style={{ width: 120 }}
                     size='small'
                     value={receiver}
@@ -87,8 +92,10 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
                     onChange={setReceiver}
                     disabled={!analyzedRegion || cell2cellDataLoading}
                     placeholder="Select Receiver"
+                    filterOption={filterSelect}
                 />
                 <Select
+                    showSearch
                     style={{ width: 120 }}
                     size='small'
                     value={sender}
@@ -96,8 +103,10 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
                     onChange={setSender}
                     disabled={!analyzedRegion || cell2cellDataLoading}
                     placeholder="Select Sender"
+                    filterOption={filterSelect}
                 />
                 <Select
+                    showSearch
                     style={{ width: 120 }}
                     size='small'
                     value={receiverGene}
@@ -105,8 +114,10 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
                     onChange={setReceiverGenes}
                     disabled={!analyzedRegion || cell2cellDataLoading}
                     placeholder="Select Receiver Gene"
+                    filterOption={filterSelect}
                 />
                 <Select
+                    showSearch
                     style={{ width: 120 }}
                     size='small'
                     value={senderGene}
@@ -114,6 +125,7 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
                     onChange={setSenderGenes}
                     disabled={!analyzedRegion || cell2cellDataLoading}
                     placeholder="Select Sender Gene"
+                    filterOption={filterSelect}
                 />
                 <Button
                     style={{ width: 120 }}
