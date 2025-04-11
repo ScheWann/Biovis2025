@@ -8,7 +8,7 @@ import { booleanPointInPolygon, centroid, sample } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
-import { convertHSLtoRGB, convertHEXToRGB, hashStringToHue, GENE_COLOR_PALETTE} from './ColorUtils';
+import { convertHSLtoRGB, convertHEXToRGB, hashStringToHue, GENE_COLOR_PALETTE } from './ColorUtils';
 import "../styles/MultiSampleViewer.css";
 
 const radioOptions = [
@@ -1297,24 +1297,26 @@ export const MultiSampleViewer = ({
                                                 display: 'flex',
                                                 justifyContent: 'space-between',
                                                 alignItems: 'center',
-                                                marginBottom: 4,
+                                                marginBottom: 10,
                                                 fontSize: '12px',
                                                 color: '#555'
                                             }}>
-                                                <Checkbox
-                                                    checked={analyzedRegion[region.id] ?? false}
-                                                    onChange={(e) => {
-                                                        setAnalyzedRegion(prev => ({
-                                                            ...prev,
-                                                            [region.id]: e.target.checked
-                                                        }));
-                                                    }}
-                                                    style={{ marginRight: 8 }}
-                                                />
-                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
-                                                    <span style={{ fontSize: 14, marginBottom: 10 }}>{region.name}</span>
-                                                    <span style={{ fontSize: 10, color: "#666" }}>Sample: {sampleId}</span>
-                                                    <span style={{ fontSize: 10, color: "#666" }}>Cells: {cellCount}</span>
+                                                <div style={{ display: 'flex' }}>
+                                                    <Checkbox
+                                                        checked={analyzedRegion[region.id] ?? false}
+                                                        onChange={(e) => {
+                                                            setAnalyzedRegion(prev => ({
+                                                                ...prev,
+                                                                [region.id]: e.target.checked
+                                                            }));
+                                                        }}
+                                                        style={{ marginRight: 8 }}
+                                                    />
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
+                                                        <span style={{ fontSize: 14 }}>{region.name}</span>
+                                                        <span style={{ fontSize: 10, color: "#666" }}>Sample: {sampleId}</span>
+                                                        <span style={{ fontSize: 10, color: "#666" }}>Cells: {cellCount}</span>
+                                                    </div>
                                                 </div>
                                                 <CloseOutlined
                                                     onClick={(e) => { e.stopPropagation(); handleDeleteRegion(region.id); }}
