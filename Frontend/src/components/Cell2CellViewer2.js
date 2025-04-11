@@ -34,21 +34,27 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
             });
     };
 
-    const findSampleIdAndcellIds = () => {
-        const region = regions.find(region => region.name === analyzedRegion);
-        if (region) {
-            const { sampleId, cellIds } = region;
-            return { sampleId, cellIds };
-        }
-    }
+    const getSelectedRegionsInfo = () => {
+        return regions
+            .filter(region => analyzedRegion[region.name])
+            .map(region => ({
+                sampleId: region.sampleId,
+                cellIds: region.cellIds
+            }));
+    };
 
     // Method to find and store cellIds based on analyzedRegion
     const findCellIdsByRegion = () => {
-        const { sampleId, cellIds } = findSampleIdAndcellIds();
-        if (sampleId && cellIds) {
-            setSelectedCellIds(cellIds);
-            fetchCellTypeList(sampleId);
-            fetchGeneList(sampleId);
+        const selectedRegions = getSelectedRegionsInfo();
+        const uniqueSampleIds = [...new Set(selectedRegions.map(r => r.sampleId))];
+
+        const allCellIds = selectedRegions.flatMap(r => r.cellIds);
+        setSelectedCellIds(allCellIds);
+
+        // now it only focus on one sample
+        if (uniqueSampleIds.length > 0) {
+            fetchCellTypeList(uniqueSampleIds[0]);
+            fetchGeneList(uniqueSampleIds[0]);
         }
     };
 
@@ -57,15 +63,20 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
             alert('Please select all parameters');
             return;
         }
-        const { sampleId, cellIds } = findSampleIdAndcellIds();
+
+        const selectedRegions = getSelectedRegionsInfo();
+        const allCellIds = selectedRegions.flatMap(r => r.cellIds);
+        const sampleIds = [...new Set(selectedRegions.map(r => r.sampleId))];
+
         const params = {
-            sample_id: sampleId,
+            sample_ids: sampleIds,
             receiver,
             sender,
             receiverGene,
             senderGene,
-            cellIds: cellIds
+            cellIds: allCellIds
         };
+
         fetch('/get_cell_cell_interaction_data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -78,7 +89,7 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
     };
 
     useEffect(() => {
-        if (analyzedRegion) {
+        if (Object.values(analyzedRegion).some(v => v)) {
             findCellIdsByRegion();
         }
     }, [analyzedRegion, regions]);
