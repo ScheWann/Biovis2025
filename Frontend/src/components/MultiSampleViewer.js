@@ -113,9 +113,6 @@ export const MultiSampleViewer = ({
     const [hoveredCell, setHoveredCell] = useState(null); // Information about the mouse hovering on the cell
     const [sampleOffsets, setSampleOffsets] = useState({}); // The offset between the samples
     const [activeSample, setActiveSample] = useState(samples[0]?.id);
-    const [visibleSamples, setVisibleSamples] = useState(
-        samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
-    );
     const [geneList, setGeneList] = useState({}); // The gene list for each sample, including cell counts expressing the gene(e.g.{skin_TXK6Z4X_A1: {A1CF: 2, ABCC11: 14, ABCG5: 9, ABRAXAS2: 6, AC011195.2: 3, AC067752.1: 3, AC090360.1: 13,…}})
     const [selectedGenes, setSelectedGenes] = useState([]);
     const [regionName, setRegionName] = useState(''); // The name of the region to be drawn
@@ -206,9 +203,6 @@ export const MultiSampleViewer = ({
             });
             setSampleOffsets(newOffsets);
         }
-        setVisibleSamples(
-            samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
-        );
     }, [imageSizes, samples]);
 
     const analyzedRegionData = useMemo(() => {
@@ -640,7 +634,6 @@ export const MultiSampleViewer = ({
             const offset = sampleOffsets[sample.id] || [0, 0];
             return new TileLayer({
                 id: `tif-tiles-${sample.id}`,
-                visible: visibleSamples[sample.id],
                 tileSize,
                 extent: [
                     offset[0],
@@ -688,7 +681,7 @@ export const MultiSampleViewer = ({
                 })
             });
         }).filter(Boolean);
-    }, [samples, imageSizes, tileSize, visibleSamples, sampleOffsets, currentZoom]);
+    }, [samples, imageSizes, tileSize, sampleOffsets, currentZoom]);
 
     const generateWholePngLayers = useCallback(() => {
         return samples.map(sample => {
@@ -697,14 +690,14 @@ export const MultiSampleViewer = ({
             if (!imageSize || imageSize.length < 2) return null;
             return new BitmapLayer({
                 id: `png-replacement-${sample.id}`,
-                visible: visibleSamples[sample.id] && currentZoom < TILE_LOAD_ZOOM_THRESHOLD,
+                visible: currentZoom < TILE_LOAD_ZOOM_THRESHOLD,
                 image: `/${sample.id}_full.jpg`,
                 bounds: [offset[0], offset[1] + imageSize[1], offset[0] + imageSize[0], offset[1]],
                 opacity: 1,
                 parameters: { depthTest: false }
             });
         }).filter(Boolean);
-    }, [imageSizes, visibleSamples, sampleOffsets, currentZoom]);
+    }, [imageSizes, sampleOffsets, currentZoom]);
 
     // cell boundaries image layers
     const generateMarkerImageLayers = useCallback(() => {
@@ -714,14 +707,13 @@ export const MultiSampleViewer = ({
             if (!imageSize || imageSize.length < 2) return null;
             return new BitmapLayer({
                 id: `marker-image-${sample.id}`,
-                visible: visibleSamples[sample.id],
                 image: `/${sample.id}_cells_layer.png`,
                 bounds: [offset[0], offset[1] + imageSize[1], offset[0] + imageSize[0], offset[1]],
                 opacity: 1,
                 parameters: { depthTest: false }
             });
         }).filter(Boolean);
-    }, [samples, imageSizes, visibleSamples]);
+    }, [samples, imageSizes]);
 
     // nucleus coordinates scatterplot layers
     const generateCellLayers = useCallback(() => {
@@ -873,7 +865,6 @@ export const MultiSampleViewer = ({
                 const offset = sampleOffsets[sampleId] || [0, 0];
                 return new ScatterplotLayer({
                     id: `Scatters-${sampleId}`,
-                    visible: visibleSamples[sampleId],
                     data: data,
                     getPosition: d => [d.cell_x + offset[0], d.cell_y + offset[1]],
                     getRadius: 5,
@@ -887,7 +878,7 @@ export const MultiSampleViewer = ({
                 });
             }
         }).filter(Boolean);
-    }, [samples, filteredCellData, colorMaps, visibleSamples, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes, analyzedRegion, NMFclusterCells, partWholeMode, regions]);
+    }, [samples, filteredCellData, colorMaps, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes, analyzedRegion, NMFclusterCells, partWholeMode, regions]);
 
     // update current region data
     const handleRegionUpdate = (sampleId, updatedData) => {
@@ -1358,11 +1349,16 @@ export const MultiSampleViewer = ({
                                                 fontSize: '12px',
                                                 color: '#555'
                                             }}>
-                                                {/* <Checkbox
-                                                    checked={visibleMap[type] ?? true}
-                                                    onChange={e => onVisibilityCellTypeChange(type, e.target.checked)}
+                                                <Checkbox
+                                                    checked={analyzedRegion[region.id] ?? false}
+                                                    onChange={(e) => {
+                                                        setAnalyzedRegion(prev => ({
+                                                            ...prev,
+                                                            [region.id]: e.target.checked
+                                                        }));
+                                                    }}
                                                     style={{ marginRight: 8 }}
-                                                /> */}
+                                                />
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
                                                     <span style={{ fontSize: 14, marginBottom: 10 }}>{region.name}</span>
                                                     <span style={{ fontSize: 10, color: "#666" }}>Sample: {sampleId}</span>

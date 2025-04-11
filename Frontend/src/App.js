@@ -17,7 +17,7 @@ function App() {
   const [cellTypeDir, setCellTypeDir] = useState({}); // Each sample's cell type directory based on users' sample selection(e.g. {"skin_TXK6Z4X_A1": ["cd19+cd20+ b", "cd19+cd20+ t"], ...})
   const [regions, setRegions] = useState([]); // Selected regions in the multiSampleViewer to perform analysis (e.g. [{name: 'region1', sampleId: 'skin_TXK6Z4X_A1', cellIds: ['ID_1', 'ID_2']}, ...])
   const [loading, setLoading] = useState(false); // Full page loading
-  const [analyzedRegion, setAnalyzedRegion] = useState(null); // Selected in the multiSampleViewer to perform analysis
+  const [analyzedRegion, setAnalyzedRegion] = useState({}); // Selected in the multiSampleViewer to perform analysis(e.g.{'region1': true, 'region2': false, ...})
   // NMF data and its loading settings
   const [NMFGOData, setNMFGOData] = useState({});
   const [NMFGODataLoading, setNMFGODataLoading] = useState(false);
