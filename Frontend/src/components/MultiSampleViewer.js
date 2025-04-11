@@ -59,7 +59,7 @@ export const MultiSampleViewer = ({
             ...acc,
             [sample.id]: { type: 'FeatureCollection', features: [] }
         }), {})
-    );
+    ); // For drawing new region polygons
     const [tempRegions, setTempRegions] = useState({}); // Temporary region data while drawing. Used to store cells within the currently drawn polygon before saving.
     const [visibleCellTypes, setVisibleCellTypes] = useState({}); // The visibility of each cell type for each sample
     const [colorMaps, setColorMaps] = useState({}); // The color map for each cell type for each sample
