@@ -4,7 +4,7 @@ import { Collapse, Button, Input, ColorPicker, Checkbox, TreeSelect, message, Sw
 import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, TextLayer, GeoJsonLayer, PolygonLayer, PathLayer } from '@deck.gl/layers';
-import { booleanPointInPolygon, centroid } from '@turf/turf';
+import { booleanPointInPolygon, centroid, sample } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
@@ -92,6 +92,11 @@ export const MultiSampleViewer = ({
     cellTypeDir,
     regions,
     setRegions,
+    setNMFGOData,
+    setNMFGODataLoading,
+    analyzedRegion,
+    setAnalyzedRegion,
+    NMFclusterCells,
     setSelectedRegionGeneExpressionData
 }) => {
     const [imageSizes, setImageSizes] = useState({});
@@ -119,7 +124,7 @@ export const MultiSampleViewer = ({
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
     const [currentZoom, setCurrentZoom] = useState(-3);
     const [radioCellGeneModes, setRadioCellGeneModes] = useState(samples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {}));
-    const [partWholeMode, setPartWholeMode] = useState(false); // defaultly showing gene expression value in the whole regions
+    const [partWholeMode, setPartWholeMode] = useState(true); // defaultly showing gene expression value in the whole regions
     const [geneExpressionData, setGeneExpressionData] = useState([]);
     const TILE_LOAD_ZOOM_THRESHOLD = 0;
 
@@ -206,6 +211,16 @@ export const MultiSampleViewer = ({
         );
     }, [imageSizes, samples]);
 
+    const analyzedRegionData = useMemo(() => {
+        if (!analyzedRegion) return null;
+        const region = regions.find(r => r.name === analyzedRegion);
+        if (!region) return null;
+        return {
+            sampleId: region.sampleId,
+            cellIds: region.cellIds,
+        };
+    }, [analyzedRegion, regions]);
+
     const fetchGeneExpressionData = (sampleId, cell_ids) => {
         fetch('/get_selected_region_data', {
             method: 'POST',
@@ -217,6 +232,34 @@ export const MultiSampleViewer = ({
                 setSelectedRegionGeneExpressionData(data);
             });
     }
+
+    const fetchNMFGOExpressionData = (sampleId, cell_ids) => {
+        setNMFGODataLoading(true);
+        fetch('/get_NMF_GO_data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sample_id: sampleId, cell_list: cell_ids })
+        })
+            .then(res => res.json())
+            .then(data => {
+                setNMFGODataLoading(false);
+                setNMFGOData(data);
+            });
+    }
+
+    const fetchCell2CellInteractionData = (regionName, sampleId, cell_ids) => {
+        const regions = { [regionName]: { sampleId, cellIds: cell_ids } };
+        fetch('/get_cell_cell_interaction_data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ regions: regions })
+        })
+            .then(res => res.json())
+            .then(data => {
+                setSelectedRegionGeneExpressionData(data);
+            });
+    };
+
 
     // save filtered cell data, only recalculate when dependencies change
     const filteredCellData = useMemo(() => {
@@ -261,7 +304,8 @@ export const MultiSampleViewer = ({
                 })
                     .then(res => res.json())
                     .then(data => {
-                        console.log(data)
+                        setGeneExpressionData(data[sample]);
+                        setLoading(false);
                     });
             });
         } else {
@@ -322,7 +366,6 @@ export const MultiSampleViewer = ({
             cellAngles = cellAngles.map(angle => [angle[0], angle[1]]);
             cellRadius = cellRadius.map(rad => [rad[0], rad[1]]);
 
-            // console.log(cellRadius, '////', cellAngles);
             cellAngles.forEach((angle, index) => {
                 let cal_cell_radius = cellRadius[index][1];
                 let points = [];
@@ -688,50 +731,144 @@ export const MultiSampleViewer = ({
                 selectedGenes.length > 0 &&
                 geneExpressionData.length > 0;
 
+            const analyzedRegionCells = analyzedRegionData?.cellIds || [];
+            const isPartMode = partWholeMode && analyzedRegionCells.length > 0;
+
             let data;
             let getFillColor;
 
             if (useGeneData) {
-                const optimizedPathData = geneExpressionData.flatMap(d => {
-                    const angles = Object.entries(d.angles);
-                    const ratios = Object.entries(d.ratios);
-                    const radius = Object.entries(d.radius);
-                    const offset = sampleOffsets[d.sampleId] || [0, 0];
+                let regionLayers = [];
+                if (isPartMode) {
+                    const inRegionData = geneExpressionData.filter(d => analyzedRegionCells.includes(d.id));
+                    const outRegionData = filteredCellData[sampleId].filter(d => !analyzedRegionCells.includes(d.id));
 
-                    return generateKosaraPath(
-                        d.cell_x + offset[0],
-                        d.cell_y + offset[1],
-                        angles,
-                        ratios,
-                        radius
-                    ).map(path => ({
-                        id: d.id,
-                        cell_type: d.cell_type,
-                        points: path.path,
-                        color: path.color,
-                        total_expression: d.total_expression,
-                        ratios: d.ratios,
-                    }));
-                });
+                    // kosara path layer for inRegionData
+                    if (inRegionData.length > 0) {
+                        const optimizedPathData = inRegionData.flatMap(d => {
+                            const angles = Object.entries(d.angles);
+                            const ratios = Object.entries(d.ratios);
+                            const radius = Object.entries(d.radius);
+                            const offset = sampleOffsets[d.sampleId] || [0, 0];
 
-                return new PolygonLayer({
-                    id: `Scatters-${sampleId}`,
-                    data: optimizedPathData,
-                    getPolygon: d => d.points,
-                    getFillColor: d => {
-                        const rgbColor = hexToRgbs(d.color);
-                        return [...rgbColor, 255];
-                    },
-                    pickable: true,
-                    stroked: false,
-                    parameters: { depthTest: false, blend: true },
-                    updateTriggers: {
-                        data: [geneExpressionData, sampleOffsets]
+                            return generateKosaraPath(
+                                d.cell_x + offset[0],
+                                d.cell_y + offset[1],
+                                angles,
+                                ratios,
+                                radius
+                            ).map(path => ({
+                                id: d.id,
+                                cell_type: d.cell_type,
+                                points: path.path,
+                                color: path.color,
+                                total_expression: d.total_expression,
+                                ratios: d.ratios,
+                            }));
+                        });
+
+                        regionLayers.push(new PolygonLayer({
+                            id: `Scatters-${sampleId}`,
+                            data: optimizedPathData,
+                            getPolygon: d => d.points,
+                            getFillColor: d => {
+                                const rgbColor = hexToRgbs(d.color);
+                                return [...rgbColor, 255];
+                            },
+                            pickable: true,
+                            stroked: false,
+                            parameters: { depthTest: false, blend: true },
+                            updateTriggers: {
+                                data: [inRegionData, sampleOffsets]
+                            }
+                        }));
                     }
-                });
+
+                    // scatterplot layer for outRegionData
+                    if (outRegionData.length > 0) {
+                        const offset = sampleOffsets[sampleId] || [0, 0];
+                        regionLayers.push(new ScatterplotLayer({
+                            id: `Scatters-${sampleId}-out`,
+                            data: outRegionData,
+                            getPosition: d => [d.cell_x + offset[0], d.cell_y + offset[1]],
+                            getFillColor: d => {
+                                const defaultColor = colorMaps[sampleId]?.[d.cell_type] || [0, 0, 0];
+                                return [...defaultColor, 255];
+                            },
+                            getRadius: 5,
+                            pickable: true,
+                            parameters: { depthTest: false },
+                            updateTriggers: {
+                                getFillColor: [colorMaps[sampleId], visibleCellTypes[sampleId]],
+                                data: [outRegionData]
+                            }
+                        }));
+                    }
+                } else {
+                    if (geneExpressionData.length > 0) {
+                        const optimizedPathData = geneExpressionData.flatMap(d => {
+                            const angles = Object.entries(d.angles);
+                            const ratios = Object.entries(d.ratios);
+                            const radius = Object.entries(d.radius);
+                            const offset = sampleOffsets[d.sampleId] || [0, 0];
+
+                            return generateKosaraPath(
+                                d.cell_x + offset[0],
+                                d.cell_y + offset[1],
+                                angles,
+                                ratios,
+                                radius
+                            ).map(path => ({
+                                id: d.id,
+                                cell_type: d.cell_type,
+                                points: path.path,
+                                color: path.color,
+                                total_expression: d.total_expression,
+                                ratios: d.ratios,
+                            }));
+                        });
+
+                        regionLayers.push(new PolygonLayer({
+                            id: `Scatters-${sampleId}`,
+                            data: optimizedPathData,
+                            getPolygon: d => d.points,
+                            getFillColor: d => {
+                                const rgbColor = hexToRgbs(d.color);
+                                return [...rgbColor, 255];
+                            },
+                            pickable: true,
+                            stroked: false,
+                            parameters: { depthTest: false, blend: true },
+                            updateTriggers: {
+                                data: [geneExpressionData, sampleOffsets]
+                            }
+                        }));
+                    }
+                }
+                return regionLayers;
             } else {
                 data = filteredCellData[sampleId] || [];
-                getFillColor = d => colorMaps[sampleId]?.[d.cell_type] || [0, 0, 0];
+
+                getFillColor = d => {
+                    const defaultColor = colorMaps[sampleId]?.[d.cell_type] || [0, 0, 0];
+
+                    if (analyzedRegionData && sampleId === analyzedRegionData.sampleId) {
+                        const isInAnalyzedRegion = analyzedRegionData.cellIds.includes(d.id);
+
+                        if (isInAnalyzedRegion) {
+                            if (NMFclusterCells && NMFclusterCells.length > 0) {
+                                const isHighlighted = NMFclusterCells.includes(d.id);
+                                return isHighlighted
+                                    ? [...defaultColor, 255]
+                                    : [...defaultColor, 50];
+                            }
+
+                            return [...defaultColor, 255];
+                        }
+                    }
+
+                    return [...defaultColor, 255];
+                };
 
                 const offset = sampleOffsets[sampleId] || [0, 0];
                 return new ScatterplotLayer({
@@ -744,13 +881,13 @@ export const MultiSampleViewer = ({
                     pickable: true,
                     parameters: { depthTest: false },
                     updateTriggers: {
-                        getFillColor: [colorMaps[sampleId], visibleCellTypes[sampleId]],
+                        getFillColor: [colorMaps[sampleId], visibleCellTypes[sampleId], NMFclusterCells, analyzedRegionData],
                         data: [data]
                     }
                 });
             }
         }).filter(Boolean);
-    }, [samples, filteredCellData, colorMaps, visibleSamples, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes]);
+    }, [samples, filteredCellData, colorMaps, visibleSamples, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes, analyzedRegion, NMFclusterCells, partWholeMode, regions]);
 
     // update current region data
     const handleRegionUpdate = (sampleId, updatedData) => {
@@ -939,13 +1076,11 @@ export const MultiSampleViewer = ({
         });
         return [
             ...generateWholePngLayers(),
-            // ...generateTileLayers(),
+            ...generateTileLayers(),
             ...generateMarkerImageLayers(),
-            ...generateCellLayers(),
             ...generateEditLayers(),
             regionLabelLayer,
             ...regions.map(region => {
-                console.log(region, 'region');
                 const offset = sampleOffsets[region.sampleId] || [0, 0];
                 const globalFeature = {
                     ...region.feature,
@@ -979,10 +1114,11 @@ export const MultiSampleViewer = ({
                     getFillColor: () => [...region.color, 30],
                 });
             }),
+            ...generateCellLayers(),
         ].filter(Boolean);
     }, [
         generateWholePngLayers,
-        // generateTileLayers,
+        generateTileLayers,
         generateMarkerImageLayers,
         generateCellLayers,
         generateEditLayers,
@@ -991,7 +1127,7 @@ export const MultiSampleViewer = ({
     ]);
 
     return (
-        <div style={{ width: '70%', height: '100%', display: 'flex', borderRight: '2px solid #e8e8e8' }}>
+        <div style={{ width: '100%', height: '100%', display: 'flex', borderRight: '2px solid #e8e8e8' }}>
             <div
                 style={{
                     flex: 1,
@@ -1030,9 +1166,11 @@ export const MultiSampleViewer = ({
                     }}
                     onClick={info => {
                         if (info.object && info.layer.id.startsWith('Selected-')) {
-                            console.log(info.object, 'clicked region');
-                            fetchGeneExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
-                        }   
+                            // fetchGeneExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
+                            setAnalyzedRegion(info.object.properties.__regionMeta.name);
+                            fetchNMFGOExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
+                            // fetchCell2CellInteractionData(info.object.properties.__regionMeta.name, info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
+                        }
                     }}
                     onHover={info => {
                         if (info.object && info.layer.id.startsWith('Scatters-')) {
@@ -1089,13 +1227,16 @@ export const MultiSampleViewer = ({
                         boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                         transform: 'translateX(-50%)',
                         fontSize: 12,
+                        zIndex: 1000,
                         textAlign: 'left'
                     }}>
                         {hoveredCell.id ? (
                             <>
                                 <div><strong>Sample:</strong> {hoveredCell.sampleId}</div>
                                 <div><strong>Cell Type:</strong> {hoveredCell.cell_type}</div>
-                                <div><strong>Total Expression:</strong> {hoveredCell.total_expression}</div>
+                                {hoveredCell.total_expression && (
+                                    <div><strong>Total Expression:</strong> {hoveredCell.total_expression}</div>
+                                )}
                                 {hoveredCell.ratios &&
                                     Object.entries(hoveredCell.ratios).map(([gene, expression]) => (
                                         <div key={gene}>

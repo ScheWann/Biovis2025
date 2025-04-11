@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Select, Spin, message, Button } from 'antd';
+import { Select, Spin, message, Button, Splitter } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
+import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
 import { Cell2CellViewer } from './components/Cell2CellViewer';
+import { Cell2CellViewer2 } from './components/Cell2CellViewer2';
 import { GeneExpressionViewer } from './components/GeneExpressionViewer';
 import { PseudoTemporalViewer } from './components/PseudoTemporalViewer';
 
@@ -15,6 +17,12 @@ function App() {
   const [cellTypeDir, setCellTypeDir] = useState({});
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [analyzedRegion, setAnalyzedRegion] = useState(null);
+  const [NMFGOData, setNMFGOData] = useState({});
+  const [NMFGODataLoading, setNMFGODataLoading] = useState(false);
+  const [NMFclusterCells, setNMFclusterCells] = useState([]);
+  const [cell2cellData, setCell2cellData] = useState({});
+  const [cell2cellDataLoading, setCell2cellDataLoading] = useState(false);
   const [selectedRegionGeneExpressionData, setSelectedRegionGeneExpressionData] = useState({});
 
   // get all aviailable samples
@@ -116,25 +124,51 @@ function App() {
           )}
 
           {samples.length > 0 ? (
-            <>
-              <MultiSampleViewer
-                setLoading={setLoading}
-                samples={samples}
-                cellTypeCoordinatesData={cellTypeCoordinatesData}
-                cellTypeDir={cellTypeDir}
-                regions={regions}
-                setRegions={setRegions}
-                setSelectedRegionGeneExpressionData={setSelectedRegionGeneExpressionData}
-              />
-
-              <div className="auxiliaryViews">
-                <PseudoTemporalViewer />
-                <Cell2CellViewer />
-                <GeneExpressionViewer 
-                  data={selectedRegionGeneExpressionData}
+            <Splitter lazy style={{ width: "100%", height: "100%" }}>
+              <Splitter.Panel defaultSize="70%" min="50%" max="80%">
+                <MultiSampleViewer
+                  setLoading={setLoading}
+                  samples={samples}
+                  cellTypeCoordinatesData={cellTypeCoordinatesData}
+                  cellTypeDir={cellTypeDir}
+                  regions={regions}
+                  setRegions={setRegions}
+                  analyzedRegion={analyzedRegion}
+                  setAnalyzedRegion={setAnalyzedRegion}
+                  setNMFGOData={setNMFGOData}
+                  setNMFGODataLoading={setNMFGODataLoading}
+                  NMFclusterCells={NMFclusterCells}
+                  setSelectedRegionGeneExpressionData={setSelectedRegionGeneExpressionData}
                 />
-              </div>
-            </>
+              </Splitter.Panel>
+              <Splitter.Panel defaultSize="30%" min="20%" max="50%">
+                <Splitter lazy layout='vertical'>
+                  <Splitter.Panel defaultSize="33%" min="20%" max="45%" style={{ borderBottom: "1px solid #e8e8e8" }}>
+                    {/* <GeneExpressionViewer
+                      data={selectedRegionGeneExpressionData}
+                    /> */}
+                    <NMFGOExpressionViewer 
+                      NMFGOData={NMFGOData}
+                      NMFGODataLoading={NMFGODataLoading}
+                      setNMFclusterCells={setNMFclusterCells}
+                    />
+                  </Splitter.Panel>
+                  <Splitter.Panel defaultSize="33%" min="20%" max="45%" style={{ borderBottom: "1px solid #e8e8e8" }}>
+                    <PseudoTemporalViewer />
+                  </Splitter.Panel>
+                  <Splitter.Panel defaultSize="33%" min="20%" max="45%">
+                    {/* <Cell2CellViewer /> */}
+                    <Cell2CellViewer2
+                      regions={regions}
+                      analyzedRegion={analyzedRegion}
+                      cell2cellData={cell2cellData}
+                      setCell2cellData={setCell2cellData}
+                      cell2cellDataLoading={cell2cellDataLoading}
+                    />
+                  </Splitter.Panel>
+                </Splitter>
+              </Splitter.Panel>
+            </Splitter>
           ) : (
             <div style={{
               display: "flex",

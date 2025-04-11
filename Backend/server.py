@@ -10,9 +10,13 @@ from process import (
     get_unique_cell_types,
     get_cell_type_coordinates,
     get_samples,
+    get_cell_types,
     get_gene_list,
+    get_gene_list_for_cell2cellinteraction,
     get_kosara_data,
-    get_selected_region_data
+    get_selected_region_data,
+    get_NMF_GO_data,
+    get_cell_cell_interaction_data
     # get_umap_positions_with_clusters,
     # get_gene_list,
     # get_specific_gene_expression
@@ -212,11 +216,23 @@ def get_cell_type_coordinates_route():
     sample_ids = request.json['sample_ids']
     return jsonify(get_cell_type_coordinates(sample_ids))
 
+@app.route('/get_cell_types', methods=['POST'])
+def get_cell_types_route():
+    """Get cell types for selected samples"""
+    sample_name = request.json['sample_name']
+    return jsonify(get_cell_types(sample_name))
+
 @app.route('/get_all_gene_list', methods=['POST'])
 def get_all_gene_list():
     """Get list of all genes for selected samples"""
     sample_names = request.json['sample_names']
     return jsonify(get_gene_list(sample_names))
+
+@app.route('/get_cell2cell_gene_list', methods=['POST'])
+def get_cell2cell_gene_list_route():
+    """Get list of all genes for selected samples"""
+    sample_name = request.json['sample_name']
+    return jsonify(get_gene_list_for_cell2cellinteraction(sample_name))
 
 @app.route('/get_kosara_data', methods=['POST'])
 def get_kosara_data_route():
@@ -232,6 +248,24 @@ def get_selected_region_data_route():
     sample_id = request.json['sample_id']
     cell_list = request.json['cell_list']
     return jsonify(get_selected_region_data(sample_id, cell_list))
+
+@app.route('/get_NMF_GO_data', methods=['POST'])
+def get_NMF_GO_data_route():
+    """Get NMF GO data"""
+    sample_id = request.json['sample_id']
+    cell_list = request.json['cell_list']
+    return jsonify(get_NMF_GO_data(sample_id, cell_list))
+
+@app.route('/get_cell_cell_interaction_data', methods=['POST'])
+def get_cell_cell_interaction_data_route():
+    """Get cell-cell interaction data"""
+    sample_id = request.json['sample_id']
+    receiver = request.json['receiver']
+    sender = request.json['sender']
+    receiverGene = request.json['receiverGene']
+    senderGene = request.json['senderGene']
+    cellIds = request.json['cellIds']
+    return jsonify(get_cell_cell_interaction_data(sample_id, receiver, sender, receiverGene, senderGene, cellIds))
 
 #################### OLD CODE ####################
 @app.route('/get_um_positions_with_clusters', methods=['POST'])
@@ -349,4 +383,4 @@ def analyze():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5003)

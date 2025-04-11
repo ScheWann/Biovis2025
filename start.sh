@@ -14,7 +14,7 @@ cd ..
 
 cd Frontend
 echo "Running the Frontend..."
-npm start &
+PORT=3001 npm start &
 
 echo "Project started successfully!"
 

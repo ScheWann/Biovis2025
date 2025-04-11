@@ -6,7 +6,7 @@ Python version 3.11.0 required
 
 2. Run ```chmod +x init.sh start.sh```
 
-3. initial setup(once) ```./start.sh```
+3. initial setup(once) ```./init.sh```
 
 4. Run ```./start.sh```
 
