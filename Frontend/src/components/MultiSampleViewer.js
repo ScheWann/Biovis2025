@@ -99,7 +99,7 @@ export const MultiSampleViewer = ({
     NMFclusterCells,
     setSelectedRegionGeneExpressionData
 }) => {
-    const [imageSizes, setImageSizes] = useState({});
+    const [imageSizes, setImageSizes] = useState({}); // The image sizes for each sample, e.g. {skin_TXK6Z4X_A1: [13030, 13511], ...}
     const [tileSize] = useState(256);
     const [features, setFeatures] = useState(
         samples.reduce((acc, sample) => ({
@@ -108,17 +108,17 @@ export const MultiSampleViewer = ({
         }), {})
     );
     const [tempRegions, setTempRegions] = useState({});
-    const [visibleCellTypes, setVisibleCellTypes] = useState({});
+    const [visibleCellTypes, setVisibleCellTypes] = useState({}); // The visibility of each cell type for each sample
     const [colorMaps, setColorMaps] = useState({});
-    const [hoveredCell, setHoveredCell] = useState(null);
-    const [sampleOffsets, setSampleOffsets] = useState({});
+    const [hoveredCell, setHoveredCell] = useState(null); // Information about the mouse hovering on the cell
+    const [sampleOffsets, setSampleOffsets] = useState({}); // The offset between the samples
     const [activeSample, setActiveSample] = useState(samples[0]?.id);
     const [visibleSamples, setVisibleSamples] = useState(
         samples.reduce((acc, sample) => ({ ...acc, [sample.id]: true }), {})
     );
-    const [geneList, setGeneList] = useState({});
+    const [geneList, setGeneList] = useState({}); // The gene list for each sample, including cell counts expressing the gene(e.g.{skin_TXK6Z4X_A1: {A1CF: 2, ABCC11: 14, ABCG5: 9, ABRAXAS2: 6, AC011195.2: 3, AC067752.1: 3, AC090360.1: 13,…}})
     const [selectedGenes, setSelectedGenes] = useState([]);
-    const [regionName, setRegionName] = useState('');
+    const [regionName, setRegionName] = useState(''); // The name of the region to be drawn
     const [regionColor, setRegionColor] = useState(generateRandomColor());
     const [isDrawingActive, setIsDrawingActive] = useState(false);
     const [activeDrawingSample, setActiveDrawingSample] = useState(null);
@@ -1358,6 +1358,11 @@ export const MultiSampleViewer = ({
                                                 fontSize: '12px',
                                                 color: '#555'
                                             }}>
+                                                {/* <Checkbox
+                                                    checked={visibleMap[type] ?? true}
+                                                    onChange={e => onVisibilityCellTypeChange(type, e.target.checked)}
+                                                    style={{ marginRight: 8 }}
+                                                /> */}
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
                                                     <span style={{ fontSize: 14, marginBottom: 10 }}>{region.name}</span>
                                                     <span style={{ fontSize: 10, color: "#666" }}>Sample: {sampleId}</span>
