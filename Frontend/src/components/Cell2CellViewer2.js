@@ -34,14 +34,21 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
             });
     };
 
-    // Method to find and store cellIds based on analyzedRegion
-    const findCellIdsByRegion = () => {
+    const findSampleIdAndcellIds = () => {
         const region = regions.find(region => region.name === analyzedRegion);
         if (region) {
             const { sampleId, cellIds } = region;
+            return { sampleId, cellIds };
+        }
+    }
+
+    // Method to find and store cellIds based on analyzedRegion
+    const findCellIdsByRegion = () => {
+        const { sampleId, cellIds } = findSampleIdAndcellIds();
+        if (sampleId && cellIds) {
+            setSelectedCellIds(cellIds);
             fetchCellTypeList(sampleId);
             fetchGeneList(sampleId);
-            setSelectedCellIds(cellIds);
         }
     };
 
@@ -50,12 +57,14 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
             alert('Please select all parameters');
             return;
         }
+        const { sampleId, cellIds } = findSampleIdAndcellIds();
         const params = {
+            sample_id: sampleId,
             receiver,
             sender,
             receiverGene,
             senderGene,
-            cellIds: selectedCellIds
+            cellIds: cellIds
         };
         fetch('/get_cell_cell_interaction_data', {
             method: 'POST',
@@ -152,7 +161,6 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
                     {/* Show content only if cell2cellData is available */}
                     {Object.keys(cell2cellData).length > 0 && analyzedRegion && (
                         <div>
-                            {/* Render the actual content you want here */}
                             <p>Content goes here...</p>
                         </div>
                     )}

@@ -259,12 +259,13 @@ def get_NMF_GO_data_route():
 @app.route('/get_cell_cell_interaction_data', methods=['POST'])
 def get_cell_cell_interaction_data_route():
     """Get cell-cell interaction data"""
+    sample_id = request.json['sample_id']
     receiver = request.json['receiver']
     sender = request.json['sender']
     receiverGene = request.json['receiverGene']
     senderGene = request.json['senderGene']
     cellIds = request.json['cellIds']
-    return jsonify(get_cell_cell_interaction_data(receiver, sender, receiverGene, senderGene, cellIds))
+    return jsonify(get_cell_cell_interaction_data(sample_id, receiver, sender, receiverGene, senderGene, cellIds))
 
 #################### OLD CODE ####################
 @app.route('/get_um_positions_with_clusters', methods=['POST'])
