@@ -97,12 +97,7 @@ const StackBarChart = ({ cell2cellData }) => {
         // 添加 X 轴：位于 y= yScale(0) 处
         chartGroup.append('g')
             .attr('transform', `translate(0, ${yScale(0)})`)
-            .call(d3.axisBottom(xScale))
-            .selectAll("text")
-            .style("text-anchor", "end")
-            .attr("dx", "-0.5em")
-            .attr("dy", "0.2em")
-            .attr("transform", "rotate(-40)");
+            .call(d3.axisBottom(xScale).tickFormat(() => ''));
 
         // 添加 Y 轴
         chartGroup.append('g').call(d3.axisLeft(yScale));
