@@ -18,7 +18,7 @@ const taperedLinkPath = (sourceX, sourceY, targetX, targetY, thicknessSource, th
     return path.toString();
 };
 
-export const NMFGOExpressionViewer = ({ regions, NMFGODataLoading, NMFGOData, setNMFGOData }) => {
+export const NMFGOExpressionViewer = ({ regions, setNMFclusterCells, NMFGOData, setNMFGOData }) => {
     const containerRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 600, height: 400 });
     const [regionOptions, setRegionOptions] = useState([]);
