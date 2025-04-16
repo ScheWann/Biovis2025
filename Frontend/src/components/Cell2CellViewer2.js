@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Select, Spin, Empty } from 'antd';
 
-export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCell2cellData, cell2cellDataLoading }) => {
+export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) => {
+    const [regionOptions, setRegionOptions] = useState([]);
+    const [selectedRegion, setSelectedRegion] = useState([]);
     const [cellTypeList, setCellTypeList] = useState([]);
     const [genelist, setGenelist] = useState([]);
     const [receiver, setReceiver] = useState(null);
     const [sender, setSender] = useState(null);
     const [receiverGene, setReceiverGenes] = useState(null);
     const [senderGene, setSenderGenes] = useState(null);
-    const [selectedCellIds, setSelectedCellIds] = useState([]);
 
     const fetchCellTypeList = (sample_name) => {
         fetch('/get_cell_types', {
@@ -35,27 +36,17 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
     };
 
     const getSelectedRegionsInfo = () => {
-        return regions
-            .filter(region => analyzedRegion[region.name])
-            .map(region => ({
-                sampleId: region.sampleId,
-                cellIds: region.cellIds
-            }));
-    };
-
-    // Method to find and store cellIds based on analyzedRegion
-    const findCellIdsByRegion = () => {
-        const selectedRegions = getSelectedRegionsInfo();
-        const uniqueSampleIds = [...new Set(selectedRegions.map(r => r.sampleId))];
-
-        const allCellIds = selectedRegions.flatMap(r => r.cellIds);
-        setSelectedCellIds(allCellIds);
-
-        // now it only focus on one sample
-        if (uniqueSampleIds.length > 0) {
-            fetchCellTypeList(uniqueSampleIds[0]);
-            fetchGeneList(uniqueSampleIds[0]);
-        }
+        const params = {};
+        selectedRegion.forEach(region => {
+            const regionInfo = regions.find(r => r.id === region);
+            if (regionInfo) {
+                params[regionInfo.name] = {
+                    sampleid: regionInfo.sampleId,
+                    cell_list: regionInfo.cellIds,
+                };
+            }
+        })
+        return params;
     };
 
     const confirmCell2cellparameters = () => {
@@ -65,18 +56,15 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
         }
 
         const selectedRegions = getSelectedRegionsInfo();
-        const allCellIds = selectedRegions.flatMap(r => r.cellIds);
-        const sampleIds = [...new Set(selectedRegions.map(r => r.sampleId))];
 
         const params = {
-            sample_ids: sampleIds,
+            regions: selectedRegions,
             receiver,
             sender,
             receiverGene,
             senderGene,
-            cellIds: allCellIds
         };
-
+        console.log('Selected parameters:', params);
         fetch('/get_cell_cell_interaction_data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -89,10 +77,25 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
     };
 
     useEffect(() => {
-        if (Object.values(analyzedRegion).some(v => v)) {
-            findCellIdsByRegion();
+        regions.forEach(region => {
+            setRegionOptions(prevOptions => {
+                const exists = prevOptions.find(option => option.value === region.id);
+                return exists ? prevOptions : [...prevOptions, { label: region.name, value: region.id }];
+            });
+        });
+    }, [regions]);
+
+    useEffect(() => {
+        if(selectedRegion.length > 0) {
+            const selectedRegions = regions.filter(region => selectedRegion.includes(region.id));
+            const uniqueSampleIds = [...new Set(selectedRegions.map(r => r.sampleId))];
+
+            if (uniqueSampleIds.length > 0) {
+                fetchCellTypeList(uniqueSampleIds[0]);
+                fetchGeneList(uniqueSampleIds[0]);
+            }
         }
-    }, [analyzedRegion, regions]);
+    }, [selectedRegion]);
 
     // A simple filter function (case-insensitive) for the Selects.
     const filterSelect = (input, option) =>
@@ -104,79 +107,63 @@ export const Cell2CellViewer2 = ({ regions, analyzedRegion, cell2cellData, setCe
             {/* Selectors and Button */}
             <div style={{ width: '100%', height: '10%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 10 }}>
                 <Select
+                    size='small'
+                    mode="multiple"
+                    placeholder="Select Region"
+                    options={regionOptions}
+                    style={{ width: 200}}
+                    onChange={setSelectedRegion}
+                    allowClear
+                />
+                <Select
                     showSearch
                     style={{ width: 120 }}
                     size='small'
                     value={receiver}
                     options={cellTypeList}
                     onChange={setReceiver}
-                    disabled={!analyzedRegion || cell2cellDataLoading}
                     placeholder="Select Receiver"
                     filterOption={filterSelect}
                 />
                 <Select
                     showSearch
-                    style={{ width: 120 }}
+                    style={{ width: 100 }}
                     size='small'
                     value={sender}
                     options={cellTypeList}
                     onChange={setSender}
-                    disabled={!analyzedRegion || cell2cellDataLoading}
                     placeholder="Select Sender"
                     filterOption={filterSelect}
                 />
                 <Select
                     showSearch
-                    style={{ width: 120 }}
+                    style={{ width: 100 }}
                     size='small'
                     value={receiverGene}
                     options={genelist}
                     onChange={setReceiverGenes}
-                    disabled={!analyzedRegion || cell2cellDataLoading}
                     placeholder="Select Receiver Gene"
                     filterOption={filterSelect}
                 />
                 <Select
                     showSearch
-                    style={{ width: 120 }}
+                    style={{ width: 100 }}
                     size='small'
                     value={senderGene}
                     options={genelist}
                     onChange={setSenderGenes}
-                    disabled={!analyzedRegion || cell2cellDataLoading}
                     placeholder="Select Sender Gene"
                     filterOption={filterSelect}
                 />
                 <Button
-                    style={{ width: 120 }}
+                    style={{ width: 100 }}
                     size='small'
-                    disabled={!analyzedRegion || cell2cellDataLoading}
                     onClick={confirmCell2cellparameters}
                 >
                     Confirm
                 </Button>
             </div>
 
-            {cell2cellDataLoading ? (
-                <Spin spinning={true} style={{ width: '100%', height: '100%' }} />
-            ) : (
-                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    {!analyzedRegion && (
-                        <Empty
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
-                            description="Please set receiver and sender first"
-                            style={{ width: '100%', height: '100%' }}
-                        />
-                    )}
-
-                    {/* Show content only if cell2cellData is available */}
-                    {Object.keys(cell2cellData).length > 0 && analyzedRegion && (
-                        <div>
-                            <p>Content goes here...</p>
-                        </div>
-                    )}
-                </div>
-            )}
         </div>
     );
 };
