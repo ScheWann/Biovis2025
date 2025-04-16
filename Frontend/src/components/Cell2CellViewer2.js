@@ -1,10 +1,35 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button, Select } from 'antd';
 import * as d3 from 'd3';
 
-// StackBarChart 组件：使用 d3 绘制堆积条形图
-const StackBarChart = ({ cell2cellData, width = 800, height = 400 }) => {
+// StackBarChart 组件：使用 d3 绘制堆积条形图，同时支持 svg 自适应父容器
+const StackBarChart = ({ cell2cellData }) => {
     const svgRef = useRef();
+    const containerRef = useRef();
+    const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
+
+    // 使用 ResizeObserver 监听父容器尺寸变化
+    const resizeObserver = useRef(null);
+
+    const observeResize = useCallback(() => {
+        if (containerRef.current) {
+            const { clientWidth, clientHeight } = containerRef.current;
+            setDimensions({ width: clientWidth, height: clientHeight });
+        }
+    }, []);
+
+    useEffect(() => {
+        observeResize();
+        resizeObserver.current = new ResizeObserver(observeResize);
+        if (containerRef.current) {
+            resizeObserver.current.observe(containerRef.current);
+        }
+        return () => {
+            if (resizeObserver.current && containerRef.current) {
+                resizeObserver.current.unobserve(containerRef.current);
+            }
+        };
+    }, [observeResize]);
 
     useEffect(() => {
         // 如果 cell2cellData 为空则不绘制
@@ -34,50 +59,45 @@ const StackBarChart = ({ cell2cellData, width = 800, height = 400 }) => {
         const data = Object.keys(counts).map(id => ({
             id,
             receiver: counts[id].receiver,
-            // 取负数绘制 sender 部分
+            // sender 转为负数用于绘制在下方
             sender: -counts[id].sender,
         }));
 
         // 清空上一次的 svg 内容
         d3.select(svgRef.current).selectAll('*').remove();
 
-        // 设置图表边距
+        // 计算图表内边距与尺寸
         const margin = { top: 20, right: 20, bottom: 50, left: 50 };
-        const innerWidth = width - margin.left - margin.right;
-        const innerHeight = height - margin.top - margin.bottom;
+        const innerWidth = dimensions.width - margin.left - margin.right;
+        const innerHeight = dimensions.height - margin.top - margin.bottom;
 
-        // 创建 svg
-        const svg = d3
-            .select(svgRef.current)
-            .attr('width', width)
-            .attr('height', height);
+        // 创建 svg，并设定 viewBox 实现响应式
+        const svg = d3.select(svgRef.current)
+            .attr('width', dimensions.width)
+            .attr('height', dimensions.height)
+            .attr('viewBox', `0 0 ${dimensions.width} ${dimensions.height}`);
 
         // 添加一个分组用于绘制图表内容
-        const chartGroup = svg
-            .append('g')
+        const chartGroup = svg.append('g')
             .attr('transform', `translate(${margin.left},${margin.top})`);
 
-        // X 轴: 每个 id 显示为分类
-        const xScale = d3
-            .scaleBand()
+        // X 轴
+        const xScale = d3.scaleBand()
             .domain(data.map(d => d.id))
             .range([0, innerWidth])
             .padding(0.2);
 
-        // Y 轴: domain 根据 receiver 和 sender 的最大绝对值设置
+        // Y 轴
         const maxReceiver = d3.max(data, d => d.receiver);
-        const maxSender = d3.max(data, d => -d.sender); // sender 为负数
-        const yScale = d3
-            .scaleLinear()
+        const maxSender = d3.max(data, d => -d.sender);
+        const yScale = d3.scaleLinear()
             .domain([-maxSender, maxReceiver])
             .range([innerHeight, 0]);
 
-        // 添加 X 轴：在 y= yScale(0) 处绘制
-        const xAxis = d3.axisBottom(xScale);
-        chartGroup
-            .append('g')
+        // 添加 X 轴：位于 y= yScale(0) 处
+        chartGroup.append('g')
             .attr('transform', `translate(0, ${yScale(0)})`)
-            .call(xAxis)
+            .call(d3.axisBottom(xScale))
             .selectAll("text")
             .style("text-anchor", "end")
             .attr("dx", "-0.5em")
@@ -85,12 +105,10 @@ const StackBarChart = ({ cell2cellData, width = 800, height = 400 }) => {
             .attr("transform", "rotate(-40)");
 
         // 添加 Y 轴
-        const yAxis = d3.axisLeft(yScale);
-        chartGroup.append('g').call(yAxis);
+        chartGroup.append('g').call(d3.axisLeft(yScale));
 
-        // 为 receiver 绘制 bar（正方向）
-        chartGroup
-            .selectAll('.bar-receiver')
+        // 绘制 receiver bar（正方向）
+        chartGroup.selectAll('.bar-receiver')
             .data(data)
             .enter()
             .append('rect')
@@ -99,11 +117,10 @@ const StackBarChart = ({ cell2cellData, width = 800, height = 400 }) => {
             .attr('y', d => yScale(d.receiver))
             .attr('width', xScale.bandwidth())
             .attr('height', d => yScale(0) - yScale(d.receiver))
-            .attr('fill', '#4CAF50'); // receiver 使用绿色
+            .attr('fill', '#4CAF50');
 
-        // 为 sender 绘制 bar（负方向）
-        chartGroup
-            .selectAll('.bar-sender')
+        // 绘制 sender bar（负方向）
+        chartGroup.selectAll('.bar-sender')
             .data(data)
             .enter()
             .append('rect')
@@ -112,37 +129,40 @@ const StackBarChart = ({ cell2cellData, width = 800, height = 400 }) => {
             .attr('y', yScale(0))
             .attr('width', xScale.bandwidth())
             .attr('height', d => yScale(d.sender) - yScale(0))
-            .attr('fill', '#F44336'); // sender 使用红色
+            .attr('fill', '#F44336');
 
-        // 如果需要添加数值标签，可取消下面代码的注释
-        /*
-        chartGroup.selectAll('.label-receiver')
-          .data(data)
-          .enter()
-          .append('text')
-          .attr('class', 'label-receiver')
-          .attr('x', d => xScale(d.id) + xScale.bandwidth() / 2)
-          .attr('y', d => yScale(d.receiver) - 5)
-          .attr('text-anchor', 'middle')
-          .text(d => d.receiver);
-      
-        chartGroup.selectAll('.label-sender')
-          .data(data)
-          .enter()
-          .append('text')
-          .attr('class', 'label-sender')
-          .attr('x', d => xScale(d.id) + xScale.bandwidth() / 2)
-          .attr('y', d => yScale(d.sender) + 15)
-          .attr('text-anchor', 'middle')
-          .text(d => -d.sender);
+        // 可添加数值标签
+        /* chartGroup.selectAll('.label-receiver')
+              .data(data)
+              .enter()
+              .append('text')
+              .attr('class', 'label-receiver')
+              .attr('x', d => xScale(d.id) + xScale.bandwidth() / 2)
+              .attr('y', d => yScale(d.receiver) - 5)
+              .attr('text-anchor', 'middle')
+              .text(d => d.receiver);
+    
+           chartGroup.selectAll('.label-sender')
+              .data(data)
+              .enter()
+              .append('text')
+              .attr('class', 'label-sender')
+              .attr('x', d => xScale(d.id) + xScale.bandwidth() / 2)
+              .attr('y', d => yScale(d.sender) + 15)
+              .attr('text-anchor', 'middle')
+              .text(d => -d.sender);
         */
+    }, [cell2cellData, dimensions]);
 
-    }, [cell2cellData, width, height]);
-
-    return <svg ref={svgRef}></svg>;
+    return (
+        // 外层容器用 ref 获得尺寸信息
+        <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
+            <svg ref={svgRef}></svg>
+        </div>
+    );
 };
 
-// Cell2CellViewer2 组件：数据请求和参数选择，包含 StackBarChart 部分
+// Cell2CellViewer2 组件：参数选择与数据请求
 export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) => {
     const [regionOptions, setRegionOptions] = useState([]);
     const [selectedRegion, setSelectedRegion] = useState([]);
@@ -162,7 +182,6 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
         })
             .then(res => res.json())
             .then(data => {
-                // 假设返回数据的格式是 [{ label: '细胞类型1', value: 'ID_XXX' }, ...]
                 setCellTypeList(data);
             });
     };
@@ -176,7 +195,6 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
         })
             .then(res => res.json())
             .then(data => {
-                // 假设返回数据的格式是 [{ label: '基因1', value: 'Gene_1' }, ...]
                 setGenelist(data);
             });
     };
@@ -232,7 +250,7 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
         });
     }, [regions]);
 
-    // 当选中区域发生变化时，根据第一个样本 id 请求细胞类型和基因数据
+    // 当选中区域发生变化时，请求细胞类型和基因数据
     useEffect(() => {
         if (selectedRegion.length > 0) {
             const selectedRegions = regions.filter(region => selectedRegion.includes(region.id));
@@ -319,10 +337,10 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
                 </Button>
             </div>
 
-            {/* 当 cell2cellData 存在时绘制图表，否则显示提示 */}
-            <div style={{ marginTop: 20 }}>
+            {/* 绘制图表 */}
+            <div style={{ marginTop: 20, width: '100%', height: '80%' }}>
                 {cell2cellData && Object.keys(cell2cellData).length > 0 ? (
-                    <StackBarChart cell2cellData={cell2cellData} width={800} height={400} />
+                    <StackBarChart cell2cellData={cell2cellData} />
                 ) : (
                     <div style={{ textAlign: 'center', padding: '20px' }}>No Data to Display</div>
                 )}
