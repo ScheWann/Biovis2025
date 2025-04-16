@@ -32,125 +32,155 @@ const StackBarChart = ({ cell2cellData }) => {
     }, [observeResize]);
 
     useEffect(() => {
-        // 如果 cell2cellData 为空则不绘制
-        if (!cell2cellData || Object.keys(cell2cellData).length === 0) {
-            return;
-        }
+        if (!cell2cellData || Object.keys(cell2cellData).length === 0) return;
 
-        // 统计每个 id 作为 receiver 和 sender 出现的次数
+        // 获取所有区域key并排序
+        const regionKeys = Object.keys(cell2cellData).sort();
+        
+        // 1. 统计每个ID在不同区域的收发次数
         const counts = {};
-        Object.keys(cell2cellData).forEach(regionKey => {
+        regionKeys.forEach(regionKey => {
             cell2cellData[regionKey].forEach(interaction => {
                 const receiverId = interaction.Receiver;
                 const senderId = interaction.Sender;
 
+                // 初始化数据结构
                 if (!counts[receiverId]) {
-                    counts[receiverId] = { receiver: 0, sender: 0 };
+                    counts[receiverId] = { 
+                        receiver: Object.fromEntries(regionKeys.map(k => [k, 0])),
+                        sender: Object.fromEntries(regionKeys.map(k => [k, 0]))
+                    };
                 }
                 if (!counts[senderId]) {
-                    counts[senderId] = { receiver: 0, sender: 0 };
+                    counts[senderId] = { 
+                        receiver: Object.fromEntries(regionKeys.map(k => [k, 0])),
+                        sender: Object.fromEntries(regionKeys.map(k => [k, 0]))
+                    };
                 }
-                counts[receiverId].receiver += 1;
-                counts[senderId].sender += 1;
+
+                // 累加计数
+                counts[receiverId].receiver[regionKey]++;
+                counts[senderId].sender[regionKey]++;
             });
         });
 
-        // 构建数据数组，每个元素包含 id, receiverCount 和 senderCount (senderCount 转换为负数)
+        // 2. 构建数据集
         const data = Object.keys(counts).map(id => ({
             id,
             receiver: counts[id].receiver,
-            // sender 转为负数用于绘制在下方
-            sender: -counts[id].sender,
+            sender: counts[id].sender
         }));
 
-        // 清空上一次的 svg 内容
+        // 3. 创建颜色比例尺
+        const colorScale = d3.scaleOrdinal()
+            .domain(regionKeys)
+            .range(d3.schemeCategory10);
+
+        // 清空SVG
         d3.select(svgRef.current).selectAll('*').remove();
 
-        // 计算图表内边距与尺寸
+        // 4. 计算尺寸
         const margin = { top: 20, right: 20, bottom: 50, left: 50 };
         const innerWidth = dimensions.width - margin.left - margin.right;
         const innerHeight = dimensions.height - margin.top - margin.bottom;
 
-        // 创建 svg，并设定 viewBox 实现响应式
+        // 创建SVG容器
         const svg = d3.select(svgRef.current)
             .attr('width', dimensions.width)
             .attr('height', dimensions.height)
             .attr('viewBox', `0 0 ${dimensions.width} ${dimensions.height}`);
 
-        // 添加一个分组用于绘制图表内容
         const chartGroup = svg.append('g')
             .attr('transform', `translate(${margin.left},${margin.top})`);
 
-        // X 轴
+        // 5. 创建比例尺
         const xScale = d3.scaleBand()
             .domain(data.map(d => d.id))
             .range([0, innerWidth])
             .padding(0.2);
 
-        // Y 轴
-        const maxReceiver = d3.max(data, d => d.receiver);
-        const maxSender = d3.max(data, d => -d.sender);
+        // 创建堆叠生成器
+        const stackGenerator = d3.stack()
+            .keys(regionKeys);
+
+        // 生成收发数据的堆叠结构
+        const receiverStack = stackGenerator
+            .value((d, key) => d.receiver[key] || 0)
+            (data);
+
+        const senderStack = stackGenerator
+            .value((d, key) => -(d.sender[key] || 0)) // 发送方转为负值
+            (data);
+
+        // 计算Y轴范围
+        const maxReceiver = d3.max(receiverStack.flat(2));
+        const maxSender = d3.max(senderStack.flat(2).map(Math.abs));
         const yScale = d3.scaleLinear()
             .domain([-maxSender, maxReceiver])
+            .nice()
             .range([innerHeight, 0]);
 
-        // 添加 X 轴：位于 y= yScale(0) 处
+        // 6. 绘制坐标轴
         chartGroup.append('g')
-            .attr('transform', `translate(0, ${yScale(0)})`)
+            .attr('transform', `translate(0,${yScale(0)})`)
             .call(d3.axisBottom(xScale).tickFormat(() => ''));
 
-        // 添加 Y 轴
-        chartGroup.append('g').call(d3.axisLeft(yScale));
+        chartGroup.append('g')
+            .call(d3.axisLeft(yScale));
 
-        // 绘制 receiver bar（正方向）
-        chartGroup.selectAll('.bar-receiver')
-            .data(data)
-            .enter()
-            .append('rect')
-            .attr('class', 'bar-receiver')
-            .attr('x', d => xScale(d.id))
-            .attr('y', d => yScale(d.receiver))
-            .attr('width', xScale.bandwidth())
-            .attr('height', d => yScale(0) - yScale(d.receiver))
-            .attr('fill', '#4CAF50');
+        // 7. 绘制接收方堆叠条
+        chartGroup.selectAll('.receiver-layer')
+            .data(receiverStack)
+            .enter().append('g')
+            .attr('class', 'receiver-layer')
+            .attr('fill', d => colorScale(d.key))
+            .selectAll('rect')
+            .data(d => d)
+            .enter().append('rect')
+            .attr('x', d => xScale(d.data.id))
+            .attr('y', d => yScale(d[1]))
+            .attr('height', d => yScale(d[0]) - yScale(d[1]))
+            .attr('width', xScale.bandwidth());
 
-        // 绘制 sender bar（负方向）
-        chartGroup.selectAll('.bar-sender')
-            .data(data)
-            .enter()
-            .append('rect')
-            .attr('class', 'bar-sender')
-            .attr('x', d => xScale(d.id))
-            .attr('y', yScale(0))
-            .attr('width', xScale.bandwidth())
-            .attr('height', d => yScale(d.sender) - yScale(0))
-            .attr('fill', '#F44336');
+        // 8. 绘制发送方堆叠条
+        chartGroup.selectAll('.sender-layer')
+            .data(senderStack)
+            .enter().append('g')
+            .attr('class', 'sender-layer')
+            .attr('fill', d => colorScale(d.key))
+            .selectAll('rect')
+            .data(d => d)
+            .enter().append('rect')
+            .attr('x', d => xScale(d.data.id))
+            .attr('y', d => yScale(d[0]))
+            .attr('height', d => yScale(d[1]) - yScale(d[0]))
+            .attr('width', xScale.bandwidth());
 
-        // 可添加数值标签
-        /* chartGroup.selectAll('.label-receiver')
-              .data(data)
-              .enter()
-              .append('text')
-              .attr('class', 'label-receiver')
-              .attr('x', d => xScale(d.id) + xScale.bandwidth() / 2)
-              .attr('y', d => yScale(d.receiver) - 5)
-              .attr('text-anchor', 'middle')
-              .text(d => d.receiver);
-    
-           chartGroup.selectAll('.label-sender')
-              .data(data)
-              .enter()
-              .append('text')
-              .attr('class', 'label-sender')
-              .attr('x', d => xScale(d.id) + xScale.bandwidth() / 2)
-              .attr('y', d => yScale(d.sender) + 15)
-              .attr('text-anchor', 'middle')
-              .text(d => -d.sender);
-        */
+        // 9. 添加图例
+        const legend = svg.append('g')
+            .attr('font-family', 'sans-serif')
+            .attr('font-size', 10)
+            .attr('text-anchor', 'start')
+            .selectAll('g')
+            .data(regionKeys)
+            .enter().append('g')
+            .attr('transform', (d, i) => `translate(30,${i * 20})`);
+
+        legend.append('rect')
+            .attr('x', dimensions.width - 120)
+            .attr('width', 19)
+            .attr('height', 19)
+            .attr('fill', colorScale);
+
+        legend.append('text')
+            .attr('x', dimensions.width - 96)
+            .attr('y', 9.5)
+            .attr('dy', '0.32em')
+            .text(d => `${d}`);
+
     }, [cell2cellData, dimensions]);
 
     return (
-        // 外层容器用 ref 获得尺寸信息
         <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
             <svg ref={svgRef}></svg>
         </div>
