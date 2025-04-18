@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cluster Bubble Chart</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            margin-top: 20px;
+        }
+        svg {
+            border: 1px solid #ccc;
+            display: block; /* Helps with layout */
+            margin: auto; /* Center SVG if container is wider */
+        }
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            padding: 6px;
+            font: 12px sans-serif;
+            background: lightsteelblue;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none; /* Don't capture mouse events */
+            opacity: 0;
+            white-space: pre-line; /* Allow newlines in tooltip */
+        }
+        .legend-title {
+            font-weight: bold;
+            font-size: 14px;
+            text-anchor: start;
+        }
+        .legend-item text {
+            font-size: 12px;
+            alignment-baseline: middle;
+        }
+    </style>
+</head>
+<body>
+    <h1>Cluster-Component Bubble Chart (D3.js)</h1>
+    <!-- Container for the SVG chart -->
+    <div id="chart"></div>
+    <!-- Load D3.js library -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Load our plotting script -->
+    <script src="plot.js"></script>
+</body>
+</html> 
