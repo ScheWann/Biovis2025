@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"name": "Biovis2025",
+			"path": ".."
+		},
+		{
+			"name": "data2",
+			"path": "C:/Users/hosse/OneDrive/Desktop/data2"
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "Biovis2025"
+	}
+}
