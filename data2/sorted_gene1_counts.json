@@ -1,0 +1,121 @@
+{
+  "component_1": {
+    "SLC12A2": 158,
+    "SEMG1": 72,
+    "FHL2": 56,
+    "CPE": 50,
+    "MYL9": 45,
+    "IGHA2": 39,
+    "MANF": 33,
+    "IGKC": 23,
+    "MCAM": 22
+  },
+  "component_2": {
+    "CD81": 233,
+    "PDGFRA": 226,
+    "PDPN": 137,
+    "COL3A1": 135,
+    "JUNB": 102,
+    "CPE": 50,
+    "COL5A2": 36,
+    "MANF": 33,
+    "CREM": 31,
+    "S100A4": 25
+  },
+  "component_3": {
+    "CD74": 360,
+    "CD81": 233,
+    "PDGFRA": 226,
+    "CD24": 132,
+    "JUNB": 102,
+    "ENPP2": 73,
+    "KLF5": 73,
+    "S100A4": 25,
+    "MCAM": 22,
+    "LRIG1": 20
+  },
+  "component_4": {
+    "COL1A1": 147,
+    "CD55": 122,
+    "ACTA2": 87,
+    "AQP3": 71,
+    "EHD2": 63,
+    "MYL9": 45,
+    "IGHM": 43,
+    "COL5A2": 36,
+    "NUCB2": 13,
+    "CD52": 7
+  },
+  "component_5": {
+    "CD55": 122,
+    "VCAM1": 113,
+    "ITGA1": 101,
+    "CD34": 100,
+    "ACTA2": 87,
+    "PECAM1": 80,
+    "CPE": 50,
+    "BACE2": 39,
+    "MCAM": 22,
+    "NUCB2": 13
+  },
+  "component_6": {
+    "KDR": 259,
+    "PDPN": 137,
+    "JUNB": 102,
+    "ENPP2": 73,
+    "MYLK": 70,
+    "SNCG": 52,
+    "CPE": 50,
+    "S100A4": 25,
+    "BGN": 21,
+    "SPCS3": 21
+  },
+  "component_7": {
+    "CDH5": 180,
+    "CD55": 122,
+    "JUNB": 102,
+    "ACTA2": 87,
+    "EHD2": 63,
+    "CPE": 50,
+    "BACE2": 39,
+    "VWF": 31,
+    "S100A4": 25,
+    "MCAM": 22
+  },
+  "component_8": {
+    "SLC12A2": 158,
+    "JUNB": 102,
+    "ACTA2": 87,
+    "MYLK": 70,
+    "PROM1": 66,
+    "PDHA1": 44,
+    "EPCAM": 39,
+    "ELF3": 25,
+    "KRT7": 18,
+    "EHF": 11
+  },
+  "component_9": {
+    "KDR": 259,
+    "ENG": 198,
+    "ITGA1": 101,
+    "ENPP2": 73,
+    "EHD2": 63,
+    "FHL2": 56,
+    "SNCG": 52,
+    "CPE": 50,
+    "BACE2": 39,
+    "MANF": 33
+  },
+  "component_10": {
+    "TEK": 184,
+    "CDH5": 180,
+    "JUNB": 102,
+    "CD34": 100,
+    "ACTA2": 87,
+    "ENPP2": 73,
+    "EHD2": 63,
+    "FABP4": 54,
+    "MYL9": 45,
+    "MCAM": 22
+  }
+}

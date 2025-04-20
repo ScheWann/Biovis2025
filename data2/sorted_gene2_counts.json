@@ -1,0 +1,62 @@
+{
+  "component_1": {
+    "PDGFRA": 226,
+    "ENG": 198,
+    "COL1A1": 147,
+    "PDPN": 137,
+    "COL3A1": 135,
+    "CD55": 122,
+    "COL5A2": 36,
+    "S100A4": 25,
+    "BGN": 21,
+    "TFF3": 16
+  },
+  "component_2": {
+    "ENG": 198,
+    "COL3A1": 135,
+    "JUNB": 102,
+    "EHD2": 63,
+    "FABP4": 54,
+    "BACE2": 39,
+    "COL5A2": 36,
+    "CREM": 31,
+    "VWF": 31,
+    "BGN": 21
+  },
+  "component_3": {
+    "ITGA1": 101,
+    "PECAM1": 80,
+    "ENPP2": 73,
+    "MYLK": 70,
+    "EHD2": 63,
+    "SNCG": 52,
+    "MYL9": 45,
+    "S100A4": 25,
+    "MCAM": 22,
+    "BGN": 21
+  },
+  "component_4": {
+    "CD74": 360,
+    "ENG": 198,
+    "CDH5": 180,
+    "CD34": 100,
+    "PECAM1": 80,
+    "ENPP2": 73,
+    "FABP4": 54,
+    "VWF": 31,
+    "S100A4": 25,
+    "BGN": 21
+  },
+  "component_5": {
+    "JUNB": 102,
+    "ITGA1": 101,
+    "ACTA2": 87,
+    "MYLK": 70,
+    "EHD2": 63,
+    "SNCG": 52,
+    "CPE": 50,
+    "S100A4": 25,
+    "MCAM": 22,
+    "BGN": 21
+  }
+}
