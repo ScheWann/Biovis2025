@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Select, Spin, message, Button, Splitter } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
-import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
+// import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
+import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer2';
 import { Cell2CellViewer } from './components/Cell2CellViewer';
 import { Cell2CellViewer2 } from './components/Cell2CellViewer2';
 import { GeneExpressionViewer } from './components/GeneExpressionViewer';
@@ -149,10 +150,13 @@ function App() {
                     {/* <GeneExpressionViewer
                       data={selectedRegionGeneExpressionData}
                     /> */}
-                    <NMFGOExpressionViewer 
-                      NMFGOData={NMFGOData}
-                      NMFGODataLoading={NMFGODataLoading}
+                    <NMFGOExpressionViewer
+                      regions={regions} 
                       setNMFclusterCells={setNMFclusterCells}
+                      setNMFGOData={setNMFGOData}
+                      NMFGOData={NMFGOData}
+                      // NMFGODataLoading={NMFGODataLoading}
+                      // setNMFclusterCells={setNMFclusterCells}
                     />
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="33%" min="20%" max="45%" style={{ borderBottom: "1px solid #e8e8e8" }}>

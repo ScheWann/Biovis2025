@@ -21,17 +21,13 @@ from process import (
     # get_gene_list,
     # get_specific_gene_expression
 )
-import matplotlib.pyplot as plt
-import seaborn as sns
-import scanpy as sc
 import sys
 from functools import lru_cache
-import time
 
 # Add the Python directory to the system path for importing DEAPLOG module
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'Python'))
 
-from DEAPLOG import run_deaplog_analysis
+# from DEAPLOG import run_deaplog_analysis
 
 # Define workspace root for file paths
 workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -121,54 +117,54 @@ def get_cached_deaplog_results(sample_percent, step):
         print(f"Error: {error_msg}")
         return {'error': error_msg}, 500
 
-@app.route('/test-image')
-def test_image():
-    """Test endpoint to check available images in the figures directory"""
-    try:
-        # Get the absolute path to the figures directory
-        figures_dir = os.path.join(workspace_root, 'Python', 'figures')
-        print(f"Checking figures directory: {figures_dir}")
+# @app.route('/test-image')
+# def test_image():
+#     """Test endpoint to check available images in the figures directory"""
+#     try:
+#         # Get the absolute path to the figures directory
+#         figures_dir = os.path.join(workspace_root, 'Python', 'figures')
+#         print(f"Checking figures directory: {figures_dir}")
         
-        # Check if the directory exists
-        if not os.path.exists(figures_dir):
-            print(f"Figures directory not found: {figures_dir}")
-            return jsonify({'images': []})
+#         # Check if the directory exists
+#         if not os.path.exists(figures_dir):
+#             print(f"Figures directory not found: {figures_dir}")
+#             return jsonify({'images': []})
             
-        # List all PNG files in the directory
-        images = [f for f in os.listdir(figures_dir) if f.endswith('.png')]
-        print(f"Found images: {images}")
+#         # List all PNG files in the directory
+#         images = [f for f in os.listdir(figures_dir) if f.endswith('.png')]
+#         print(f"Found images: {images}")
         
-        return jsonify({'images': images})
-    except Exception as e:
-        print(f"Error listing images: {str(e)}")
-        return jsonify({'images': []})
+#         return jsonify({'images': images})
+#     except Exception as e:
+#         print(f"Error listing images: {str(e)}")
+#         return jsonify({'images': []})
 
-@app.route('/figures/<path:filename>')
-def serve_figure(filename):
-    """Serve figure files from the figures directory"""
-    try:
-        # Get the absolute path to the figures directory
-        figures_dir = os.path.join(workspace_root, 'Python', 'figures')
-        print(f"Serving figure from: {figures_dir}")
+# @app.route('/figures/<path:filename>')
+# def serve_figure(filename):
+#     """Serve figure files from the figures directory"""
+#     try:
+#         # Get the absolute path to the figures directory
+#         figures_dir = os.path.join(workspace_root, 'Python', 'figures')
+#         print(f"Serving figure from: {figures_dir}")
         
-        # Construct the full path to the requested file
-        file_path = os.path.join(figures_dir, filename)
-        print(f"Requested file path: {file_path}")
+#         # Construct the full path to the requested file
+#         file_path = os.path.join(figures_dir, filename)
+#         print(f"Requested file path: {file_path}")
         
-        # Check if the file exists
-        if not os.path.exists(file_path):
-            print(f"File not found: {file_path}")
-            return jsonify({'error': 'Image not found'}), 404
+#         # Check if the file exists
+#         if not os.path.exists(file_path):
+#             print(f"File not found: {file_path}")
+#             return jsonify({'error': 'Image not found'}), 404
             
-        # Serve the file with no caching
-        response = send_file(file_path)
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-        return response
-    except Exception as e:
-        print(f"Error serving figure: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+#         # Serve the file with no caching
+#         response = send_file(file_path)
+#         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+#         response.headers['Pragma'] = 'no-cache'
+#         response.headers['Expires'] = '0'
+#         return response
+#     except Exception as e:
+#         print(f"Error serving figure: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
 @app.route('/', methods=['GET'])
 def get_helloword():
@@ -252,20 +248,20 @@ def get_selected_region_data_route():
 @app.route('/get_NMF_GO_data', methods=['POST'])
 def get_NMF_GO_data_route():
     """Get NMF GO data"""
-    sample_id = request.json['sample_id']
-    cell_list = request.json['cell_list']
-    return jsonify(get_NMF_GO_data(sample_id, cell_list))
+    regions = request.json['regions']
+    n_component = request.json['n_component']
+    resolution = request.json['resolution']
+    return jsonify(get_NMF_GO_data(regions, n_component, resolution))
 
 @app.route('/get_cell_cell_interaction_data', methods=['POST'])
 def get_cell_cell_interaction_data_route():
     """Get cell-cell interaction data"""
-    sample_id = request.json['sample_id']
+    regions = request.json['regions']
     receiver = request.json['receiver']
     sender = request.json['sender']
     receiverGene = request.json['receiverGene']
     senderGene = request.json['senderGene']
-    cellIds = request.json['cellIds']
-    return jsonify(get_cell_cell_interaction_data(sample_id, receiver, sender, receiverGene, senderGene, cellIds))
+    return jsonify(get_cell_cell_interaction_data(regions, receiver, sender, receiverGene, senderGene))
 
 #################### OLD CODE ####################
 @app.route('/get_um_positions_with_clusters', methods=['POST'])
@@ -323,64 +319,64 @@ def get_deaplog_results():
         print(f"Error: {error_msg}")
         return jsonify({'error': error_msg}), 500
 
-@app.route('/run_deaplog', methods=['POST'])
-def run_deaplog():
-    try:
-        # Get parameters from request
-        data = request.get_json()
-        sample_percent = float(data.get('sample_percent', 0.1))
+# @app.route('/run_deaplog', methods=['POST'])
+# def run_deaplog():
+#     try:
+#         # Get parameters from request
+#         data = request.get_json()
+#         sample_percent = float(data.get('sample_percent', 0.1))
         
-        # Run DEAPLOG analysis
-        results = run_deaplog_analysis(adata, sample_percent)
+#         # Run DEAPLOG analysis
+#         results = run_deaplog_analysis(adata, sample_percent)
         
-        # Save results to files
-        with open('static/deaplog_results.json', 'w') as f:
-            json.dump(results, f)
+#         # Save results to files
+#         with open('static/deaplog_results.json', 'w') as f:
+#             json.dump(results, f)
         
-        # Save UMAP plot
-        plt.figure(figsize=(10, 10))
-        sc.pl.umap(adata, color='leiden', save='_deaplog.png')
+#         # Save UMAP plot
+#         plt.figure(figsize=(10, 10))
+#         sc.pl.umap(adata, color='leiden', save='_deaplog.png')
         
-        # Save PAGA plot
-        plt.figure(figsize=(10, 10))
-        sc.pl.paga(adata, save='_deaplog.png')
+#         # Save PAGA plot
+#         plt.figure(figsize=(10, 10))
+#         sc.pl.paga(adata, save='_deaplog.png')
         
-        return jsonify({
-            'status': 'success',
-            'message': 'DEAPLOG analysis completed successfully',
-            'results': results
-        })
+#         return jsonify({
+#             'status': 'success',
+#             'message': 'DEAPLOG analysis completed successfully',
+#             'results': results
+#         })
         
-    except Exception as e:
-        print(f"Error in DEAPLOG analysis: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+#     except Exception as e:
+#         print(f"Error in DEAPLOG analysis: {str(e)}")
+#         return jsonify({
+#             'status': 'error',
+#             'message': str(e)
+#         }), 500
 
-@app.route('/api/analyze', methods=['POST'])
-def analyze():
-    """Run DEAPLOG analysis on the provided data"""
-    try:
-        # Get parameters from request
-        data = request.get_json()
-        data_path = data.get('data_path')
-        sample_percent = data.get('sample_percent')
+# @app.route('/api/analyze', methods=['POST'])
+# def analyze():
+#     """Run DEAPLOG analysis on the provided data"""
+#     try:
+#         # Get parameters from request
+#         data = request.get_json()
+#         data_path = data.get('data_path')
+#         sample_percent = data.get('sample_percent')
         
-        if not data_path:
-            return jsonify({'error': 'data_path is required'}), 400
+#         if not data_path:
+#             return jsonify({'error': 'data_path is required'}), 400
             
-        # Load data
-        adata = sc.read_h5ad(data_path)
-        rdata = adata.copy()
+#         # Load data
+#         adata = sc.read_h5ad(data_path)
+#         rdata = adata.copy()
         
-        # Run analysis
-        results = run_deaplog_analysis(rdata, adata, sample_percent)
+#         # Run analysis
+#         results = run_deaplog_analysis(rdata, adata, sample_percent)
         
-        return jsonify(results)
+#         return jsonify(results)
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5003)

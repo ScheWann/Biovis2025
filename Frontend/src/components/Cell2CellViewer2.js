@@ -2,13 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button, Select } from 'antd';
 import * as d3 from 'd3';
 
-// StackBarChart 组件：使用 d3 绘制堆积条形图，同时支持 svg 自适应父容器
 const StackBarChart = ({ cell2cellData }) => {
     const svgRef = useRef();
     const containerRef = useRef();
     const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
 
-    // 使用 ResizeObserver 监听父容器尺寸变化
     const resizeObserver = useRef(null);
 
     const observeResize = useCallback(() => {
@@ -34,17 +32,14 @@ const StackBarChart = ({ cell2cellData }) => {
     useEffect(() => {
         if (!cell2cellData || Object.keys(cell2cellData).length === 0) return;
 
-        // 获取所有区域key并排序
         const regionKeys = Object.keys(cell2cellData).sort();
         
-        // 1. 统计每个ID在不同区域的收发次数
         const counts = {};
         regionKeys.forEach(regionKey => {
             cell2cellData[regionKey].forEach(interaction => {
                 const receiverId = interaction.Receiver;
                 const senderId = interaction.Sender;
 
-                // 初始化数据结构
                 if (!counts[receiverId]) {
                     counts[receiverId] = { 
                         receiver: Object.fromEntries(regionKeys.map(k => [k, 0])),
@@ -58,33 +53,27 @@ const StackBarChart = ({ cell2cellData }) => {
                     };
                 }
 
-                // 累加计数
                 counts[receiverId].receiver[regionKey]++;
                 counts[senderId].sender[regionKey]++;
             });
         });
 
-        // 2. 构建数据集
         const data = Object.keys(counts).map(id => ({
             id,
             receiver: counts[id].receiver,
             sender: counts[id].sender
         }));
 
-        // 3. 创建颜色比例尺
         const colorScale = d3.scaleOrdinal()
             .domain(regionKeys)
             .range(d3.schemeCategory10);
 
-        // 清空SVG
         d3.select(svgRef.current).selectAll('*').remove();
 
-        // 4. 计算尺寸
         const margin = { top: 20, right: 20, bottom: 50, left: 50 };
         const innerWidth = dimensions.width - margin.left - margin.right;
         const innerHeight = dimensions.height - margin.top - margin.bottom;
 
-        // 创建SVG容器
         const svg = d3.select(svgRef.current)
             .attr('width', dimensions.width)
             .attr('height', dimensions.height)
@@ -93,26 +82,22 @@ const StackBarChart = ({ cell2cellData }) => {
         const chartGroup = svg.append('g')
             .attr('transform', `translate(${margin.left},${margin.top})`);
 
-        // 5. 创建比例尺
         const xScale = d3.scaleBand()
             .domain(data.map(d => d.id))
             .range([0, innerWidth])
             .padding(0.2);
 
-        // 创建堆叠生成器
         const stackGenerator = d3.stack()
             .keys(regionKeys);
 
-        // 生成收发数据的堆叠结构
         const receiverStack = stackGenerator
             .value((d, key) => d.receiver[key] || 0)
             (data);
 
         const senderStack = stackGenerator
-            .value((d, key) => -(d.sender[key] || 0)) // 发送方转为负值
+            .value((d, key) => -(d.sender[key] || 0))
             (data);
 
-        // 计算Y轴范围
         const maxReceiver = d3.max(receiverStack.flat(2));
         const maxSender = d3.max(senderStack.flat(2).map(Math.abs));
         const yScale = d3.scaleLinear()
@@ -120,7 +105,6 @@ const StackBarChart = ({ cell2cellData }) => {
             .nice()
             .range([innerHeight, 0]);
 
-        // 6. 绘制坐标轴
         chartGroup.append('g')
             .attr('transform', `translate(0,${yScale(0)})`)
             .call(d3.axisBottom(xScale).tickFormat(() => ''));
@@ -128,7 +112,6 @@ const StackBarChart = ({ cell2cellData }) => {
         chartGroup.append('g')
             .call(d3.axisLeft(yScale));
 
-        // 7. 绘制接收方堆叠条
         chartGroup.selectAll('.receiver-layer')
             .data(receiverStack)
             .enter().append('g')
@@ -142,7 +125,6 @@ const StackBarChart = ({ cell2cellData }) => {
             .attr('height', d => yScale(d[0]) - yScale(d[1]))
             .attr('width', xScale.bandwidth());
 
-        // 8. 绘制发送方堆叠条
         chartGroup.selectAll('.sender-layer')
             .data(senderStack)
             .enter().append('g')
@@ -156,7 +138,6 @@ const StackBarChart = ({ cell2cellData }) => {
             .attr('height', d => yScale(d[1]) - yScale(d[0]))
             .attr('width', xScale.bandwidth());
 
-        // 9. 添加图例
         const legend = svg.append('g')
             .attr('font-family', 'sans-serif')
             .attr('font-size', 10)
@@ -187,7 +168,6 @@ const StackBarChart = ({ cell2cellData }) => {
     );
 };
 
-// Cell2CellViewer2 组件：参数选择与数据请求
 export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) => {
     const [regionOptions, setRegionOptions] = useState([]);
     const [selectedRegion, setSelectedRegion] = useState([]);
@@ -198,7 +178,6 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
     const [receiverGene, setReceiverGenes] = useState(null);
     const [senderGene, setSenderGenes] = useState(null);
 
-    // 根据样本名称请求细胞类型列表
     const fetchCellTypeList = (sample_name) => {
         fetch('/get_cell_types', {
             method: 'POST',
@@ -211,7 +190,6 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
             });
     };
 
-    // 根据样本名称请求基因列表
     const fetchGeneList = (sample_name) => {
         fetch('/get_cell2cell_gene_list', {
             method: 'POST',
@@ -224,7 +202,6 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
             });
     };
 
-    // 根据选中的区域构建参数
     const getSelectedRegionsInfo = () => {
         const params = {};
         selectedRegion.forEach(regionId => {
@@ -239,7 +216,6 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
         return params;
     };
 
-    // 确认参数并请求 cell2cell 数据
     const confirmCell2cellparameters = () => {
         if (!receiver || !sender || !receiverGene || !senderGene) {
             alert('Please select all parameters');
@@ -265,7 +241,6 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
             });
     };
 
-    // 初始化区域下拉选项
     useEffect(() => {
         regions.forEach(region => {
             setRegionOptions(prevOptions => {
@@ -275,7 +250,6 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
         });
     }, [regions]);
 
-    // 当选中区域发生变化时，请求细胞类型和基因数据
     useEffect(() => {
         if (selectedRegion.length > 0) {
             const selectedRegions = regions.filter(region => selectedRegion.includes(region.id));
@@ -287,7 +261,6 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
         }
     }, [selectedRegion, regions]);
 
-    // 简单的筛选函数（不区分大小写）
     const filterSelect = (input, option) =>
         option?.label?.toLowerCase().includes(input.toLowerCase());
 
@@ -296,7 +269,6 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
             <div style={{ margin: 5, fontSize: 14, fontWeight: 'bold' }}>
                 Cell to Cell Interaction Viewer
             </div>
-            {/* 参数选择区 */}
             <div
                 style={{
                     width: '100%',
@@ -319,7 +291,7 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
                 />
                 <Select
                     showSearch
-                    style={{ width: 120 }}
+                    style={{ width: 80 }}
                     size="small"
                     value={receiver}
                     options={cellTypeList}
@@ -329,7 +301,7 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
                 />
                 <Select
                     showSearch
-                    style={{ width: 100 }}
+                    style={{ width: 80 }}
                     size="small"
                     value={sender}
                     options={cellTypeList}
@@ -339,7 +311,7 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
                 />
                 <Select
                     showSearch
-                    style={{ width: 100 }}
+                    style={{ width: 80 }}
                     size="small"
                     value={receiverGene}
                     options={genelist}
@@ -349,7 +321,7 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
                 />
                 <Select
                     showSearch
-                    style={{ width: 100 }}
+                    style={{ width: 80 }}
                     size="small"
                     value={senderGene}
                     options={genelist}
@@ -357,12 +329,11 @@ export const Cell2CellViewer2 = ({ regions, cell2cellData, setCell2cellData }) =
                     placeholder="Select Sender Gene"
                     filterOption={filterSelect}
                 />
-                <Button style={{ width: 100 }} size="small" onClick={confirmCell2cellparameters}>
+                <Button style={{ width: 80 }} size="small" onClick={confirmCell2cellparameters}>
                     Confirm
                 </Button>
             </div>
 
-            {/* 绘制图表 */}
             <div style={{ marginTop: 20, width: '100%', height: '80%' }}>
                 {cell2cellData && Object.keys(cell2cellData).length > 0 ? (
                     <StackBarChart cell2cellData={cell2cellData} />
