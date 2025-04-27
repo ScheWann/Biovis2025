@@ -8,9 +8,10 @@ from scipy.optimize import fsolve
 import anndata as ad
 import scanpy as sc
 from PIL import Image
+import shutil
 import tifffile as tifi
 import squidpy as sq
-import gseapy as gp
+import gseapy as gp, enrich
 from scipy.sparse import issparse
 from sklearn.decomposition import NMF
 from scipy.cluster.hierarchy import linkage, cophenet
@@ -366,212 +367,364 @@ def get_selected_region_data(sample_id, cell_ids):
     }
 
 
-def get_NMF_GO_data(sample_id, cell_list):
-    # finding the best n_neighbors for leiden clustering
-    def compute_silhouette_scores(adata, n_neighbors_list=[5, 10, 15, 20, 30]):
-        silhouette_scores = {}
+# def get_NMF_GO_data(sample_id, cell_list):
+#     # finding the best n_neighbors for leiden clustering
+#     def compute_silhouette_scores(adata, n_neighbors_list=[5, 10, 15, 20, 30]):
+#         silhouette_scores = {}
 
-        for n_neighbors in n_neighbors_list:
-            print(f"Trying n_neighbors = {n_neighbors}")
-            # calculate neighbors
-            sc.pp.neighbors(adata, use_rep='X_nmf', n_neighbors=n_neighbors)
+#         for n_neighbors in n_neighbors_list:
+#             print(f"Trying n_neighbors = {n_neighbors}")
+#             # calculate neighbors
+#             sc.pp.neighbors(adata, use_rep='X_nmf', n_neighbors=n_neighbors)
 
-            # leiden clustering
-            sc.tl.leiden(adata, resolution=0.5)
+#             # leiden clustering
+#             sc.tl.leiden(adata, resolution=0.5)
             
-            # calculate silhouette score
-            labels = adata.obs['leiden'].astype(int)
-            silhouette_avg = silhouette_score(adata.obsm['X_nmf'], labels)
+#             # calculate silhouette score
+#             labels = adata.obs['leiden'].astype(int)
+#             silhouette_avg = silhouette_score(adata.obsm['X_nmf'], labels)
 
-            silhouette_scores[n_neighbors] = silhouette_avg
-            print(f"Silhouette score for n_neighbors={n_neighbors}: {silhouette_avg:.3f}")
+#             silhouette_scores[n_neighbors] = silhouette_avg
+#             print(f"Silhouette score for n_neighbors={n_neighbors}: {silhouette_avg:.3f}")
         
-        return silhouette_scores
+#         return silhouette_scores
 
-    # compute cophenetic correlation method
-    def compute_cophenetic(W):
-        try:
-            dist = pdist(W.T)
-            linkage_matrix = linkage(dist, method='average')
-            coph_corr, _ = cophenet(linkage_matrix, dist)
-            return coph_corr
-        except Exception:
-            return np.nan
+#     # compute cophenetic correlation method
+#     def compute_cophenetic(W):
+#         try:
+#             dist = pdist(W.T)
+#             linkage_matrix = linkage(dist, method='average')
+#             coph_corr, _ = cophenet(linkage_matrix, dist)
+#             return coph_corr
+#         except Exception:
+#             return np.nan
 
-    # finding the best k for NMF
-    def auto_select_nmf_k_from_expr(expr_matrix, k_range=range(2, 21), n_repeats=5, random_state=42, coph_threshold=0.98):
-        results = []
+#     # finding the best k for NMF
+#     def auto_select_nmf_k_from_expr(expr_matrix, k_range=range(2, 21), n_repeats=5, random_state=42, coph_threshold=0.98):
+#         results = []
 
-        for k in k_range:
-            cophs = []
-            errors = []
-            for i in range(n_repeats):
-                nmf = NMF(n_components=k, init='nndsvda', random_state=random_state+i, max_iter=1000)
-                W = nmf.fit_transform(expr_matrix)
-                H = nmf.components_
-                recon = np.dot(W, H)
-                error = np.linalg.norm(expr_matrix - recon)
-                coph = compute_cophenetic(W)
-                errors.append(error)
-                cophs.append(coph)
+#         for k in k_range:
+#             cophs = []
+#             errors = []
+#             for i in range(n_repeats):
+#                 nmf = NMF(n_components=k, init='nndsvda', random_state=random_state+i, max_iter=1000)
+#                 W = nmf.fit_transform(expr_matrix)
+#                 H = nmf.components_
+#                 recon = np.dot(W, H)
+#                 error = np.linalg.norm(expr_matrix - recon)
+#                 coph = compute_cophenetic(W)
+#                 errors.append(error)
+#                 cophs.append(coph)
 
-            avg_coph = np.nanmean(cophs)
-            avg_error = np.mean(errors)
-            results.append((k, avg_coph, avg_error))
+#             avg_coph = np.nanmean(cophs)
+#             avg_error = np.mean(errors)
+#             results.append((k, avg_coph, avg_error))
 
-        # filtered cophenetic equals to nan
-        valid_results = [(k, coph) for k, coph, _ in results if not np.isnan(coph)]
+#         # filtered cophenetic equals to nan
+#         valid_results = [(k, coph) for k, coph, _ in results if not np.isnan(coph)]
 
-        # choose the min k with the first cophenetic >= 0.97
-        for k, coph in valid_results:
-            if coph >= coph_threshold:
-                return k, results
+#         # choose the min k with the first cophenetic >= 0.97
+#         for k, coph in valid_results:
+#             if coph >= coph_threshold:
+#                 return k, results
 
-        best_k = max(valid_results, key=lambda x: x[1])[0]
-        return best_k, results
+#         best_k = max(valid_results, key=lambda x: x[1])[0]
+#         return best_k, results
 
-    # get top genes of each component(NMF)
+#     # get top genes of each component(NMF)
+#     def get_top_genes(H, gene_names, top_n=10):
+#         top_genes = {}
+#         for i, comp in enumerate(H):
+#             # getting the indices of the top genes
+#             top_idx = np.argsort(comp)[::-1][:top_n]
+#             top_genes[f"Component_{i+1}"] = [gene_names[j] for j in top_idx]
+#         return top_genes
+
+#     if sample_id not in SAMPLES:
+#         raise ValueError(f"Sample ID '{sample_id}' not found in SAMPLES.")
+
+#     # ========== Load the data for the specified sample ID ========== 
+#     adata_path = SAMPLES[sample_id]["adata"]
+#     adata = sc.read_h5ad(adata_path)
+
+#     adata_region = adata[cell_list, :].copy()
+#     expr_matrix = adata_region.X
+#     if not isinstance(expr_matrix, np.ndarray):
+#         expr_matrix = expr_matrix.toarray()
+
+#     # ========== find the best component number for NMF ==========
+#     best_k, k_results = auto_select_nmf_k_from_expr(expr_matrix)
+
+#     for k, coph, err in k_results:
+#         print(f"k={k}, Cophenetic={coph:.3f}, Error={err:.2f}")
+
+#     # ========== NMF ==========
+#     n_components = best_k
+#     nmf_model = NMF(n_components=n_components, init='nndsvda', random_state=42)
+#     W = nmf_model.fit_transform(expr_matrix)
+#     H = nmf_model.components_ 
+
+#     # ========== clustering NMF result(M) ==========
+#     adata_region.obsm['X_nmf'] = W
+#     sil_scores = compute_silhouette_scores(adata_region, n_neighbors_list=[5, 10, 15, 20, 30])
+
+#     print("\nSilhouette scores for different n_neighbors:")
+#     for n, score in sil_scores.items():
+#         print(f"n_neighbors = {n}, silhouette score = {score:.3f}")
+
+#     # find the best n_neighbors based on silhouette score
+#     best_n_neighbors = max(sil_scores, key=sil_scores.get)
+#     print(f"\nBest n_neighbors based on silhouette score: {best_n_neighbors}")
+
+#     sc.pp.neighbors(adata_region, use_rep='X_nmf', n_neighbors=best_n_neighbors)
+#     sc.tl.leiden(adata_region, resolution=0.1)
+
+#     clusters = adata_region.obs['leiden']
+
+#     # convert W to a DataFrame for easier manipulation
+#     df_W = pd.DataFrame(W, index=adata_region.obs_names,
+#                         columns=[f"Component_{i+1}" for i in range(W.shape[1])])
+#     df_W["cluster"] = clusters.values
+
+#     # calculate the average activation of each NMF component for each cluster
+#     cluster_means = df_W.groupby("cluster").mean()
+
+#     # each cluster's cell ids
+#     cell_ids_by_cluster = {
+#         cluster: adata_region.obs.index[adata_region.obs['leiden'] == cluster].tolist()
+#         for cluster in adata_region.obs['leiden'].unique()
+#     }
+
+#     # ========== Go analysis based on the result of NMF(H) ==========
+#     gene_names = adata.var_names.tolist()
+#     top_genes = get_top_genes(H, gene_names, top_n=10)
+
+#     go_results = {}
+
+#     for comp, genes in top_genes.items():
+#         print(f"analyzing {comp} ...")
+#         enr = gp.enrich(
+#             gene_list=genes,
+#             gene_sets="../Data/c5.go.v2024.1.Hs.symbols.gmt",
+#             outdir=None,
+#             cutoff=0.5,
+#         )
+
+#         filtered = enr.results[enr.results["Adjusted P-value"] < 0.05]
+#         filtered = filtered.sort_values(by="Combined Score", ascending=False)
+#         filtered_top5 = filtered.head(5)
+#         if not filtered.empty:
+#             go_results[comp] = filtered_top5.to_dict(orient="records")
+#         else:
+#             print(f"{comp} no GO results found.")
+    
+#     return {
+#         "NMF_matrix": W.tolist(),
+#         "GO_results": go_results,
+#         "cluster_means": cluster_means.to_dict(orient="records"),
+#         "cell_ids_by_cluster": cell_ids_by_cluster,
+#     }
+def get_NMF_GO_data(regions, n_component, resolution):
     def get_top_genes(H, gene_names, top_n=10):
         top_genes = {}
         for i, comp in enumerate(H):
-            # getting the indices of the top genes
             top_idx = np.argsort(comp)[::-1][:top_n]
             top_genes[f"Component_{i+1}"] = [gene_names[j] for j in top_idx]
         return top_genes
 
-    if sample_id not in SAMPLES:
-        raise ValueError(f"Sample ID '{sample_id}' not found in SAMPLES.")
+    sankey_nodes = []
+    sankey_links = []
+    GO_results = {}
 
-    # ========== Load the data for the specified sample ID ========== 
-    adata_path = SAMPLES[sample_id]["adata"]
-    adata = sc.read_h5ad(adata_path)
+    node_ids = {}
 
-    adata_region = adata[cell_list, :].copy()
-    expr_matrix = adata_region.X
-    if not isinstance(expr_matrix, np.ndarray):
-        expr_matrix = expr_matrix.toarray()
+    for region_name, region_info in regions.items():
+        sample_id = region_info["sampleid"]
+        cell_list = region_info["cell_list"]
 
-    # ========== find the best component number for NMF ==========
-    best_k, k_results = auto_select_nmf_k_from_expr(expr_matrix)
+        if sample_id not in SAMPLES:
+            raise ValueError(f"Sample ID '{sample_id}' not found in SAMPLES.")
+        adata_path = SAMPLES[sample_id]["adata"]
+        adata = sc.read_h5ad(adata_path)
 
-    for k, coph, err in k_results:
-        print(f"k={k}, Cophenetic={coph:.3f}, Error={err:.2f}")
+        adata_region = adata[cell_list, :].copy()
+        expr_matrix = adata_region.X
+        if not isinstance(expr_matrix, np.ndarray):
+            expr_matrix = expr_matrix.toarray()
 
-    # ========== NMF ==========
-    n_components = best_k
-    nmf_model = NMF(n_components=n_components, init='nndsvda', random_state=42)
-    W = nmf_model.fit_transform(expr_matrix)
-    H = nmf_model.components_ 
+        # ======== NMF ========
+        nmf_model = NMF(n_components=n_component, init='nndsvda', random_state=42, max_iter=1000)
+        W = nmf_model.fit_transform(expr_matrix)
+        H = nmf_model.components_
 
-    # ========== clustering NMF result(M) ==========
-    adata_region.obsm['X_nmf'] = W
-    sil_scores = compute_silhouette_scores(adata_region, n_neighbors_list=[5, 10, 15, 20, 30])
+        # Normalize W
+        W_norm = W / np.clip(W.sum(axis=1, keepdims=True), a_min=1e-10, a_max=None)
 
-    print("\nSilhouette scores for different n_neighbors:")
-    for n, score in sil_scores.items():
-        print(f"n_neighbors = {n}, silhouette score = {score:.3f}")
+        adata_region.obsm['X_nmf'] = W_norm
 
-    # find the best n_neighbors based on silhouette score
-    best_n_neighbors = max(sil_scores, key=sil_scores.get)
-    print(f"\nBest n_neighbors based on silhouette score: {best_n_neighbors}")
+        # ======== cluster ========
+        sc.pp.neighbors(adata_region, use_rep='X_nmf', n_neighbors=30, metric='euclidean')
+        sc.tl.leiden(adata_region, resolution=resolution)
+        clusters = adata_region.obs['leiden']
 
-    sc.pp.neighbors(adata_region, use_rep='X_nmf', n_neighbors=best_n_neighbors)
-    sc.tl.leiden(adata_region, resolution=0.1)
+        comp_names = [f"Component_{i+1}" for i in range(n_component)]
+        df_W = pd.DataFrame(W_norm, index=adata_region.obs_names, columns=comp_names)
+        df_W["cluster"] = clusters.values
+        
+        cluster_means = df_W.groupby("cluster").mean()
+        cell_counts = df_W.groupby("cluster").size()
 
-    clusters = adata_region.obs['leiden']
+        # ======== GO analysis ========
+        gene_names = adata_region.var_names.tolist()
+        top_genes = get_top_genes(H, gene_names, top_n=10)
+        region_GO = {}
+        for comp, genes in top_genes.items():
+            print(f"Region {region_name}: analyzing {comp} ...")
+            enr = enrich(
+                gene_list=genes,
+                gene_sets="../Data/c5.go.v2024.1.Hs.symbols.gmt",
+                outdir=None,
+                cutoff=0.5,
+            )
+            filtered = enr.results[enr.results["Adjusted P-value"] < 0.05]
+            filtered = filtered.sort_values(by="Combined Score", ascending=False)
+            filtered_top5 = filtered.head(5)
+            if not filtered.empty:
+                region_GO[comp] = filtered_top5.to_dict(orient="records")
+            else:
+                print(f"Region {region_name}: {comp} no GO results found.")
+        GO_results[region_name] = region_GO
 
-    # convert W to a DataFrame for easier manipulation
-    df_W = pd.DataFrame(W, index=adata_region.obs_names,
-                        columns=[f"Component_{i+1}" for i in range(W.shape[1])])
-    df_W["cluster"] = clusters.values
+        # regions nodes
+        region_node_id = f"region_{region_name}"
+        sankey_nodes.append({
+            "id": region_node_id,
+            "name": region_name,
+            "type": "region"
+        })
+        node_ids[region_node_id] = region_node_id
 
-    # calculate the average activation of each NMF component for each cluster
-    cluster_means = df_W.groupby("cluster").mean()
+        # cluster nodes
+        for cluster in clusters.unique():
+            cluster_node_id = f"cluster_{region_name}_{cluster}"
+            sankey_nodes.append({
+                "id": cluster_node_id,
+                "name": f"Cluster {cluster}",
+                "type": "cluster",
+                "region": region_name
+            })
+            node_ids[cluster_node_id] = cluster_node_id
 
-    # each cluster's cell ids
-    cell_ids_by_cluster = {
-        cluster: adata_region.obs.index[adata_region.obs['leiden'] == cluster].tolist()
-        for cluster in adata_region.obs['leiden'].unique()
-    }
+            count = int(cell_counts.loc[cluster])
+            sankey_links.append({
+                "source": region_node_id,
+                "target": cluster_node_id,
+                "value": count
+            })
 
-    # ========== Go analysis based on the result of NMF(H) ==========
-    gene_names = adata.var_names.tolist()
-    top_genes = get_top_genes(H, gene_names, top_n=10)
+        # component nodes
+        for i in range(n_component):
+            comp_label = f"Component_{i+1}"
+            comp_node_id = f"comp_{region_name}_{comp_label}"
+            sankey_nodes.append({
+                "id": comp_node_id,
+                "name": comp_label,
+                "type": "component",
+                "region": region_name
+            })
+            node_ids[comp_node_id] = comp_node_id
 
-    go_results = {}
+        # connections between clusters and components(weights are the average activation of each component in the cluster * cell count)
+        for cluster in clusters.unique():
+            cluster_node_id = f"cluster_{region_name}_{cluster}"
+            count = int(cell_counts.loc[cluster])
+            for comp_label in comp_names:
+                comp_node_id = f"comp_{region_name}_{comp_label}"
+                # cluster_means.loc[cluster, comp_label] 为该聚类中该组件的平均激活
+                weight = float(cluster_means.loc[cluster, comp_label]) * count
+                sankey_links.append({
+                    "source": cluster_node_id,
+                    "target": comp_node_id,
+                    "value": weight
+                })
 
-    for comp, genes in top_genes.items():
-        print(f"analyzing {comp} ...")
-        enr = gp.enrich(
-            gene_list=genes,
-            gene_sets="../Data/c5.go.v2024.1.Hs.symbols.gmt",
-            outdir=None,
-            cutoff=0.5,
-        )
-
-        filtered = enr.results[enr.results["Adjusted P-value"] < 0.05]
-        filtered = filtered.sort_values(by="Combined Score", ascending=False)
-        filtered_top5 = filtered.head(5)
-        if not filtered.empty:
-            go_results[comp] = filtered_top5.to_dict(orient="records")
-        else:
-            print(f"{comp} no GO results found.")
-    
+    # Return the data(Sankey) and GO results
     return {
-        "NMF_matrix": W.tolist(),
-        "GO_results": go_results,
-        "cluster_means": cluster_means.to_dict(orient="records"),
-        "cell_ids_by_cluster": cell_ids_by_cluster,
+        "sankey": {
+            "nodes": sankey_nodes,
+            "links": sankey_links,
+        },
+        "GO_results": GO_results
     }
 
-
-def get_cell_cell_interaction_data(sample_id, receiver, sender, receiverGene, senderGene, cellIds):
+def get_cell_cell_interaction_data(regions, receiver, sender, receiverGene, senderGene):
     result = {}
-    
-    if sample_id not in SAMPLES:
-        print(f"Error: Sample ID {sample_id} not found in SAMPLES.")
-        return result
-    
-    adata_path = SAMPLES[sample_id]["adata"]
-    adata = sc.read_h5ad(adata_path)
-    
-    filtered_adata = adata[adata.obs.index.isin(cellIds)]
-    
-    filtered_spatial = pd.DataFrame(
-        filtered_adata.obsm["spatial"],
-        columns=["cell_x", "cell_y"],
-        index=filtered_adata.obs.index,
-    )
-    filtered_spatial["cell_type"] = filtered_adata.obs["cell_type"]
-    filtered_spatial.rename(columns={"cell_x": "X", "cell_y": "Y"}, inplace=True)
-    
-    spatial_file = f"{sample_id}_spatial.txt"
-    filtered_spatial.to_csv(spatial_file, sep="\t", index=True, index_label="")
-    
-    counts_data = filtered_adata.to_df()
-    counts_file = f"{sample_id}_counts.txt"
-    counts_data.to_csv(counts_file, sep="\t", index=True, index_label="")
-    
-    script_path = "../Spacia/spacia.py"
-    output_path = "cell2cellinteractionOutput"
 
-    if isinstance(receiverGene, list):
-        receiverGene = "|".join(receiverGene)
-    if isinstance(senderGene, list):
-        senderGene = "|".join(senderGene)
+    # Check if the receiver and sender are valid
+    for region_key, region_info in regions.items():
+        sample_id = region_info["sampleid"]
+        cellIds = region_info["cell_list"]
 
-    params = f'-rc {receiver} -sc {sender} -rf "{receiverGene}" -sf {senderGene} -d 30 -nc 20'
-    
-    cmd = f"python {script_path} {counts_file} {spatial_file} {params} -o {output_path}"
-    print(f"Running command: {cmd}")
-    
-    os.system(cmd)
-    
-    interaction_file = os.path.join(output_path, "interaction.txt")
-    if os.path.exists(interaction_file):
-        interaction_df = pd.read_csv(interaction_file, sep="\t")
-        result[sample_id] = interaction_df.to_dict(orient="records")
-    else:
-        print(f"Error: Interaction file for {sample_id} not found.")
-    
+        if sample_id not in SAMPLES:
+            print(f"Error: Sample ID {sample_id} not found in SAMPLES.")
+            continue
+
+        adata_path = SAMPLES[sample_id]["adata"]
+        adata = sc.read_h5ad(adata_path)
+
+        filtered_adata = adata[adata.obs.index.isin(cellIds)]
+
+        filtered_spatial = pd.DataFrame(
+            filtered_adata.obsm["spatial"],
+            columns=["cell_x", "cell_y"],
+            index=filtered_adata.obs.index,
+        )
+        filtered_spatial["cell_type"] = filtered_adata.obs["cell_type"]
+        filtered_spatial.rename(columns={"cell_x": "X", "cell_y": "Y"}, inplace=True)
+
+        spatial_file = f"{region_key}_spatial.txt"
+        filtered_spatial.to_csv(spatial_file, sep="\t", index=True, index_label="")
+
+        counts_data = filtered_adata.to_df()
+        counts_file = f"{region_key}_counts.txt"
+        counts_data.to_csv(counts_file, sep="\t", index=True, index_label="")
+
+        script_path = "../Spacia/spacia.py"
+        output_path = f"cell2cellinteractionOutput_{region_key}"
+
+        # if gene is a list, join it with "|"
+        if isinstance(receiverGene, list):
+            receiverGene_str = "|".join(receiverGene)
+        else:
+            receiverGene_str = receiverGene
+
+        if isinstance(senderGene, list):
+            senderGene_str = "|".join(senderGene)
+        else:
+            senderGene_str = senderGene
+
+        params = f'-rc {receiver} -sc {sender} -rf {receiverGene_str} -sf {senderGene_str} -d 30 -nc 20'
+        cmd = f"python {script_path} {counts_file} {spatial_file} {params} -o {output_path}"
+        print(f"Running command: {cmd}")
+
+        os.system(cmd)
+
+        interaction_file = os.path.join(output_path, "Interactions.csv")
+        if os.path.exists(interaction_file):
+            interaction_df = pd.read_csv(interaction_file)
+            result[region_key] = interaction_df.to_dict(orient="records")
+        else:
+            print(f"Error: Interaction file for region {region_key} not found.")
+
+        # Cleanup generated files
+        try:
+            if os.path.exists(spatial_file):
+                os.remove(spatial_file)
+            if os.path.exists(counts_file):
+                os.remove(counts_file)
+            if os.path.exists(output_path):
+                shutil.rmtree(output_path)
+        except Exception as e:
+            print(f"Cleanup error for region {region_key}: {e}")
+
     return result

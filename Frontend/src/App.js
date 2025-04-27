@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Select, Spin, message, Button, Splitter } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
-import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
+// import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
+import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer2';
 import { Cell2CellViewer } from './components/Cell2CellViewer';
 import { Cell2CellViewer2 } from './components/Cell2CellViewer2';
 import { GeneExpressionViewer } from './components/GeneExpressionViewer';
@@ -10,17 +11,19 @@ import { PseudoTemporalViewer } from './components/PseudoTemporalViewer';
 
 
 function App() {
-  const [cellTypeCoordinatesData, setCellTypeCoordinatesData] = useState({});
-  const [selectOptions, setSelectOptions] = useState([]);
-  const [samples, setSamples] = useState([]); // [{id: 'sample_id', name: 'sample_id'}, ...]
-  const [selectedSamples, setSelectedSamples] = useState([]);
-  const [cellTypeDir, setCellTypeDir] = useState({});
-  const [regions, setRegions] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [analyzedRegion, setAnalyzedRegion] = useState(null);
+  const [cellTypeCoordinatesData, setCellTypeCoordinatesData] = useState({}); // each sample's cell type directory(e.g. {"skin_TXK6Z4X_A1": [{"cell_type": "cd19+cd20+ b","cell_x": 3526, "cell_y": 3780, "id": "ID_1}, ...}])'
+  const [selectOptions, setSelectOptions] = useState([]); // Available sample Option(e.g. [{value: 'skin_TXK6Z4X_A1', label: 'skin_TXK6Z4X_A1'}, ...])
+  const [samples, setSamples] = useState([]); // Select the sample to be displayed (the beginning input of the entire project)[{id: 'sample_id', name: 'sample_id'}, ...]
+  const [selectedSamples, setSelectedSamples] = useState([]); // Select the sample to analyze(e.g. '[skin_TXK6Z4X_D1]')
+  const [cellTypeDir, setCellTypeDir] = useState({}); // Each sample's cell type directory based on users' sample selection(e.g. {"skin_TXK6Z4X_A1": ["cd19+cd20+ b", "cd19+cd20+ t"], ...})
+  const [regions, setRegions] = useState([]); // Selected regions in the multiSampleViewer to perform analysis (e.g. [{name: 'region1', sampleId: 'skin_TXK6Z4X_A1', cellIds: ['ID_1', 'ID_2']}, ...])
+  const [loading, setLoading] = useState(false); // Full page loading
+  const [analyzedRegion, setAnalyzedRegion] = useState({}); // Selected in the multiSampleViewer to perform analysis(e.g.{'region1': true, 'region2': false, ...})
+  // NMF data and its loading settings
   const [NMFGOData, setNMFGOData] = useState({});
   const [NMFGODataLoading, setNMFGODataLoading] = useState(false);
   const [NMFclusterCells, setNMFclusterCells] = useState([]);
+  // cell2cell data and its loading settings
   const [cell2cellData, setCell2cellData] = useState({});
   const [cell2cellDataLoading, setCell2cellDataLoading] = useState(false);
   const [selectedRegionGeneExpressionData, setSelectedRegionGeneExpressionData] = useState({});
@@ -147,10 +150,13 @@ function App() {
                     {/* <GeneExpressionViewer
                       data={selectedRegionGeneExpressionData}
                     /> */}
-                    <NMFGOExpressionViewer 
-                      NMFGOData={NMFGOData}
-                      NMFGODataLoading={NMFGODataLoading}
+                    <NMFGOExpressionViewer
+                      regions={regions} 
                       setNMFclusterCells={setNMFclusterCells}
+                      setNMFGOData={setNMFGOData}
+                      NMFGOData={NMFGOData}
+                      // NMFGODataLoading={NMFGODataLoading}
+                      // setNMFclusterCells={setNMFclusterCells}
                     />
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="33%" min="20%" max="45%" style={{ borderBottom: "1px solid #e8e8e8" }}>
