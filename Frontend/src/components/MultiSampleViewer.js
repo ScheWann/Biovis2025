@@ -617,7 +617,6 @@ export const MultiSampleViewer = ({
         const [ox, oy] = sampleOffsets[s.id] || [0, 0];
         const [w, h] = imageSizes[s.id] || [0, 0];
 
-        console.log(ox, oy, w, h);
         return {
             path: [
                 [ox, oy],
