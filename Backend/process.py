@@ -11,7 +11,7 @@ from PIL import Image
 import shutil
 import tifffile as tifi
 import squidpy as sq
-import gseapy as gp, enrich
+import gseapy as gp
 from scipy.sparse import issparse
 from sklearn.decomposition import NMF
 from scipy.cluster.hierarchy import linkage, cophenet
@@ -580,7 +580,7 @@ def get_NMF_GO_data(regions, n_component, resolution):
         region_GO = {}
         for comp, genes in top_genes.items():
             print(f"Region {region_name}: analyzing {comp} ...")
-            enr = enrich(
+            enr = gp.enrich(
                 gene_list=genes,
                 gene_sets="../Data/c5.go.v2024.1.Hs.symbols.gmt",
                 outdir=None,
