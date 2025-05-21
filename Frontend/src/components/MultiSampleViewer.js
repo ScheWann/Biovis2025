@@ -28,16 +28,6 @@ const generateRandomColor = () => {
     return convertHSLtoRGB(randomHue, 100, 50);
 };
 
-const debounce = (fn, delay) => {
-    let timer;
-    return (...args) => {
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-            fn(...args);
-        }, delay);
-    };
-};
-
 export const MultiSampleViewer = ({
     setLoading,
     samples,
@@ -50,8 +40,10 @@ export const MultiSampleViewer = ({
     analyzedRegion,
     setAnalyzedRegion,
     NMFclusterCells,
-    setSelectedRegionGeneExpressionData
 }) => {
+    const containerRef = useRef(null);
+    const [mainViewState, setMainViewState] = useState(null);
+    const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
     const [imageSizes, setImageSizes] = useState({}); // The image sizes for each sample, e.g. {skin_TXK6Z4X_A1: [13030, 13511], ...}
     const [tileSize] = useState(256);
     const [features, setFeatures] = useState(
@@ -76,6 +68,49 @@ export const MultiSampleViewer = ({
     const [partWholeMode, setPartWholeMode] = useState(true); // defaultly showing gene expression value in the whole regions
     const [geneExpressionData, setGeneExpressionData] = useState([]);
     const TILE_LOAD_ZOOM_THRESHOLD = 0; // The zoom threshold to switch between full image vs. tiled image loading
+
+    const debounce = (fn, delay) => {
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                fn(...args);
+            }, delay);
+        };
+    };
+
+    // debounce zoom level update
+    const debouncedSetZoom = useMemo(() => debounce((zoom) => {
+        setCurrentZoom(zoom);
+    }, 100), []);
+
+    // views
+    const mainView = new OrthographicView({
+        id: 'main',
+        controller: true
+    });
+
+    const minimapView = new OrthographicView({
+        id: 'minimap',
+        x: containerSize.width - 210,
+        y: containerSize.height - 210,
+        width: 200,
+        height: 200,
+        controller: false
+    });
+
+    // catch the deckGL size
+    useEffect(() => {
+        const updateSize = () => {
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (rect) {
+                setContainerSize({ width: rect.width, height: rect.height });
+            }
+        };
+        updateSize();
+        window.addEventListener('resize', updateSize);
+        return () => window.removeEventListener('resize', updateSize);
+    }, []);
 
     // fetch gene list
     useEffect(() => {
@@ -156,27 +191,26 @@ export const MultiSampleViewer = ({
         }
     }, [imageSizes, samples]);
 
-    const analyzedRegionData = useMemo(() => {
-        if (!analyzedRegion) return null;
-        const region = regions.find(r => r.name === analyzedRegion);
-        if (!region) return null;
-        return {
-            sampleId: region.sampleId,
-            cellIds: region.cellIds,
-        };
-    }, [analyzedRegion, regions]);
+    useEffect(() => {
+        if (!samples.length || !sampleOffsets || !imageSizes) return;
 
-    const fetchGeneExpressionData = (sampleId, cell_ids) => {
-        fetch('/get_selected_region_data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sample_id: sampleId, cell_list: cell_ids })
-        })
-            .then(res => res.json())
-            .then(data => {
-                setSelectedRegionGeneExpressionData(data);
-            });
-    }
+        const firstSample = samples[0];
+        if (!firstSample) return;
+
+        const offset = sampleOffsets[firstSample.id] ?? [0, 0];
+        const size = imageSizes[firstSample.id] ?? [0, 0];
+
+        setMainViewState({
+            target: [
+                offset[0] + size[0] / 2,
+                offset[1] + size[1] / 2,
+                0
+            ],
+            zoom: -3,
+            maxZoom: 2.5,
+            minZoom: -5
+        });
+    }, [samples, sampleOffsets, imageSizes]);
 
     const fetchNMFGOExpressionData = (sampleId, cell_ids) => {
         setNMFGODataLoading(true);
@@ -192,19 +226,29 @@ export const MultiSampleViewer = ({
             });
     }
 
-    const fetchCell2CellInteractionData = (regionName, sampleId, cell_ids) => {
-        const regions = { [regionName]: { sampleId, cellIds: cell_ids } };
-        fetch('/get_cell_cell_interaction_data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ regions: regions })
-        })
-            .then(res => res.json())
-            .then(data => {
-                setSelectedRegionGeneExpressionData(data);
-            });
-    };
+    const overallBounds = useMemo(() => {
+        if (!samples.length) return null;
+        let xMin = Infinity, yMin = Infinity, xMax = -Infinity, yMax = -Infinity;
+        samples.forEach(s => {
+            const [ox, oy] = sampleOffsets[s.id] || [0, 0];
+            const [w, h] = imageSizes[s.id] || [0, 0];
+            xMin = Math.min(xMin, ox);
+            yMin = Math.min(yMin, oy);
+            xMax = Math.max(xMax, ox + w);
+            yMax = Math.max(yMax, oy + h);
+        });
+        return { xMin, yMin, xMax, yMax };
+    }, [samples, sampleOffsets, imageSizes]);
 
+    const analyzedRegionData = useMemo(() => {
+        if (!analyzedRegion) return null;
+        const region = regions.find(r => r.name === analyzedRegion);
+        if (!region) return null;
+        return {
+            sampleId: region.sampleId,
+            cellIds: region.cellIds,
+        };
+    }, [analyzedRegion, regions]);
 
     // save filtered cell data, only recalculate when dependencies change
     const filteredCellData = useMemo(() => {
@@ -214,11 +258,6 @@ export const MultiSampleViewer = ({
             return { ...acc, [sample.id]: filtered };
         }, {});
     }, [samples, cellTypeCoordinatesData, visibleCellTypes]);
-
-    // debounce zoom level update
-    const debouncedSetZoom = useMemo(() => debounce((zoom) => {
-        setCurrentZoom(zoom);
-    }, 100), []);
 
     const changeCellGeneMode = (sampleId, e) => {
         setRadioCellGeneModes(prev => ({
@@ -237,9 +276,8 @@ export const MultiSampleViewer = ({
 
     const confirmKosaraPlot = (sampleId) => {
         const sample = [sampleId];
-        // const sampleList = samples.map(sample => sample.id);
-        // const cleanedGenes = selectedGenes.map(gene => gene.split('-')[1] || gene);
         setLoading(true);
+
         if (partWholeMode) {
             regions.forEach(region => {
                 fetch('/get_kosara_data', {
@@ -574,6 +612,34 @@ export const MultiSampleViewer = ({
         )
     }));
 
+    // outlines of every sample image
+    const minimapSampleOutlines = useMemo(() => samples.map(s => {
+        const [ox, oy] = sampleOffsets[s.id] || [0, 0];
+        const [w, h] = imageSizes[s.id] || [0, 0];
+
+        console.log(ox, oy, w, h);
+        return {
+            path: [
+                [ox, oy],
+                [ox + w, oy],
+                [ox + w, oy + h],
+                [ox, oy + h],
+                [ox, oy]
+            ]
+        };
+    }), [samples, sampleOffsets, imageSizes]);
+
+    // outlines of each selected region
+    const minimapRegionOutlines = useMemo(() => regions.map(r => {
+        const [ox, oy] = sampleOffsets[r.sampleId] || [0, 0];
+        // assume a single polygon in r.feature.features[0]
+        const ring = r.feature.features[0].geometry.coordinates[0];
+        return {
+            path: ring.map(([x, y]) => [x + ox, y + oy]),
+            color: r.color
+        };
+    }), [regions, sampleOffsets]);
+
     // TileLayer
     const generateTileLayers = useCallback(() => {
         if (currentZoom < TILE_LOAD_ZOOM_THRESHOLD) {
@@ -634,6 +700,7 @@ export const MultiSampleViewer = ({
         }).filter(Boolean);
     }, [samples, imageSizes, tileSize, sampleOffsets, currentZoom]);
 
+    // whole image layer
     const generateWholePngLayers = useCallback(() => {
         return samples.map(sample => {
             const imageSize = imageSizes[sample.id];
@@ -650,7 +717,7 @@ export const MultiSampleViewer = ({
         }).filter(Boolean);
     }, [imageSizes, sampleOffsets, currentZoom]);
 
-    // cell boundaries image layers
+    // cell boundaries image layer
     const generateMarkerImageLayers = useCallback(() => {
         return samples.map(sample => {
             const imageSize = imageSizes[sample.id];
@@ -666,7 +733,7 @@ export const MultiSampleViewer = ({
         }).filter(Boolean);
     }, [samples, imageSizes]);
 
-    // nucleus coordinates scatterplot layers
+    // nucleus coordinates scatterplot layer
     const generateCellLayers = useCallback(() => {
         return samples.map(sample => {
             const sampleId = sample.id;
@@ -831,6 +898,25 @@ export const MultiSampleViewer = ({
         }).filter(Boolean);
     }, [samples, filteredCellData, colorMaps, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes, analyzedRegion, NMFclusterCells, partWholeMode, regions]);
 
+    const minimapLayers = [
+        new PathLayer({
+            id: 'minimap-samples',
+            data: minimapSampleOutlines,
+            getPath: d => d.path,
+            getColor: [200, 200, 200, 100],
+            getWidth: 1,
+            viewId: 'minimap'
+        }),
+        new PathLayer({
+            id: 'minimap-regions',
+            data: minimapRegionOutlines,
+            getPath: d => d.path,
+            getColor: d => [...convertHEXToRGB(d.color), 200],
+            getWidth: 2,
+            viewId: 'minimap'
+        })
+    ];
+
     // update current region data
     const handleRegionUpdate = (sampleId, updatedData) => {
         if (!updatedData || !Array.isArray(updatedData.features)) {
@@ -864,11 +950,6 @@ export const MultiSampleViewer = ({
             }));
             setActiveDrawingSample(sampleId);
         }
-    };
-
-    // Showing genes in the whole region or the selected region
-    const changeGeneShowRange = () => {
-        setPartWholeMode(!partWholeMode);
     };
 
     // save region, save region name and region color, and update region color to new random color
@@ -1057,7 +1138,8 @@ export const MultiSampleViewer = ({
                 });
             }),
             ...generateCellLayers(),
-        ].filter(Boolean);
+        ].filter(Boolean)
+            .concat(minimapLayers);
     }, [
         generateWholePngLayers,
         generateTileLayers,
@@ -1071,6 +1153,7 @@ export const MultiSampleViewer = ({
     return (
         <div style={{ width: '100%', height: '100%', display: 'flex', borderRight: '2px solid #e8e8e8' }}>
             <div
+                ref={containerRef}
                 style={{
                     flex: 1,
                     position: 'relative',
@@ -1085,27 +1168,38 @@ export const MultiSampleViewer = ({
             >
                 <DeckGL
                     layers={layers}
-                    views={new OrthographicView({ controller: true })}
-                    initialViewState={{
-                        target: (() => {
-                            const firstSample = samples[0];
-                            if (!firstSample) return [0, 0, 0];
-                            const sampleId = firstSample.id;
-                            const offset = sampleOffsets[sampleId] ?? [0, 0];
-                            const size = imageSizes[sampleId] ?? [0, 0];
-                            return [
-                                offset[0] + size[0] / 2,
-                                offset[1] + size[1] / 2,
+                    // views={new OrthographicView({ controller: true })}
+                    views={[mainView, minimapView]}
+                    viewState={{
+                        main: mainViewState,
+                        minimap: overallBounds ? {
+                            target: [
+                                (overallBounds.xMin + overallBounds.xMax) / 2,
+                                (overallBounds.yMin + overallBounds.yMax) / 2,
                                 0
-                            ];
-                        })(),
-                        zoom: -3,
-                        maxZoom: 2.5,
-                        minZoom: -5
+                            ],
+                            zoom: (() => {
+                                const margin = 0.1;
+                                const w = overallBounds.xMax - overallBounds.xMin;
+                                const h = overallBounds.yMax - overallBounds.yMin;
+
+                                const paddedW = w * (1 + margin);
+                                const paddedH = h * (1 + margin);
+
+                                const zoomX = Math.log2(200 / paddedW); // 200px minimap width
+                                const zoomY = Math.log2(200 / paddedH); // 200px minimap height
+
+                                return Math.min(zoomX, zoomY);
+                            })()
+                        } : undefined
                     }}
-                    onViewStateChange={({ viewState }) => {
-                        debouncedSetZoom(viewState.zoom);
+                    onViewStateChange={({ viewState, viewId }) => {
+                        if (viewId === 'main') {
+                            setMainViewState(viewState);
+                            debouncedSetZoom(viewState.zoom);
+                        }
                     }}
+
                     onClick={info => {
                         if (info.object && info.layer.id.startsWith('Selected-')) {
                             // fetchGeneExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
@@ -1253,40 +1347,6 @@ export const MultiSampleViewer = ({
                     {/* saved regions */}
                     <Collapse style={{ marginTop: 10, background: 'rgba(255,255,255,0.8)' }}>
                         <Collapse.Panel header={`Selected Region (${regions.length})`} key="selected-region">
-                            {/* <Switch
-                                defaultChecked
-                                onChange={changeGeneShowRange}
-                                checked={partWholeMode}
-                                checkedChildren="Part"
-                                unCheckedChildren="Whole"
-                                style={{
-                                    backgroundColor: partWholeMode ? '#ED9121' : '#74C365',
-                                    width: '100%',
-                                    marginBottom: 10
-                                }}
-                            />
-                            <TreeSelect
-                                showSearch
-                                style={{
-                                    width: '100%',
-                                    marginBottom: 10
-                                }}
-                                value={selectedGenes}
-                                dropdownStyle={{
-                                    maxHeight: 400,
-                                    overflow: 'auto',
-                                }}
-                                size='small'
-                                placeholder="Select genes"
-                                allowClear
-                                multiple
-                                onChange={setSelectedGenes}
-                                treeData={geneList}
-                            />
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 5, marginBottom: 5 }}>
-                                <Button size='small' style={{ width: '50%' }} onClick={cleanGeneSelection}>Clear</Button>
-                                <Button size='small' style={{ width: '50%' }} onClick={confirmKosaraPlot}>Confirm</Button>
-                            </div> */}
                             {regions.length > 0 && (
                                 <>
                                     {regions.map(region => {
