@@ -897,6 +897,32 @@ export const MultiSampleViewer = ({
         }).filter(Boolean);
     }, [samples, filteredCellData, colorMaps, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes, analyzedRegion, NMFclusterCells, partWholeMode, regions]);
 
+    // generate EditableGeoJsonLayer: only make the layer of the current activeDrawingSample visible
+    const generateEditLayers = useCallback(() => {
+        return samples.map(sample => {
+            const tempRegion = tempRegions[sample.id] || {};
+            return new EditableGeoJsonLayer({
+                id: `edit-layer-${sample.id}`,
+                data: features[sample.id] || { type: 'FeatureCollection', features: [] },
+                mode: isDrawingActive ? DrawPolygonMode : undefined,
+                _subLayerProps: {
+                    'polygons-stroke': {
+                        getCursor: () => 'crosshair'
+                    }
+                },
+                selectedFeatureIndexes: [],
+                onEdit: ({ updatedData }) => {
+                    handleRegionUpdate(sample.id, updatedData);
+                },
+                visible: isDrawingActive && sample.id === activeDrawingSample,
+                getLineColor: tempRegion.color ? [...tempRegion.color, 200] : [255, 0, 0, 200],
+                getFillColor: tempRegion.color ? [...tempRegion.color, 50] : [255, 255, 0, 50],
+                lineWidthMinPixels: 2
+            });
+        });
+    }, [samples, features, tempRegions, isDrawingActive, activeDrawingSample]);
+    
+    // minimap layers
     const minimapLayers = [
         new PathLayer({
             id: 'minimap-samples',
@@ -1032,31 +1058,6 @@ export const MultiSampleViewer = ({
         setRegionColor(generateRandomColor());
     };
 
-    // generate EditableGeoJsonLayer: only make the layer of the current activeDrawingSample visible
-    const generateEditLayers = useCallback(() => {
-        return samples.map(sample => {
-            const tempRegion = tempRegions[sample.id] || {};
-            return new EditableGeoJsonLayer({
-                id: `edit-layer-${sample.id}`,
-                data: features[sample.id] || { type: 'FeatureCollection', features: [] },
-                mode: isDrawingActive ? DrawPolygonMode : undefined,
-                _subLayerProps: {
-                    'polygons-stroke': {
-                        getCursor: () => 'crosshair'
-                    }
-                },
-                selectedFeatureIndexes: [],
-                onEdit: ({ updatedData }) => {
-                    handleRegionUpdate(sample.id, updatedData);
-                },
-                visible: isDrawingActive && sample.id === activeDrawingSample,
-                getLineColor: tempRegion.color ? [...tempRegion.color, 200] : [255, 0, 0, 200],
-                getFillColor: tempRegion.color ? [...tempRegion.color, 50] : [255, 255, 0, 50],
-                lineWidthMinPixels: 2
-            });
-        });
-    }, [samples, features, tempRegions, isDrawingActive, activeDrawingSample]);
-
     // Calculate the number of cells in the region
     const getCellCount = (region) => {
         return region.cellIds ? region.cellIds.length : 0;
@@ -1167,7 +1168,6 @@ export const MultiSampleViewer = ({
             >
                 <DeckGL
                     layers={layers}
-                    // views={new OrthographicView({ controller: true })}
                     views={[mainView, minimapView]}
                     viewState={{
                         main: mainViewState,
@@ -1185,8 +1185,8 @@ export const MultiSampleViewer = ({
                                 const paddedW = w * (1 + margin);
                                 const paddedH = h * (1 + margin);
 
-                                const zoomX = Math.log2(200 / paddedW); // 200px minimap width
-                                const zoomY = Math.log2(200 / paddedH); // 200px minimap height
+                                const zoomX = Math.log2(200 / paddedW);
+                                const zoomY = Math.log2(200 / paddedH);
 
                                 return Math.min(zoomX, zoomY);
                             })()
