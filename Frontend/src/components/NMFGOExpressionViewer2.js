@@ -181,12 +181,37 @@ export const NMFGOExpressionViewer = ({ regions, setNMFclusterCells, NMFGOData, 
                 node.dynamicCompWidth = dynamicCompWidth;
                 // rect‘s x coordinate is the left side of the component
                 const rectX = node.x - dynamicCompWidth;
-                svg.append("rect")
-                    .attr("x", rectX)
-                    .attr("y", node.y - node.rectHeight / 2)
-                    .attr("width", dynamicCompWidth)
-                    .attr("height", node.rectHeight)
-                    .style("fill", fillColor);
+                if (GOData && GOData[regionName] && GOData[regionName][compKey]) {
+                    const goArray = GOData[regionName][compKey]
+                        .slice(0, 5)
+                        .sort((a, b) => b["Combined Score"] - a["Combined Score"]);
+
+                    const barHeight = node.rectHeight / goArray.length;
+                    const barMaxWidth = baseCompWidth + 5 * 10;
+
+                    const xScale = d3.scaleLinear()
+                        .domain([0, d3.max(goArray, d => d["Combined Score"])])
+                        .range([0, barMaxWidth]);
+
+                    goArray.forEach((item, idx) => {
+                        svg.append("rect")
+                            .attr("x", node.x - barMaxWidth)
+                            .attr("y", node.y - node.rectHeight / 2 + idx * barHeight)
+                            .attr("width", xScale(item["Combined Score"]))
+                            .attr("height", barHeight * 0.8)
+                            .attr("fill", "#4C9AFF")
+                            .append("title")
+                            .text(`${item.Term || "GO Term"}\nScore: ${item["Combined Score"].toFixed(1)}\nAdj. P: ${item["Adjusted P-value"].toExponential(2)}`);
+                    });
+                } else {
+                    svg.append("rect")
+                        .attr("x", rectX)
+                        .attr("y", node.y - node.rectHeight / 2)
+                        .attr("width", 30)
+                        .attr("height", node.rectHeight)
+                        .style("fill", "#d3d3d3");
+                }
+
                 svg.append("text")
                     .attr("x", rectX + dynamicCompWidth / 2)
                     .attr("y", node.y)
