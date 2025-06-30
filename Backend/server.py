@@ -117,64 +117,18 @@ def get_cached_deaplog_results(sample_percent, step):
         print(f"Error: {error_msg}")
         return {'error': error_msg}, 500
 
-# @app.route('/test-image')
-# def test_image():
-#     """Test endpoint to check available images in the figures directory"""
-#     try:
-#         # Get the absolute path to the figures directory
-#         figures_dir = os.path.join(workspace_root, 'Python', 'figures')
-#         print(f"Checking figures directory: {figures_dir}")
-        
-#         # Check if the directory exists
-#         if not os.path.exists(figures_dir):
-#             print(f"Figures directory not found: {figures_dir}")
-#             return jsonify({'images': []})
-            
-#         # List all PNG files in the directory
-#         images = [f for f in os.listdir(figures_dir) if f.endswith('.png')]
-#         print(f"Found images: {images}")
-        
-#         return jsonify({'images': images})
-#     except Exception as e:
-#         print(f"Error listing images: {str(e)}")
-#         return jsonify({'images': []})
-
-# @app.route('/figures/<path:filename>')
-# def serve_figure(filename):
-#     """Serve figure files from the figures directory"""
-#     try:
-#         # Get the absolute path to the figures directory
-#         figures_dir = os.path.join(workspace_root, 'Python', 'figures')
-#         print(f"Serving figure from: {figures_dir}")
-        
-#         # Construct the full path to the requested file
-#         file_path = os.path.join(figures_dir, filename)
-#         print(f"Requested file path: {file_path}")
-        
-#         # Check if the file exists
-#         if not os.path.exists(file_path):
-#             print(f"File not found: {file_path}")
-#             return jsonify({'error': 'Image not found'}), 404
-            
-#         # Serve the file with no caching
-#         response = send_file(file_path)
-#         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-#         response.headers['Pragma'] = 'no-cache'
-#         response.headers['Expires'] = '0'
-#         return response
-#     except Exception as e:
-#         print(f"Error serving figure: {str(e)}")
-#         return jsonify({'error': str(e)}), 500
 
 @app.route('/', methods=['GET'])
 def get_helloword():
     """Basic test endpoint"""
     return 'Hello World!'
 
+
 @app.route('/get_available_samples', methods=['GET'])
 def get_available_samples():
     """Get list of available samples"""
     return jsonify(get_samples())
+
 
 @app.route('/get_hires_image_size', methods=['POST'])
 def get_hires_image_size_route():
@@ -182,11 +136,13 @@ def get_hires_image_size_route():
     sample_ids = request.json['sample_ids']
     return jsonify(get_hires_image_size(sample_ids))
 
+
 @app.route('/get_unique_cell_types', methods=['POST'])
 def get_unique_cell_types_route():
     """Get unique cell types for selected samples"""
     sample_ids = request.json['sample_ids']
     return jsonify(get_unique_cell_types(sample_ids))
+
 
 @app.route('/get_tile', methods=['GET'])
 def serve_tile():
@@ -206,11 +162,13 @@ def serve_tile():
 
     return send_from_directory(tile_dir, filename)
 
+
 @app.route('/get_cell_type_coordinates', methods=['POST'])
 def get_cell_type_coordinates_route():
     """Get cell type coordinates for selected samples"""
     sample_ids = request.json['sample_ids']
     return jsonify(get_cell_type_coordinates(sample_ids))
+
 
 @app.route('/get_cell_types', methods=['POST'])
 def get_cell_types_route():
@@ -218,17 +176,20 @@ def get_cell_types_route():
     sample_name = request.json['sample_name']
     return jsonify(get_cell_types(sample_name))
 
+
 @app.route('/get_all_gene_list', methods=['POST'])
 def get_all_gene_list():
     """Get list of all genes for selected samples"""
     sample_names = request.json['sample_names']
     return jsonify(get_gene_list(sample_names))
 
+
 @app.route('/get_cell2cell_gene_list', methods=['POST'])
 def get_cell2cell_gene_list_route():
     """Get list of all genes for selected samples"""
     sample_name = request.json['sample_name']
     return jsonify(get_gene_list_for_cell2cellinteraction(sample_name))
+
 
 @app.route('/get_kosara_data', methods=['POST'])
 def get_kosara_data_route():
@@ -238,12 +199,14 @@ def get_kosara_data_route():
     cell_list = request.json['cell_list']
     return jsonify(get_kosara_data(sample_ids, gene_list, cell_list))
 
+
 @app.route('/get_selected_region_data', methods=['POST'])
 def get_selected_region_data_route():
     """Get gene expressiondata for selected regions"""
     sample_id = request.json['sample_id']
     cell_list = request.json['cell_list']
     return jsonify(get_selected_region_data(sample_id, cell_list))
+
 
 @app.route('/get_NMF_GO_data', methods=['POST'])
 def get_NMF_GO_data_route():
@@ -252,6 +215,7 @@ def get_NMF_GO_data_route():
     n_component = request.json['n_component']
     resolution = request.json['resolution']
     return jsonify(get_NMF_GO_data(regions, n_component, resolution))
+
 
 @app.route('/get_cell_cell_interaction_data', methods=['POST'])
 def get_cell_cell_interaction_data_route():
@@ -262,20 +226,6 @@ def get_cell_cell_interaction_data_route():
     receiverGene = request.json['receiverGene']
     senderGene = request.json['senderGene']
     return jsonify(get_cell_cell_interaction_data(regions, receiver, sender, receiverGene, senderGene))
-
-#################### OLD CODE ####################
-@app.route('/get_um_positions_with_clusters', methods=['POST'])
-def get_um_positions_with_clusters_route():
-    bin_size = request.json['bin_size']
-    kmeans = request.json['kmeans']
-    return jsonify(get_um_positions_with_clusters(bin_size, kmeans).to_dict(orient='records'))
-
-
-@app.route('/get_umap_positions', methods=['POST'])
-def get_umap_positions_route():
-    bin_size = request.json['bin_size']
-    kmeans = request.json['kmeans']
-    return jsonify(get_umap_positions_with_clusters(bin_size, kmeans).to_dict(orient='records'))
 
 
 @app.route('/get_gene_name_search')
@@ -293,11 +243,6 @@ def get_gene_name_search():
     
     return jsonify(results)
 
-@app.route('/get_specific_gene_expression', methods=['POST'])
-def get_specific_gene_expression_route():
-    bin_size = request.json['bin_size']
-    gene_name = request.json['gene_name']
-    return jsonify(get_specific_gene_expression(bin_size, gene_name).to_dict(orient='records'))
 
 @app.route('/get_deaplog_results', methods=['GET'])
 def get_deaplog_results():
@@ -319,64 +264,6 @@ def get_deaplog_results():
         print(f"Error: {error_msg}")
         return jsonify({'error': error_msg}), 500
 
-# @app.route('/run_deaplog', methods=['POST'])
-# def run_deaplog():
-#     try:
-#         # Get parameters from request
-#         data = request.get_json()
-#         sample_percent = float(data.get('sample_percent', 0.1))
-        
-#         # Run DEAPLOG analysis
-#         results = run_deaplog_analysis(adata, sample_percent)
-        
-#         # Save results to files
-#         with open('static/deaplog_results.json', 'w') as f:
-#             json.dump(results, f)
-        
-#         # Save UMAP plot
-#         plt.figure(figsize=(10, 10))
-#         sc.pl.umap(adata, color='leiden', save='_deaplog.png')
-        
-#         # Save PAGA plot
-#         plt.figure(figsize=(10, 10))
-#         sc.pl.paga(adata, save='_deaplog.png')
-        
-#         return jsonify({
-#             'status': 'success',
-#             'message': 'DEAPLOG analysis completed successfully',
-#             'results': results
-#         })
-        
-#     except Exception as e:
-#         print(f"Error in DEAPLOG analysis: {str(e)}")
-#         return jsonify({
-#             'status': 'error',
-#             'message': str(e)
-#         }), 500
-
-# @app.route('/api/analyze', methods=['POST'])
-# def analyze():
-#     """Run DEAPLOG analysis on the provided data"""
-#     try:
-#         # Get parameters from request
-#         data = request.get_json()
-#         data_path = data.get('data_path')
-#         sample_percent = data.get('sample_percent')
-        
-#         if not data_path:
-#             return jsonify({'error': 'data_path is required'}), 400
-            
-#         # Load data
-#         adata = sc.read_h5ad(data_path)
-#         rdata = adata.copy()
-        
-#         # Run analysis
-#         results = run_deaplog_analysis(rdata, adata, sample_percent)
-        
-#         return jsonify(results)
-        
-#     except Exception as e:
-#         return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5003)

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from "react";
-import useSVGCanvas from "./useSVGCanvas";
+import useSVGCanvas from "../useSVGCanvas";
 import * as d3 from "d3";
 
 const data = {

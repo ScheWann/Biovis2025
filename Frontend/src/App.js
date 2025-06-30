@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { Select, Spin, message, Button, Splitter } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
+import { PlusOutlined } from '@ant-design/icons';
 // import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
-import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer2';
-import { Cell2CellViewer } from './components/Cell2CellViewer';
-import { Cell2CellViewer2 } from './components/Cell2CellViewer2';
-import { GeneExpressionViewer } from './components/GeneExpressionViewer';
-import { PseudoTemporalViewer } from './components/PseudoTemporalViewer';
+// import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer2';
+// import { Cell2CellViewer } from './components/Cell2CellViewer';
+// import { Cell2CellViewer2 } from './components/Cell2CellViewer2';
+// import { GeneExpressionViewer } from './components/GeneExpressionViewer';
+// import { PseudoTemporalViewer } from './components/PseudoTemporalViewer';
 
 
 function App() {
@@ -27,6 +28,7 @@ function App() {
   const [cell2cellData, setCell2cellData] = useState({});
   const [cell2cellDataLoading, setCell2cellDataLoading] = useState(false);
   const [selectedRegionGeneExpressionData, setSelectedRegionGeneExpressionData] = useState({});
+  const [uploadFormVisible, setUploadFormVisible] = useState(false); // Upload form visibility
 
   // get all aviailable samples
   const fetchAvailableSamples = () => {
@@ -100,10 +102,11 @@ function App() {
             value={selectedSamples}
             onChange={setSelectedSamples}
             options={selectOptions}
-            style={{ width: '100%', margin: 8 }}
+            style={{ width: '100%', marginTop: 8, marginBottom: 8 }}
             maxTagCount="responsive"
             loading={loading}
           />
+          <Button size='small' onClick={() => setUploadFormVisible(true)} icon={<PlusOutlined />} />
           <Button size='small' onClick={confirmSamples}>Confirm</Button>
         </div>
 
@@ -147,30 +150,13 @@ function App() {
               <Splitter.Panel defaultSize="30%" min="20%" max="50%">
                 <Splitter lazy layout='vertical'>
                   <Splitter.Panel defaultSize="33%" min="20%" max="45%" style={{ borderBottom: "1px solid #e8e8e8" }}>
-                    {/* <GeneExpressionViewer
-                      data={selectedRegionGeneExpressionData}
-                    /> */}
-                    <NMFGOExpressionViewer
-                      regions={regions} 
-                      setNMFclusterCells={setNMFclusterCells}
-                      setNMFGOData={setNMFGOData}
-                      NMFGOData={NMFGOData}
-                      // NMFGODataLoading={NMFGODataLoading}
-                      // setNMFclusterCells={setNMFclusterCells}
-                    />
+                    Gene Expression
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="33%" min="20%" max="45%" style={{ borderBottom: "1px solid #e8e8e8" }}>
-                    <PseudoTemporalViewer />
+                    UMAP
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="33%" min="20%" max="45%">
-                    {/* <Cell2CellViewer /> */}
-                    <Cell2CellViewer2
-                      regions={regions}
-                      analyzedRegion={analyzedRegion}
-                      cell2cellData={cell2cellData}
-                      setCell2cellData={setCell2cellData}
-                      cell2cellDataLoading={cell2cellDataLoading}
-                    />
+                    Glyphs
                   </Splitter.Panel>
                 </Splitter>
               </Splitter.Panel>
