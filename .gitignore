@@ -1,12 +1,4 @@
 Backend/venv
 Backend/__pycache__
 Frontend/node_modules
-Data
 .DS_Store
-/enact-pipeline
-/Python/cell2cellinteractionOutput
-/Python/skin_TXK6Z4X_A1_counts_test.txt
-/Python/skin_TXK6Z4X_A1_spatial_test.txt
-/Python/__pycache__
-Python/write
-output

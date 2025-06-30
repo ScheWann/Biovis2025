@@ -4,8 +4,8 @@ import re
 import os
 import subprocess
 import json
+import sys
 from process import (
-    # get_um_positions_with_clusters, 
     get_hires_image_size,
     get_unique_cell_types,
     get_cell_type_coordinates,
@@ -17,105 +17,10 @@ from process import (
     get_selected_region_data,
     get_NMF_GO_data,
     get_cell_cell_interaction_data
-    # get_umap_positions_with_clusters,
-    # get_gene_list,
-    # get_specific_gene_expression
 )
-import sys
-from functools import lru_cache
 
-# Add the Python directory to the system path for importing DEAPLOG module
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'Python'))
-
-# from DEAPLOG import run_deaplog_analysis
-
-# Define workspace root for file paths
-workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-
-# Initialize Flask app with static folder
-app = Flask(__name__, static_folder='static')
-CORS(app)  # Enable CORS for all routes
-
-# Ensure static directories exist for storing figures
-os.makedirs(os.path.join(app.static_folder, 'figures'), exist_ok=True)
-
-# Cache for DEAPLOG results
-@lru_cache(maxsize=10)
-def get_cached_deaplog_results(sample_percent, step):
-    """Cached version of DEAPLOG results"""
-    try:
-        # Path to the DEAPLOG script and data
-        script_path = os.path.join(workspace_root, 'Python', 'DEAPLOG.py')
-        data_path = os.path.join(workspace_root, 'Data', 'skin_TXK6Z4X_A1_processed', 'tmap', 'weighted_by_area_celltypist_cells_adata.h5')
-        
-        print(f"Debug - Parameters:")
-        print(f"sample_percent: {sample_percent}")
-        print(f"step: {step}")
-        print(f"workspace_root: {workspace_root}")
-        print(f"script_path: {script_path}")
-        print(f"data_path: {data_path}")
-        
-        # Ensure the script exists
-        if not os.path.exists(script_path):
-            error_msg = f'DEAPLOG script not found at: {script_path}'
-            print(f"Error: {error_msg}")
-            return {'error': error_msg}, 500
-
-        # Ensure the data file exists
-        if not os.path.exists(data_path):
-            error_msg = f'Data file not found at: {data_path}'
-            print(f"Error: {error_msg}")
-            return {'error': error_msg}, 500
-
-        # Run the DEAPLOG script
-        cmd = ['python', script_path, '--sample_percent', str(sample_percent), '--step', str(step), '--data_path', data_path]
-        print(f"Debug - Running command: {' '.join(cmd)}")
-        
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            cwd=workspace_root
-        )
-        
-        print("Debug - Command output:")
-        print("STDOUT:", result.stdout)
-        print("STDERR:", result.stderr)
-        
-        if result.returncode != 0:
-            error_msg = f'DEAPLOG process failed with code {result.returncode}: {result.stderr}'
-            print(f"Error: {error_msg}")
-            return {'error': error_msg}, 500
-            
-        # Parse JSON output
-        try:
-            output_lines = result.stdout.strip().split('\n')
-            json_data = None
-            for line in reversed(output_lines):
-                if line.strip().startswith('{'):
-                    try:
-                        json_data = json.loads(line)
-                        break
-                    except json.JSONDecodeError:
-                        continue
-                        
-            if not json_data:
-                error_msg = 'No valid JSON data found in DEAPLOG output'
-                print(f"Error: {error_msg}")
-                return {'error': error_msg}, 500
-                
-            print("Debug - Parsed JSON data:", json_data)
-            return json_data
-            
-        except Exception as e:
-            error_msg = f'Error parsing DEAPLOG output: {str(e)}'
-            print(f"Error: {error_msg}")
-            return {'error': error_msg}, 500
-            
-    except Exception as e:
-        error_msg = f'Internal server error: {str(e)}'
-        print(f"Error: {error_msg}")
-        return {'error': error_msg}, 500
+app = Flask(__name__)
+CORS(app)
 
 
 @app.route('/', methods=['GET'])
@@ -242,27 +147,6 @@ def get_gene_name_search():
     results = [item for item in gene_list if pattern.search(item)]
     
     return jsonify(results)
-
-
-@app.route('/get_deaplog_results', methods=['GET'])
-def get_deaplog_results():
-    try:
-        sample_percent = request.args.get('sample_percent', default=0.01, type=float)
-        step = request.args.get('step', default=0, type=int)
-        
-        # Get cached results
-        results = get_cached_deaplog_results(sample_percent, step)
-        
-        # If results is a tuple (error case), return it directly
-        if isinstance(results, tuple):
-            return jsonify(results[0]), results[1]
-            
-        return jsonify(results)
-        
-    except Exception as e:
-        error_msg = f'Internal server error: {str(e)}'
-        print(f"Error: {error_msg}")
-        return jsonify({'error': error_msg}), 500
 
 
 if __name__ == "__main__":
