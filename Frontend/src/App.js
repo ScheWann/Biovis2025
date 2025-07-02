@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Select, Spin, message, Button, Splitter } from 'antd';
+import { Select, Spin, message, Button, Splitter, Modal, Form, Input, Upload } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, InboxOutlined } from '@ant-design/icons';
 // import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
 // import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer2';
 // import { Cell2CellViewer } from './components/Cell2CellViewer';
@@ -109,6 +109,52 @@ function App() {
           <Button size='small' onClick={() => setUploadFormVisible(true)} icon={<PlusOutlined />} />
           <Button size='small' onClick={confirmSamples}>Confirm</Button>
         </div>
+
+        {/* Upload Modal */}
+        <Modal
+          title="Upload Data"
+          open={uploadFormVisible}
+          onCancel={() => setUploadFormVisible(false)}
+          footer={null}
+          destroyOnClose
+        >
+          <Form
+            layout="vertical"
+            onFinish={(values) => { console.log('Upload form values:', values); setUploadFormVisible(false); }}
+          >
+            <Form.Item
+              label="Name"
+              name="name"
+              rules={[{ required: true, message: 'Please input a name!' }]}
+            >
+              <Input placeholder="Custom name" />
+            </Form.Item>
+            <Form.Item
+              label="Description"
+              name="description"
+            >
+              <Input.TextArea placeholder="Description (optional)" rows={2} />
+            </Form.Item>
+            <Form.Item
+              label="Upload Folder"
+              name="folder"
+              valuePropName="fileList"
+              getValueFromEvent={e => Array.isArray(e) ? e : e && e.fileList}
+              extra="Select a folder to upload."
+              rules={[{ required: true, message: 'Please upload a spaceranger output folder!' }]}
+            >
+              <Upload.Dragger directory multiple beforeUpload={() => false}>
+                <p className="ant-upload-drag-icon">
+                  <InboxOutlined />
+                </p>
+                <p className="ant-upload-hint">Click or drag folder to this area to upload</p>
+              </Upload.Dragger>
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" htmlType="submit" block>Upload</Button>
+            </Form.Item>
+          </Form>
+        </Modal>
 
         {/* all views */}
         <div className="content" style={{ position: "relative" }}>
