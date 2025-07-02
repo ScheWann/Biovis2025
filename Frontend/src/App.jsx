@@ -3,6 +3,7 @@ import { Select, Spin, message, Button, Splitter, Modal, Form, Input, Upload } f
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
 import { PlusOutlined, InboxOutlined } from '@ant-design/icons';
+import '@ant-design/v5-patch-for-react-19';
 // import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
 // import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer2';
 // import { Cell2CellViewer } from './components/Cell2CellViewer';
@@ -116,7 +117,7 @@ function App() {
           open={uploadFormVisible}
           onCancel={() => setUploadFormVisible(false)}
           footer={null}
-          destroyOnClose
+          destroyOnHidden
         >
           <Form
             layout="vertical"
