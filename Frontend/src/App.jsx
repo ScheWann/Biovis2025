@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Select, Spin, message, Button, Splitter, Modal, Form, Input, Upload } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
-import { PlusOutlined, InboxOutlined } from '@ant-design/icons';
+import { PlusOutlined, InboxOutlined, PaperClipOutlined } from '@ant-design/icons';
 import '@ant-design/v5-patch-for-react-19';
 // import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
 // import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer2';
@@ -91,6 +91,42 @@ function App() {
     fetchAvailableSamples();
   }, []);
 
+  const handleUpload = async (values) => {
+    const { name, description, folder } = values;
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('description', description || '');
+
+    // Only include relevant files
+    folder.forEach(fileObj => {
+      // fileObj.webkitRelativePath gives the full path within the folder
+      const path = fileObj.webkitRelativePath || fileObj.name;
+      if (
+        path.startsWith('binned_outputs/square_002um/filtered_feature_bc_matrix.h5') ||
+        path.startsWith('binned_outputs/square_008um/filtered_feature_bc_matrix.h5') ||
+        path.startsWith('binned_outputs/square_016um/filtered_feature_bc_matrix.h5') ||
+        path.startsWith('spatial/')
+      ) {
+        formData.append('files', fileObj.originFileObj, path);
+      }
+    });
+
+    try {
+      const response = await fetch('/upload_spaceranger', {
+        method: 'POST',
+        body: formData,
+      });
+      if (response.ok) {
+        message.success('Upload successful!');
+        setUploadFormVisible(false);
+      } else {
+        message.error('Upload failed.');
+      }
+    } catch (err) {
+      message.error('Upload error: ' + err.message);
+    }
+  };
+
   return (
     <div className="App">
       <div className='main'>
@@ -121,7 +157,7 @@ function App() {
         >
           <Form
             layout="vertical"
-            onFinish={(values) => { console.log('Upload form values:', values); setUploadFormVisible(false); }}
+            onFinish={handleUpload}
           >
             <Form.Item
               label="Name"
@@ -141,15 +177,36 @@ function App() {
               name="folder"
               valuePropName="fileList"
               getValueFromEvent={e => Array.isArray(e) ? e : e && e.fileList}
-              extra="Select a folder to upload."
               rules={[{ required: true, message: 'Please upload a spaceranger output folder!' }]}
             >
-              <Upload.Dragger directory multiple beforeUpload={() => false}>
-                <p className="ant-upload-drag-icon">
-                  <InboxOutlined />
-                </p>
-                <p className="ant-upload-hint">Click or drag folder to this area to upload</p>
-              </Upload.Dragger>
+                <Upload.Dragger
+                  directory
+                  multiple
+                  showUploadList={true}
+                  beforeUpload={(file) => {
+                    const path = file.webkitRelativePath || file.name;
+                    const matrixH5Pattern = /binned_outputs\/square_(002|008|016)um\/filtered_feature_bc_matrix\.h5$/;
+                    const spatialPattern = /\/spatial\//;
+                    if (matrixH5Pattern.test(path)) {
+                      return false;
+                    }
+                    if (spatialPattern.test(path) && !/\/\./.test(path)) {
+                      return false;
+                    }
+                    return Upload.LIST_IGNORE;
+                  }}
+                  itemRender={(originNode, file) => (
+                    <div className='ant-upload-list-item-name'>
+                      <PaperClipOutlined style={{ marginRight: 6 }} />
+                      {file.name}
+                    </div>
+                  )}
+                >
+                  <p className="ant-upload-drag-icon">
+                    <InboxOutlined />
+                  </p>
+                  <p className="ant-upload-hint">Click or drag folder to this area to upload</p>
+                </Upload.Dragger>
             </Form.Item>
             <Form.Item>
               <Button type="primary" htmlType="submit" block>Upload</Button>

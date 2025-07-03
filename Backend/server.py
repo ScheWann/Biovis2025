@@ -22,6 +22,8 @@ from process import (
 app = Flask(__name__)
 CORS(app)
 
+UPLOAD_FOLDER = 'Data'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route('/', methods=['GET'])
 def get_helloword():
@@ -147,6 +149,23 @@ def get_gene_name_search():
     results = [item for item in gene_list if pattern.search(item)]
     
     return jsonify(results)
+
+
+@app.route('/upload_spaceranger', methods=['POST'])
+def upload_spaceranger():
+    name = request.form.get('name')
+    description = request.form.get('description')
+    files = request.files.getlist('files')
+
+    # Save files, preserving their relative paths
+    for file in files:
+        rel_path = file.filename  # This should be the relative path sent from frontend
+        save_path = os.path.join(UPLOAD_FOLDER, name, rel_path)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        file.save(save_path)
+
+    # Optionally: validate required files exist, trigger downstream processing, etc.
+    return jsonify({'status': 'success'})
 
 
 if __name__ == "__main__":

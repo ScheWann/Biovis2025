@@ -6,7 +6,7 @@ export default defineConfig({
     server: {
         port: 3003, // or your preferred port
         proxy: {
-            '/api': 'http://localhost:5003', // adjust if you use a backend
+            '/upload_spaceranger': 'http://localhost:5003', // adjust if you use a backend
         },
     },
 });

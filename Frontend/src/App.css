@@ -73,3 +73,9 @@ body {
 .ant-splitter-panel {
   height: 100%;
 }
+
+.ant-upload-list {
+  max-height: 100px;
+  color: #666;
+  overflow-y: auto;
+}
