@@ -99,15 +99,18 @@ function App() {
 
     // Only include relevant files
     folder.forEach(fileObj => {
-      // fileObj.webkitRelativePath gives the full path within the folder
-      const path = fileObj.webkitRelativePath || fileObj.name;
+      const file = fileObj.originFileObj
+      const path = fileObj.originFileObj.webkitRelativePath;
+      const segments = path.split('/');
+      const relativePath = segments.slice(1).join('/');
+
       if (
-        path.startsWith('binned_outputs/square_002um/filtered_feature_bc_matrix.h5') ||
-        path.startsWith('binned_outputs/square_008um/filtered_feature_bc_matrix.h5') ||
-        path.startsWith('binned_outputs/square_016um/filtered_feature_bc_matrix.h5') ||
-        path.startsWith('spatial/')
+        path.endsWith('binned_outputs/square_002um/filtered_feature_bc_matrix.h5') ||
+        path.endsWith('binned_outputs/square_008um/filtered_feature_bc_matrix.h5') ||
+        path.endsWith('binned_outputs/square_016um/filtered_feature_bc_matrix.h5') ||
+        (segments.length > 2 && segments[1] === 'spatial')
       ) {
-        formData.append('files', fileObj.originFileObj, path);
+        formData.append('files', file, relativePath);
       }
     });
 

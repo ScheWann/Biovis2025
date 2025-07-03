@@ -1,4 +1,5 @@
 Backend/venv
 Backend/__pycache__
+Backend/Data
 Frontend/node_modules
 .DS_Store

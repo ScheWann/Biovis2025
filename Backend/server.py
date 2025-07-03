@@ -157,14 +157,38 @@ def upload_spaceranger():
     description = request.form.get('description')
     files = request.files.getlist('files')
 
-    # Save files, preserving their relative paths
-    for file in files:
-        rel_path = file.filename  # This should be the relative path sent from frontend
-        save_path = os.path.join(UPLOAD_FOLDER, name, rel_path)
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        file.save(save_path)
+    focus_patterns = [
+        re.compile(r'binned_outputs/square_002um/filtered_feature_bc_matrix\.h5$'),
+        re.compile(r'binned_outputs/square_008um/filtered_feature_bc_matrix\.h5$'),
+        re.compile(r'binned_outputs/square_016um/filtered_feature_bc_matrix\.h5$'),
+        re.compile(r'spatial/')
+    ]
 
-    # Optionally: validate required files exist, trigger downstream processing, etc.
+    for file in files:
+        rel_path = file.filename
+
+        subdir = None
+        for pattern in focus_patterns:
+            if pattern.search(rel_path):
+                if 'binned_outputs/square_002um' in rel_path:
+                    subdir = 'binned_outputs/square_002um'
+                elif 'binned_outputs/square_008um' in rel_path:
+                    subdir = 'binned_outputs/square_008um'
+                elif 'binned_outputs/square_016um' in rel_path:
+                    subdir = 'binned_outputs/square_016um'
+                elif 'spatial/' in rel_path:
+                    
+                    subdir = os.path.join('spatial', os.path.relpath(rel_path, start='spatial'))
+                break
+        if subdir:
+            # generate save path
+            if subdir.startswith('spatial'):
+                save_path = os.path.join(UPLOAD_FOLDER, name, subdir)
+            else:
+                save_path = os.path.join(UPLOAD_FOLDER, name, subdir, os.path.basename(rel_path))
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            file.save(save_path)
+
     return jsonify({'status': 'success'})
 
 
