@@ -15,7 +15,7 @@ from process import (
 app = Flask(__name__)
 CORS(app)
 
-UPLOAD_FOLDER = "../Data"
+UPLOAD_FOLDER = "../Uploaded_Data"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 

@@ -1,6 +1,6 @@
 /Example_Data
 Backend/venv
 Backend/__pycache__
-Backend/Data
+Backend/Uploaded_Data
 Frontend/node_modules
 .DS_Store
