@@ -4,9 +4,12 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
     plugins: [react()],
     server: {
-        port: 3003, // or your preferred port
+        port: 3003,
         proxy: {
-            '/upload_spaceranger': 'http://localhost:5003', // adjust if you use a backend
+            '/api': {
+                target: 'http://localhost:5003',
+                changeOrigin: true,
+            }
         },
     },
 });

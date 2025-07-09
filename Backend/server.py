@@ -19,7 +19,7 @@ UPLOAD_FOLDER = "../Uploaded_Data"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
-@app.route("/get_samples_option", methods=["GET"])
+@app.route("/api/get_samples_option", methods=["GET"])
 def get_samples_option_route():
     """
     Get a list of available samples for the selector, grouped by cell scale(e.g., 2um, 8um)
@@ -27,7 +27,7 @@ def get_samples_option_route():
     return jsonify(get_samples_option())
 
 
-@app.route("/get_hires_image_size", methods=["POST"])
+@app.route("/api/get_hires_image_size", methods=["POST"])
 def get_hires_image_size_route():
     """
     Get high-resolution image size for the selected samples
@@ -36,7 +36,7 @@ def get_hires_image_size_route():
     return jsonify(get_hires_image_size(sample_ids))
 
 
-@app.route("/get_coordinates", methods=["POST"])
+@app.route("/api/get_coordinates", methods=["POST"])
 def get_coordinates_route():
     """
     Get coordinates for the selected samples
@@ -45,7 +45,7 @@ def get_coordinates_route():
     return jsonify(get_coordinates(sample_ids))
 
 
-@app.route("/get_gene_list", methods=["POST"])
+@app.route("/api/get_gene_list", methods=["POST"])
 def get_gene_list_route():
     """
     Get list of all genes for the selected samples
@@ -54,7 +54,7 @@ def get_gene_list_route():
     return jsonify(get_gene_list(sample_names))
 
 
-@app.route("/get_kosara_data", methods=["POST"])
+@app.route("/api/get_kosara_data", methods=["POST"])
 def get_kosara_data_route():
     """
     Get Kosara visualization format data
@@ -65,7 +65,7 @@ def get_kosara_data_route():
     return jsonify(get_kosara_data(sample_ids, gene_list, cell_list))
 
 
-@app.route("/get_selected_region_data", methods=["POST"])
+@app.route("/api/get_selected_region_data", methods=["POST"])
 def get_selected_region_data_route():
     """
     Get gene expression data for the selected regions
@@ -75,7 +75,7 @@ def get_selected_region_data_route():
     return jsonify(get_selected_region_data(sample_id, cell_list))
 
 
-@app.route("/get_gene_name_search")
+@app.route("/api/get_gene_name_search")
 def get_gene_name_search():
     """
     Search for gene names based on a query string.
@@ -92,7 +92,7 @@ def get_gene_name_search():
     return jsonify(results)
 
 
-@app.route("/upload_spaceranger", methods=["POST"])
+@app.route("/api/upload_spaceranger", methods=["POST"])
 def upload_spaceranger():
     """
     Upload Spaceranger output files and save them in the appropriate directory structure.
