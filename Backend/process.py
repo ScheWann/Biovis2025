@@ -1,152 +1,98 @@
 import numpy as np
 import pandas as pd
-import os
-import matplotlib.pyplot as plt
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import json
+from collections import defaultdict
 from scipy.optimize import fsolve
-import anndata as ad
 import scanpy as sc
 from PIL import Image
-import shutil
-import tifffile as tifi
-import squidpy as sq
 import gseapy as gp
 from scipy.sparse import issparse
 from sklearn.decomposition import NMF
-from scipy.cluster.hierarchy import linkage, cophenet
-from sklearn.metrics import silhouette_score
-from scipy.spatial.distance import pdist
-
-hirescalef = 0.10757315
-
-SAMPLES = {
-    "skin_TXK6Z4X_A1": {
-        "id": "skin_TXK6Z4X_A1",
-        "name": "skin_TXK6Z4X_A1",
-        "adata": "../Data/skin_TXK6Z4X_A1_processed/tmap/weighted_by_area_celltypist_cells_adata.h5",
-        "wsi": "../Data/skin_TXK6Z4X_A1_processed/tmap/wsi.tif",
-        "tiles": "../Data/skin_TXK6Z4X_A1_processed/skin_TXK6Z4X_A1_processed_tiles",
-        "cells_layer": "../Data/skin_TXK6Z4X_A1_processed/cells_layer.png",
-    },
-    "skin_TXK6Z4X_D1": {
-        "id": "skin_TXK6Z4X_D1",
-        "name": "skin_TXK6Z4X_D1",
-        "adata": "../Data/skin_TXK6Z4X_D1_processed/tmap/weighted_by_area_celltypist_cells_adata.h5",
-        "wsi": "../Data/skin_TXK6Z4X_D1_processed/tmap/wsi.tif",
-        "tiles": "../Data/skin_TXK6Z4X_D1_processed/skin_TXK6Z4X_D1_processed_tiles",
-        "cells_layer": "../Data/skin_TXK6Z4X_D1_processed/cells_layer.png",
-    },
-}
 
 
-# return sample list
-def get_samples():
+JSON_PATH = "./samples_list.json"
+"""
+    Load sample list from a JSON file.
+"""
+with open(JSON_PATH, "r") as f:
+    SAMPLES = json.load(f)
+
+
+def get_samples_option():
+    """
+    Return a list of tissue samples for selector, group by example data and upload data.
+    """
+    groups = defaultdict(list)
+
+    for sample in SAMPLES.values():
+        cell_scale_group = sample.get("group", "default")
+        groups[cell_scale_group].append(
+            {"value": sample["id"], "label": sample["name"]}
+        )
+
     return [
-        {"value": sample["id"], "label": sample["name"]} for sample in SAMPLES.values()
+        {"label": group, "title": group, "options": options}
+        for group, options in groups.items()
     ]
 
 
-# return tissue width and height size
 def get_hires_image_size(sample_ids):
-    Image.MAX_IMAGE_PIXELS = None
-    sizes = {}
+    """
+    Get the size of high-resolution images for the given sample IDs.
+    """
+    tissue_image_size = {}
 
     for sample_id in sample_ids:
         if sample_id in SAMPLES:
             image = Image.open(SAMPLES[sample_id]["wsi"])
-        sizes[sample_id] = image.size
+        tissue_image_size[sample_id] = image.size
 
-    return sizes
-
-
-# return unique cell types
-def get_unique_cell_types(sample_ids):
-    result = {}
-
-    for sample_id in sample_ids:
-        if sample_id in SAMPLES:
-            adata = sc.read_h5ad(SAMPLES[sample_id]["adata"])
-            result[sample_id] = adata.obs["cell_type"].unique().tolist()
-
-    return result
+    return tissue_image_size
 
 
-# return cell type, and cell coordinates
-def get_cell_type_coordinates(sample_ids):
-    result = {}
+def get_coordinates(sample_ids):
+    """
+    Get cell coordinates for the given sample IDs.
+    """
+    cell_coordinate_result = {}
 
     for sample_id in sample_ids:
         if sample_id in SAMPLES:
-            adata = sc.read_h5ad(SAMPLES[sample_id]["adata"])
-            df = adata.obsm["spatial"].copy()
-            df["cell_type"] = adata.obs["cell_type"]
-            df["id"] = adata.obs.index
-            result[sample_id] = df.to_dict(orient="records")
+            cells_df = pd.read_csv(SAMPLES[sample_id]["cells_path"], index_col=0)
+            nuclei_df = pd.read_csv(SAMPLES[sample_id]["nuclei_path"], index_col=0)
+            nuclei_geometry_df = nuclei_df[["id", "nucleus_geometry"]]
+            cell_nuclei_merged_df = cells_df.merge(
+                nuclei_geometry_df, on="id", how="left"
+            )
+            cell_nuclei_merged_df.drop(columns=["centroid"], inplace=True)
 
-    return result
+            # filter out empty geometries
+            cell_nuclei_merged_df = cell_nuclei_merged_df[
+                cell_nuclei_merged_df["cell_geometry"].apply(
+                    lambda x: isinstance(x, str) and x.strip() != ""
+                )
+                & cell_nuclei_merged_df["nucleus_geometry"].apply(
+                    lambda x: isinstance(x, str) and x.strip() != ""
+                )
+            ].copy()
 
+            cell_coordinate_result[sample_id] = cell_nuclei_merged_df.to_dict(
+                orient="records"
+            )
 
-# return cell type
-def get_cell_types(sample_id):
-    sample_info = SAMPLES.get(sample_id)
-    if not sample_info:
-        return []
-
-    adata = sc.read_h5ad(sample_info["adata"])
-    cell_types = adata.obs["cell_type"].unique().tolist()
-
-    return [{"value": ct, "label": ct} for ct in cell_types]
-
-
-# return gene list
-def get_gene_list_for_cell2cellinteraction(sample_id):
-    sample_info_list = []
-
-    sample_info = SAMPLES.get(sample_id)
-    if not sample_info:
-        return sample_info_list
-
-    h5ad_path = sample_info.get("adata")
-
-    try:
-        adata = sc.read_h5ad(h5ad_path)
-
-        for gene in adata.var_names:
-            sample_info_list.append({
-                'value': gene,
-                'label': gene 
-            })
-
-    except Exception as e:
-        print(f"Failed to read {h5ad_path}: {str(e)}")
-
-    return sample_info_list
+    return cell_coordinate_result
 
 
-# return gene list(including gene numbers)
-def get_gene_list(sample_names):
+def get_gene_list(sample_ids):
+    """
+    Get the list of genes for the given sample IDs.
+    """
     sample_gene_dict = {}
 
-    for sample_name in sample_names:
-        sample_info = SAMPLES.get(sample_name)
-        if not sample_info:
-            continue
-
-        h5ad_path = sample_info.get("adata")
-
-        try:
-            adata = sc.read_h5ad(h5ad_path)
-        except Exception as e:
-            print(f"Failed to read {h5ad_path}: {str(e)}")
-            continue
-
-        gene_sums = adata.X.sum(axis=0)
-        gene_names = adata.var_names
-
-        sample_gene_dict[sample_name] = {
-            gene: float(gene_sums[i]) for i, gene in enumerate(gene_names)
-        }
+    for sample_id in sample_ids:
+        gene_df = pd.read_csv(SAMPLES[sample_id]["gene_list_path"])
+        gene_list = gene_df.columns.tolist()
+        sample_gene_dict[sample_id] = gene_list
 
     return sample_gene_dict
 
@@ -324,407 +270,4 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
 
 # get selected region's gene expression data
 def get_selected_region_data(sample_id, cell_ids):
-    if sample_id not in SAMPLES:
-        raise ValueError(f"Sample ID '{sample_id}' not found in SAMPLES.")
-    
-    adata_path = SAMPLES[sample_id]["adata"]
-    adata = sc.read_h5ad(adata_path)
-
-    # filter cells based on cell_ids
-    selected_cells_mask = adata.obs.index.isin(cell_ids)
-    filtered_adata = adata[selected_cells_mask]
-    
-    all_genes = set()
-    cell_expressions = {}
-
-    for i, cell in enumerate(filtered_adata.obs.index):
-        expression_values = filtered_adata[i].X.A[0] if hasattr(filtered_adata[i].X, 'A') else filtered_adata[i].X[0]
-        nonzero_indices = np.where(expression_values > 0)[0]
-        cell_expression = {filtered_adata.var.index[j]: float(expression_values[j]) for j in nonzero_indices}
-
-        cell_expressions[cell] = cell_expression
-        all_genes.update(cell_expression.keys())
-
-    all_genes = sorted(all_genes)
-
-    expression_data = [
-        {
-            "cell_id": cell,
-            "expression": [cell_expressions[cell].get(gene, 0.0) for gene in all_genes]
-        }
-        for cell in filtered_adata.obs.index
-    ]
-
-    cell_type_annotations = filtered_adata.obs["cell_type"].to_dict()
-
-    return {
-        "metadata": {
-            "cell_ids": list(filtered_adata.obs.index),
-            "genes": all_genes,
-            "cell_type_annotations": cell_type_annotations,
-        },
-        "expression_data": expression_data,
-    }
-
-
-# def get_NMF_GO_data(sample_id, cell_list):
-#     # finding the best n_neighbors for leiden clustering
-#     def compute_silhouette_scores(adata, n_neighbors_list=[5, 10, 15, 20, 30]):
-#         silhouette_scores = {}
-
-#         for n_neighbors in n_neighbors_list:
-#             print(f"Trying n_neighbors = {n_neighbors}")
-#             # calculate neighbors
-#             sc.pp.neighbors(adata, use_rep='X_nmf', n_neighbors=n_neighbors)
-
-#             # leiden clustering
-#             sc.tl.leiden(adata, resolution=0.5)
-            
-#             # calculate silhouette score
-#             labels = adata.obs['leiden'].astype(int)
-#             silhouette_avg = silhouette_score(adata.obsm['X_nmf'], labels)
-
-#             silhouette_scores[n_neighbors] = silhouette_avg
-#             print(f"Silhouette score for n_neighbors={n_neighbors}: {silhouette_avg:.3f}")
-        
-#         return silhouette_scores
-
-#     # compute cophenetic correlation method
-#     def compute_cophenetic(W):
-#         try:
-#             dist = pdist(W.T)
-#             linkage_matrix = linkage(dist, method='average')
-#             coph_corr, _ = cophenet(linkage_matrix, dist)
-#             return coph_corr
-#         except Exception:
-#             return np.nan
-
-#     # finding the best k for NMF
-#     def auto_select_nmf_k_from_expr(expr_matrix, k_range=range(2, 21), n_repeats=5, random_state=42, coph_threshold=0.98):
-#         results = []
-
-#         for k in k_range:
-#             cophs = []
-#             errors = []
-#             for i in range(n_repeats):
-#                 nmf = NMF(n_components=k, init='nndsvda', random_state=random_state+i, max_iter=1000)
-#                 W = nmf.fit_transform(expr_matrix)
-#                 H = nmf.components_
-#                 recon = np.dot(W, H)
-#                 error = np.linalg.norm(expr_matrix - recon)
-#                 coph = compute_cophenetic(W)
-#                 errors.append(error)
-#                 cophs.append(coph)
-
-#             avg_coph = np.nanmean(cophs)
-#             avg_error = np.mean(errors)
-#             results.append((k, avg_coph, avg_error))
-
-#         # filtered cophenetic equals to nan
-#         valid_results = [(k, coph) for k, coph, _ in results if not np.isnan(coph)]
-
-#         # choose the min k with the first cophenetic >= 0.97
-#         for k, coph in valid_results:
-#             if coph >= coph_threshold:
-#                 return k, results
-
-#         best_k = max(valid_results, key=lambda x: x[1])[0]
-#         return best_k, results
-
-#     # get top genes of each component(NMF)
-#     def get_top_genes(H, gene_names, top_n=10):
-#         top_genes = {}
-#         for i, comp in enumerate(H):
-#             # getting the indices of the top genes
-#             top_idx = np.argsort(comp)[::-1][:top_n]
-#             top_genes[f"Component_{i+1}"] = [gene_names[j] for j in top_idx]
-#         return top_genes
-
-#     if sample_id not in SAMPLES:
-#         raise ValueError(f"Sample ID '{sample_id}' not found in SAMPLES.")
-
-#     # ========== Load the data for the specified sample ID ========== 
-#     adata_path = SAMPLES[sample_id]["adata"]
-#     adata = sc.read_h5ad(adata_path)
-
-#     adata_region = adata[cell_list, :].copy()
-#     expr_matrix = adata_region.X
-#     if not isinstance(expr_matrix, np.ndarray):
-#         expr_matrix = expr_matrix.toarray()
-
-#     # ========== find the best component number for NMF ==========
-#     best_k, k_results = auto_select_nmf_k_from_expr(expr_matrix)
-
-#     for k, coph, err in k_results:
-#         print(f"k={k}, Cophenetic={coph:.3f}, Error={err:.2f}")
-
-#     # ========== NMF ==========
-#     n_components = best_k
-#     nmf_model = NMF(n_components=n_components, init='nndsvda', random_state=42)
-#     W = nmf_model.fit_transform(expr_matrix)
-#     H = nmf_model.components_ 
-
-#     # ========== clustering NMF result(M) ==========
-#     adata_region.obsm['X_nmf'] = W
-#     sil_scores = compute_silhouette_scores(adata_region, n_neighbors_list=[5, 10, 15, 20, 30])
-
-#     print("\nSilhouette scores for different n_neighbors:")
-#     for n, score in sil_scores.items():
-#         print(f"n_neighbors = {n}, silhouette score = {score:.3f}")
-
-#     # find the best n_neighbors based on silhouette score
-#     best_n_neighbors = max(sil_scores, key=sil_scores.get)
-#     print(f"\nBest n_neighbors based on silhouette score: {best_n_neighbors}")
-
-#     sc.pp.neighbors(adata_region, use_rep='X_nmf', n_neighbors=best_n_neighbors)
-#     sc.tl.leiden(adata_region, resolution=0.1)
-
-#     clusters = adata_region.obs['leiden']
-
-#     # convert W to a DataFrame for easier manipulation
-#     df_W = pd.DataFrame(W, index=adata_region.obs_names,
-#                         columns=[f"Component_{i+1}" for i in range(W.shape[1])])
-#     df_W["cluster"] = clusters.values
-
-#     # calculate the average activation of each NMF component for each cluster
-#     cluster_means = df_W.groupby("cluster").mean()
-
-#     # each cluster's cell ids
-#     cell_ids_by_cluster = {
-#         cluster: adata_region.obs.index[adata_region.obs['leiden'] == cluster].tolist()
-#         for cluster in adata_region.obs['leiden'].unique()
-#     }
-
-#     # ========== Go analysis based on the result of NMF(H) ==========
-#     gene_names = adata.var_names.tolist()
-#     top_genes = get_top_genes(H, gene_names, top_n=10)
-
-#     go_results = {}
-
-#     for comp, genes in top_genes.items():
-#         print(f"analyzing {comp} ...")
-#         enr = gp.enrich(
-#             gene_list=genes,
-#             gene_sets="../Data/c5.go.v2024.1.Hs.symbols.gmt",
-#             outdir=None,
-#             cutoff=0.5,
-#         )
-
-#         filtered = enr.results[enr.results["Adjusted P-value"] < 0.05]
-#         filtered = filtered.sort_values(by="Combined Score", ascending=False)
-#         filtered_top5 = filtered.head(5)
-#         if not filtered.empty:
-#             go_results[comp] = filtered_top5.to_dict(orient="records")
-#         else:
-#             print(f"{comp} no GO results found.")
-    
-#     return {
-#         "NMF_matrix": W.tolist(),
-#         "GO_results": go_results,
-#         "cluster_means": cluster_means.to_dict(orient="records"),
-#         "cell_ids_by_cluster": cell_ids_by_cluster,
-#     }
-def get_NMF_GO_data(regions, n_component, resolution):
-    def get_top_genes(H, gene_names, top_n=10):
-        top_genes = {}
-        for i, comp in enumerate(H):
-            top_idx = np.argsort(comp)[::-1][:top_n]
-            top_genes[f"Component_{i+1}"] = [gene_names[j] for j in top_idx]
-        return top_genes
-
-    sankey_nodes = []
-    sankey_links = []
-    GO_results = {}
-
-    node_ids = {}
-
-    for region_name, region_info in regions.items():
-        sample_id = region_info["sampleid"]
-        cell_list = region_info["cell_list"]
-
-        if sample_id not in SAMPLES:
-            raise ValueError(f"Sample ID '{sample_id}' not found in SAMPLES.")
-        adata_path = SAMPLES[sample_id]["adata"]
-        adata = sc.read_h5ad(adata_path)
-
-        adata_region = adata[cell_list, :].copy()
-        expr_matrix = adata_region.X
-        if not isinstance(expr_matrix, np.ndarray):
-            expr_matrix = expr_matrix.toarray()
-
-        # ======== NMF ========
-        nmf_model = NMF(n_components=n_component, init='nndsvda', random_state=42, max_iter=1000)
-        W = nmf_model.fit_transform(expr_matrix)
-        H = nmf_model.components_
-
-        # Normalize W
-        W_norm = W / np.clip(W.sum(axis=1, keepdims=True), a_min=1e-10, a_max=None)
-
-        adata_region.obsm['X_nmf'] = W_norm
-
-        # ======== cluster ========
-        sc.pp.neighbors(adata_region, use_rep='X_nmf', n_neighbors=30, metric='euclidean')
-        sc.tl.leiden(adata_region, resolution=resolution)
-        clusters = adata_region.obs['leiden']
-
-        comp_names = [f"Component_{i+1}" for i in range(n_component)]
-        df_W = pd.DataFrame(W_norm, index=adata_region.obs_names, columns=comp_names)
-        df_W["cluster"] = clusters.values
-        
-        cluster_means = df_W.groupby("cluster").mean()
-        cell_counts = df_W.groupby("cluster").size()
-
-        # ======== GO analysis ========
-        gene_names = adata_region.var_names.tolist()
-        top_genes = get_top_genes(H, gene_names, top_n=10)
-        region_GO = {}
-        for comp, genes in top_genes.items():
-            print(f"Region {region_name}: analyzing {comp} ...")
-            enr = gp.enrich(
-                gene_list=genes,
-                gene_sets="../Data/c5.go.v2024.1.Hs.symbols.gmt",
-                outdir=None,
-                cutoff=0.5,
-            )
-            filtered = enr.results[enr.results["Adjusted P-value"] < 0.05]
-            filtered = filtered.sort_values(by="Combined Score", ascending=False)
-            filtered_top5 = filtered.head(5)
-            if not filtered.empty:
-                region_GO[comp] = filtered_top5.to_dict(orient="records")
-            else:
-                print(f"Region {region_name}: {comp} no GO results found.")
-        GO_results[region_name] = region_GO
-
-        # regions nodes
-        region_node_id = f"region_{region_name}"
-        sankey_nodes.append({
-            "id": region_node_id,
-            "name": region_name,
-            "type": "region"
-        })
-        node_ids[region_node_id] = region_node_id
-
-        # cluster nodes
-        for cluster in clusters.unique():
-            cluster_node_id = f"cluster_{region_name}_{cluster}"
-            sankey_nodes.append({
-                "id": cluster_node_id,
-                "name": f"Cluster {cluster}",
-                "type": "cluster",
-                "region": region_name
-            })
-            node_ids[cluster_node_id] = cluster_node_id
-
-            count = int(cell_counts.loc[cluster])
-            sankey_links.append({
-                "source": region_node_id,
-                "target": cluster_node_id,
-                "value": count
-            })
-
-        # component nodes
-        for i in range(n_component):
-            comp_label = f"Component_{i+1}"
-            comp_node_id = f"comp_{region_name}_{comp_label}"
-            sankey_nodes.append({
-                "id": comp_node_id,
-                "name": comp_label,
-                "type": "component",
-                "region": region_name
-            })
-            node_ids[comp_node_id] = comp_node_id
-
-        # connections between clusters and components(weights are the average activation of each component in the cluster * cell count)
-        for cluster in clusters.unique():
-            cluster_node_id = f"cluster_{region_name}_{cluster}"
-            count = int(cell_counts.loc[cluster])
-            for comp_label in comp_names:
-                comp_node_id = f"comp_{region_name}_{comp_label}"
-                # cluster_means.loc[cluster, comp_label] 为该聚类中该组件的平均激活
-                weight = float(cluster_means.loc[cluster, comp_label]) * count
-                sankey_links.append({
-                    "source": cluster_node_id,
-                    "target": comp_node_id,
-                    "value": weight
-                })
-
-    # Return the data(Sankey) and GO results
-    return {
-        "sankey": {
-            "nodes": sankey_nodes,
-            "links": sankey_links,
-        },
-        "GO_results": GO_results
-    }
-
-def get_cell_cell_interaction_data(regions, receiver, sender, receiverGene, senderGene):
-    result = {}
-
-    # Check if the receiver and sender are valid
-    for region_key, region_info in regions.items():
-        sample_id = region_info["sampleid"]
-        cellIds = region_info["cell_list"]
-
-        if sample_id not in SAMPLES:
-            print(f"Error: Sample ID {sample_id} not found in SAMPLES.")
-            continue
-
-        adata_path = SAMPLES[sample_id]["adata"]
-        adata = sc.read_h5ad(adata_path)
-
-        filtered_adata = adata[adata.obs.index.isin(cellIds)]
-
-        filtered_spatial = pd.DataFrame(
-            filtered_adata.obsm["spatial"],
-            columns=["cell_x", "cell_y"],
-            index=filtered_adata.obs.index,
-        )
-        filtered_spatial["cell_type"] = filtered_adata.obs["cell_type"]
-        filtered_spatial.rename(columns={"cell_x": "X", "cell_y": "Y"}, inplace=True)
-
-        spatial_file = f"{region_key}_spatial.txt"
-        filtered_spatial.to_csv(spatial_file, sep="\t", index=True, index_label="")
-
-        counts_data = filtered_adata.to_df()
-        counts_file = f"{region_key}_counts.txt"
-        counts_data.to_csv(counts_file, sep="\t", index=True, index_label="")
-
-        script_path = "../Spacia/spacia.py"
-        output_path = f"cell2cellinteractionOutput_{region_key}"
-
-        # if gene is a list, join it with "|"
-        if isinstance(receiverGene, list):
-            receiverGene_str = "|".join(receiverGene)
-        else:
-            receiverGene_str = receiverGene
-
-        if isinstance(senderGene, list):
-            senderGene_str = "|".join(senderGene)
-        else:
-            senderGene_str = senderGene
-
-        params = f'-rc {receiver} -sc {sender} -rf {receiverGene_str} -sf {senderGene_str} -d 30 -nc 20'
-        cmd = f"python {script_path} {counts_file} {spatial_file} {params} -o {output_path}"
-        print(f"Running command: {cmd}")
-
-        os.system(cmd)
-
-        interaction_file = os.path.join(output_path, "Interactions.csv")
-        if os.path.exists(interaction_file):
-            interaction_df = pd.read_csv(interaction_file)
-            result[region_key] = interaction_df.to_dict(orient="records")
-        else:
-            print(f"Error: Interaction file for region {region_key} not found.")
-
-        # Cleanup generated files
-        try:
-            if os.path.exists(spatial_file):
-                os.remove(spatial_file)
-            if os.path.exists(counts_file):
-                os.remove(counts_file)
-            if os.path.exists(output_path):
-                shutil.rmtree(output_path)
-        except Exception as e:
-            print(f"Cleanup error for region {region_key}: {e}")
-
-    return result
+    return "not finished yet"

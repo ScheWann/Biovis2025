@@ -1,0 +1,20 @@
+{
+    "skin_TXK6Z4X_A1": {
+        "id": "skin_TXK6Z4X_A1",
+        "name": "skin_TXK6Z4X_A1(Example)",
+        "group": "2um",
+        "image_tif_path": "../Example_Data/H1-TXK6Z4X-A1_2um/H1-TXK6Z4X-A1_SK24-001_A1-4-003.tiff",
+        "gene_list_path": "../Example_Data/H1-TXK6Z4X-A1_2um/chunks/weighted_by_area/bin_to_cell_assign/patch_0_2.csv",
+        "cells_path": "../Example_Data/H1-TXK6Z4X-A1_2um/cells_df.csv",
+        "nuclei_path": "../Example_Data/H1-TXK6Z4X-A1_2um/nuclei_df.csv"
+    },
+    "skin_TXK6Z4X_D1": {
+        "id": "skin_TXK6Z4X_D1",
+        "name": "skin_TXK6Z4X_D1(Example)",
+        "group": "2um",
+        "image_tif_path": "../Example_Data/H1-TXK6Z4X-D1_2um/H1-TXK6Z4X-D1_SK24-001_A1-5-004.tiff",
+        "gene_list_path": "../Example_Data/H1-TXK6Z4X-D1_2um/chunks/weighted_by_area/bin_to_cell_assign/patch_3_3.csv",
+        "cells_path": "../Example_Data/H1-TXK6Z4X-D1_2um/cells_df.csv",
+        "nuclei_path": "../Example_Data/H1-TXK6Z4X-D1_2um/nuclei_df.csv"
+    }
+}
