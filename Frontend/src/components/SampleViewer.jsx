@@ -111,7 +111,7 @@ export const SampleViewer = ({
             const imageSize = imageSizes[sample.id];
             const offset = sampleOffsets[sample.id] || [0, 0];
 
-            if (!imageSize || imageSize.length < 2) return null;
+            if (!imageSize) return null;
 
             return new BitmapLayer({
                 id: `tissue-image-${sample.id}`,
