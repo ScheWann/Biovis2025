@@ -14,7 +14,6 @@ export const SampleViewer = ({
     const [mainViewState, setMainViewState] = useState(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [imageSizes, setImageSizes] = useState({});
-    const [geneList, setGeneList] = useState({}); // The gene list for each sample
     const [availableGenes, setAvailableGenes] = useState([]); // All genes that have been added to the list
     const [selectedGenes, setSelectedGenes] = useState([]); // Currently selected (checked) genes
     const [radioCellGeneModes, setRadioCellGeneModes] = useState(
