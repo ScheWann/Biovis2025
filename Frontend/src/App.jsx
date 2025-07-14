@@ -11,87 +11,67 @@ import '@ant-design/v5-patch-for-react-19';
 // import { GeneExpressionViewer } from './components/GeneExpressionViewer';
 // import { PseudoTemporalViewer } from './components/PseudoTemporalViewer';
 
-
 function App() {
-  const [cellTypeCoordinatesData, setCellTypeCoordinatesData] = useState({}); // each sample's cell type directory(e.g. {"skin_TXK6Z4X_A1": [{"cell_type": "cd19+cd20+ b","cell_x": 3526, "cell_y": 3780, "id": "ID_1}, ...}])'
+  const [coordinatesData, setCoordinatesData] = useState({}); // each sample's cell type directory(e.g. {"skin_TXK6Z4X_A1": [{"cell_type": "cd19+cd20+ b","cell_x": 3526, "cell_y": 3780, "id": "ID_1}, ...}])'
   const [selectOptions, setSelectOptions] = useState([]); // Available sample Option(e.g. [{value: 'skin_TXK6Z4X_A1', label: 'skin_TXK6Z4X_A1'}, ...])
-  const [samples, setSamples] = useState([]); // Select the sample to be displayed (the beginning input of the entire project)[{id: 'sample_id', name: 'sample_id'}, ...]
-  const [selectedSamples, setSelectedSamples] = useState([]); // Select the sample to analyze(e.g. '[skin_TXK6Z4X_D1]')
-  const [cellTypeDir, setCellTypeDir] = useState({}); // Each sample's cell type directory based on users' sample selection(e.g. {"skin_TXK6Z4X_A1": ["cd19+cd20+ b", "cd19+cd20+ t"], ...})
-  const [regions, setRegions] = useState([]); // Selected regions in the multiSampleViewer to perform analysis (e.g. [{name: 'region1', sampleId: 'skin_TXK6Z4X_A1', cellIds: ['ID_1', 'ID_2']}, ...])
-  const [loading, setLoading] = useState(false); // Full page loading
+  const [selectedSamples, setSelectedSamples] = useState([]); // Confirmed sample to be displayed(e.g. [{id: 'sample_id', name: 'sample_id'}, ...])
+  const [tempSamples, setTempSamples] = useState([]); // The sample identified in the selector
+  // const [cellTypeDir, setCellTypeDir] = useState({}); // Each sample's cell type directory based on users' sample selection(e.g. {"skin_TXK6Z4X_A1": ["cd19+cd20+ b", "cd19+cd20+ t"], ...})
+  const [interestedRegions, setInterestedRegions] = useState([]); // Selected regions in the multiSampleViewer to perform analysis (e.g. [{name: 'region1', sampleId: 'skin_TXK6Z4X_A1', cellIds: ['ID_1', 'ID_2']}, ...])
+  const [sampleDataLoading, setSampleDataLoading] = useState(false); // Sample Data Loading
   const [analyzedRegion, setAnalyzedRegion] = useState({}); // Selected in the multiSampleViewer to perform analysis(e.g.{'region1': true, 'region2': false, ...})
   // NMF data and its loading settings
-  const [NMFGOData, setNMFGOData] = useState({});
-  const [NMFGODataLoading, setNMFGODataLoading] = useState(false);
-  const [NMFclusterCells, setNMFclusterCells] = useState([]);
+  // const [NMFGOData, setNMFGOData] = useState({});
+  // const [NMFGODataLoading, setNMFGODataLoading] = useState(false);
+  // const [NMFclusterCells, setNMFclusterCells] = useState([]);
   // cell2cell data and its loading settings
-  const [cell2cellData, setCell2cellData] = useState({});
-  const [cell2cellDataLoading, setCell2cellDataLoading] = useState(false);
+  // const [cell2cellData, setCell2cellData] = useState({});
+  // const [cell2cellDataLoading, setCell2cellDataLoading] = useState(false);
   const [selectedRegionGeneExpressionData, setSelectedRegionGeneExpressionData] = useState({});
   const [uploadFormVisible, setUploadFormVisible] = useState(false); // Upload form visibility
 
-  // get all aviailable samples
-  const fetchAvailableSamples = () => {
-    fetch('/get_available_samples')
+  useEffect(() => {
+    fetchSamplesOption();
+  }, []);
+
+  // get all aviailable sample options
+  const fetchSamplesOption = () => {
+    fetch('/api/get_samples_option')
       .then(response => response.json())
       .then(data => {
         setSelectOptions(data);
       })
       .catch(error => {
         message.error('Get samples failed');
-        console.error(error);
       });
   };
 
-  // get cell information(cell_type, cell_x, cell_y, id) for selected samples
-  const fetchCellTypeData = (sampleIds) => {
-    setLoading(true);
-    fetch('/get_cell_type_coordinates', {
+  // get cell coordinates for selected samples(cell or dot)
+  const fetchCoordinates = (sampleIds) => {
+    setSampleDataLoading(true);
+    fetch('/api/get_coordinates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sample_ids: sampleIds })
     })
       .then(res => res.json())
       .then(data => {
-        setCellTypeCoordinatesData(data);
-        setLoading(false);
+        setCoordinatesData(data);
+        setSampleDataLoading(false);
       })
-  };
-
-  // get cell type directory for each selected sample
-  const fetchCellTypeDirectory = (sampleIds) => {
-    fetch('/get_unique_cell_types', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sample_ids: sampleIds })
-    })
-      .then(res => res.json())
-      .then(data => {
-        setCellTypeDir(data);
-      }).catch(error => {
-        message.error('Get cell type directory failed');
-        console.error(error);
-      });
   };
 
   // confirm selected samples
   const confirmSamples = () => {
-    if (selectedSamples.length === 0) {
+    if (tempSamples.length === 0) {
       message.warning('Please select at least one sample');
     } else {
-      fetchCellTypeData(selectedSamples);
-      fetchCellTypeDirectory(selectedSamples);
-      setSamples(selectedSamples.map(sample => ({ id: sample, name: sample })));
+      fetchCoordinates(tempSamples);
+      setSelectedSamples(tempSamples.map(sample => ({ id: sample, name: sample })));
     }
   };
 
-  // initial loading (get all available sample list)
-  useEffect(() => {
-    fetchAvailableSamples();
-  }, []);
-
-  const handleUpload = async (values) => {
+  const handleUploadSTData = async (values) => {
     const { name, description, folder } = values;
     const formData = new FormData();
     formData.append('name', name);
@@ -139,18 +119,18 @@ function App() {
             size='small'
             mode="multiple"
             placeholder="Select samples"
-            value={selectedSamples}
-            onChange={setSelectedSamples}
+            value={tempSamples}
+            onChange={setTempSamples}
             options={selectOptions}
             style={{ width: '100%', marginTop: 8, marginBottom: 8 }}
             maxTagCount="responsive"
-            loading={loading}
+            loading={sampleDataLoading}
           />
           <Button size='small' onClick={() => setUploadFormVisible(true)} icon={<PlusOutlined />} />
           <Button size='small' onClick={confirmSamples}>Confirm</Button>
         </div>
 
-        {/* Upload Modal */}
+        {/* Upload Data Form Modal */}
         <Modal
           title="Upload Data"
           open={uploadFormVisible}
@@ -160,7 +140,7 @@ function App() {
         >
           <Form
             layout="vertical"
-            onFinish={handleUpload}
+            onFinish={handleUploadSTData}
           >
             <Form.Item
               label="Name"
@@ -182,34 +162,34 @@ function App() {
               getValueFromEvent={e => Array.isArray(e) ? e : e && e.fileList}
               rules={[{ required: true, message: 'Please upload a spaceranger output folder!' }]}
             >
-                <Upload.Dragger
-                  directory
-                  multiple
-                  showUploadList={true}
-                  beforeUpload={(file) => {
-                    const path = file.webkitRelativePath || file.name;
-                    const matrixH5Pattern = /binned_outputs\/square_(002|008|016)um\/filtered_feature_bc_matrix\.h5$/;
-                    const spatialPattern = /\/spatial\//;
-                    if (matrixH5Pattern.test(path)) {
-                      return false;
-                    }
-                    if (spatialPattern.test(path) && !/\/\./.test(path)) {
-                      return false;
-                    }
-                    return Upload.LIST_IGNORE;
-                  }}
-                  itemRender={(originNode, file) => (
-                    <div className='ant-upload-list-item-name'>
-                      <PaperClipOutlined style={{ marginRight: 6 }} />
-                      {file.name}
-                    </div>
-                  )}
-                >
-                  <p className="ant-upload-drag-icon">
-                    <InboxOutlined />
-                  </p>
-                  <p className="ant-upload-hint">Click or drag folder to this area to upload</p>
-                </Upload.Dragger>
+              <Upload.Dragger
+                directory
+                multiple
+                showUploadList={true}
+                beforeUpload={(file) => {
+                  const path = file.webkitRelativePath || file.name;
+                  const matrixH5Pattern = /binned_outputs\/square_(002|008|016)um\/filtered_feature_bc_matrix\.h5$/;
+                  const spatialPattern = /\/spatial\//;
+                  if (matrixH5Pattern.test(path)) {
+                    return false;
+                  }
+                  if (spatialPattern.test(path) && !/\/\./.test(path)) {
+                    return false;
+                  }
+                  return Upload.LIST_IGNORE;
+                }}
+                itemRender={(originNode, file) => (
+                  <div className='ant-upload-list-item-name'>
+                    <PaperClipOutlined style={{ marginRight: 6 }} />
+                    {file.name}
+                  </div>
+                )}
+              >
+                <p className="ant-upload-drag-icon">
+                  <InboxOutlined />
+                </p>
+                <p className="ant-upload-hint">Click or drag folder to this area to upload</p>
+              </Upload.Dragger>
             </Form.Item>
             <Form.Item>
               <Button type="primary" htmlType="submit" block>Upload</Button>
@@ -219,7 +199,7 @@ function App() {
 
         {/* all views */}
         <div className="content" style={{ position: "relative" }}>
-          {loading && (
+          {sampleDataLoading && (
             <div style={{
               position: "absolute",
               top: 0,
@@ -236,21 +216,21 @@ function App() {
             </div>
           )}
 
-          {samples.length > 0 ? (
+          {selectedSamples.length > 0 ? (
             <Splitter lazy style={{ width: "100%", height: "100%" }}>
               <Splitter.Panel defaultSize="70%" min="50%" max="80%">
                 <MultiSampleViewer
-                  setLoading={setLoading}
-                  samples={samples}
-                  cellTypeCoordinatesData={cellTypeCoordinatesData}
-                  cellTypeDir={cellTypeDir}
-                  regions={regions}
-                  setRegions={setRegions}
+                  setSampleDataLoading={setSampleDataLoading}
+                  selectedSamples={selectedSamples}
+                  coordinatesData={coordinatesData}
+                  // cellTypeDir={cellTypeDir}
+                  interestedRegions={interestedRegions}
+                  setInterestedRegions={setInterestedRegions}
                   analyzedRegion={analyzedRegion}
                   setAnalyzedRegion={setAnalyzedRegion}
-                  setNMFGOData={setNMFGOData}
-                  setNMFGODataLoading={setNMFGODataLoading}
-                  NMFclusterCells={NMFclusterCells}
+                  // setNMFGOData={setNMFGOData}
+                  // setNMFGODataLoading={setNMFGODataLoading}
+                  // NMFclusterCells={NMFclusterCells}
                   setSelectedRegionGeneExpressionData={setSelectedRegionGeneExpressionData}
                 />
               </Splitter.Panel>

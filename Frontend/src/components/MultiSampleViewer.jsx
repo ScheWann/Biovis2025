@@ -8,6 +8,7 @@ import { booleanPointInPolygon, centroid, sample } from '@turf/turf';
 import { TileLayer } from '@deck.gl/geo-layers';
 import { EditableGeoJsonLayer, DrawPolygonMode } from '@deck.gl-community/editable-layers';
 import { fromBlob } from 'geotiff';
+import { debounce } from 'lodash';
 import { convertHSLtoRGB, convertHEXToRGB, hashStringToHue, GENE_COLOR_PALETTE } from './ColorUtils';
 import "../styles/MultiSampleViewer.css";
 
@@ -29,25 +30,21 @@ const generateRandomColor = () => {
 };
 
 export const MultiSampleViewer = ({
-    setLoading,
-    samples,
-    cellTypeCoordinatesData,
-    cellTypeDir,
-    regions,
-    setRegions,
-    setNMFGOData,
-    setNMFGODataLoading,
+    setSampleDataLoading,
+    selectedSamples,
+    coordinatesData,
+    interestedRegions,
+    setInterestedRegions,
     analyzedRegion,
     setAnalyzedRegion,
-    NMFclusterCells,
 }) => {
     const containerRef = useRef(null);
     const [mainViewState, setMainViewState] = useState(null);
-    const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
+    const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [imageSizes, setImageSizes] = useState({}); // The image sizes for each sample, e.g. {skin_TXK6Z4X_A1: [13030, 13511], ...}
-    const [tileSize] = useState(256);
+    // const [tileSize] = useState(256);
     const [features, setFeatures] = useState(
-        samples.reduce((acc, sample) => ({
+        selectedSamples.reduce((acc, sample) => ({
             ...acc,
             [sample.id]: { type: 'FeatureCollection', features: [] }
         }), {})
@@ -64,25 +61,17 @@ export const MultiSampleViewer = ({
     const [isDrawingActive, setIsDrawingActive] = useState(false); // Whether the drawing mode is active
     const [activeDrawingSample, setActiveDrawingSample] = useState(null); // The sample on which the user is currently drawing a region
     const [currentZoom, setCurrentZoom] = useState(-3); // The current zoom level of the viewer
-    const [radioCellGeneModes, setRadioCellGeneModes] = useState(samples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {}));
+    const [radioCellGeneModes, setRadioCellGeneModes] = useState(selectedSamples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {}));
     const [partWholeMode, setPartWholeMode] = useState(true); // defaultly showing gene expression value in the whole regions
     const [geneExpressionData, setGeneExpressionData] = useState([]);
     const TILE_LOAD_ZOOM_THRESHOLD = 0; // The zoom threshold to switch between full image vs. tiled image loading
 
-    const debounce = (fn, delay) => {
-        let timer;
-        return (...args) => {
-            clearTimeout(timer);
-            timer = setTimeout(() => {
-                fn(...args);
-            }, delay);
-        };
-    };
-
-    // debounce zoom level update
-    const debouncedSetZoom = useMemo(() => debounce((zoom) => {
-        setCurrentZoom(zoom);
-    }, 100), []);
+    const debouncedSetZoom = useCallback(
+        debounce((zoom) => {
+            setCurrentZoom(zoom);
+        }, 100),
+        []
+    );
 
     // views
     const mainView = new OrthographicView({
@@ -99,27 +88,28 @@ export const MultiSampleViewer = ({
         controller: false
     });
 
-    // catch the deckGL size
+    // Set the deckGL width and height
     useEffect(() => {
-        const updateSize = () => {
-            const rect = containerRef.current?.getBoundingClientRect();
-            if (rect) {
-                setContainerSize({ width: rect.width, height: rect.height });
+        const container = containerRef.current;
+        if (!container) return;
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (let entry of entries) {
+                const { width, height } = entry.contentRect;
+                setContainerSize({ width, height });
             }
-        };
-        updateSize();
-        window.addEventListener('resize', updateSize);
-        return () => window.removeEventListener('resize', updateSize);
+        });
+        resizeObserver.observe(container);
+        return () => resizeObserver.disconnect();
     }, []);
 
     // fetch gene list
     useEffect(() => {
-        const sampleNames = samples.map(item => item.id);
+        const sampleNames = selectedSamples.map(item => item.id);
         const missingSampleNames = sampleNames.filter(id => !geneList[id]);
 
         if (missingSampleNames.length === 0) return;
 
-        fetch('/get_all_gene_list', {
+        fetch('/api/get_gene_list', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sample_names: missingSampleNames })
@@ -131,14 +121,16 @@ export const MultiSampleViewer = ({
                     ...data
                 }));
             });
-    }, [samples]);
+    }, [selectedSamples]);
 
     // Initialize color map and visible cell types for each sample
     useEffect(() => {
-        const initialStates = samples.reduce((acc, sample) => {
+        const initialStates = selectedSamples.reduce((acc, sample) => {
             const initialColorMap = {};
             const initialVisibility = {};
-            const sampleCellTypes = cellTypeDir?.[sample.id] || [];
+            // Extract unique cell types from coordinatesData
+            const sampleData = coordinatesData?.[sample.id] || [];
+            const sampleCellTypes = [...new Set(sampleData.map(cell => cell.cell_type))].filter(Boolean);
 
             sampleCellTypes.forEach((cellType) => {
                 const hue = hashStringToHue(cellType);
@@ -154,14 +146,14 @@ export const MultiSampleViewer = ({
 
         setColorMaps(initialStates.colorMaps);
         setVisibleCellTypes(initialStates.visibleCellTypes);
-    }, [samples, cellTypeDir]);
+    }, [selectedSamples, coordinatesData]);
 
     // get image sizes for all samples
     useEffect(() => {
         const fetchImageSizes = () => {
-            const sampleIds = samples.map(sample => sample.id);
+            const sampleIds = selectedSamples.map(sample => sample.id);
 
-            fetch('/get_hires_image_size', {
+            fetch('/api/get_hires_image_size', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sample_ids: sampleIds })
@@ -172,29 +164,29 @@ export const MultiSampleViewer = ({
                 })
         };
 
-        if (samples.length) {
+        if (selectedSamples.length) {
             fetchImageSizes();
         }
-    }, [samples]);
+    }, [selectedSamples]);
 
     useEffect(() => {
-        if (Object.keys(imageSizes).length === samples.length) {
+        if (Object.keys(imageSizes).length === selectedSamples.length) {
             let currentX = 0;
             const margin = 100;
             const newOffsets = {};
-            samples.forEach(sample => {
+            selectedSamples.forEach(sample => {
                 const size = imageSizes[sample.id];
                 newOffsets[sample.id] = [currentX, 0];
                 currentX += size[0] + margin;
             });
             setSampleOffsets(newOffsets);
         }
-    }, [imageSizes, samples]);
+    }, [imageSizes, selectedSamples]);
 
     useEffect(() => {
-        if (!samples.length || !sampleOffsets || !imageSizes) return;
+        if (!selectedSamples.length || !sampleOffsets || !imageSizes) return;
 
-        const firstSample = samples[0];
+        const firstSample = selectedSamples[0];
         if (!firstSample) return;
 
         const offset = sampleOffsets[firstSample.id] ?? [0, 0];
@@ -210,26 +202,26 @@ export const MultiSampleViewer = ({
             maxZoom: 2.5,
             minZoom: -5
         });
-    }, [samples, sampleOffsets, imageSizes]);
+    }, [selectedSamples, sampleOffsets, imageSizes]);
 
-    const fetchNMFGOExpressionData = (sampleId, cell_ids) => {
-        setNMFGODataLoading(true);
-        fetch('/get_NMF_GO_data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sample_id: sampleId, cell_list: cell_ids })
-        })
-            .then(res => res.json())
-            .then(data => {
-                setNMFGODataLoading(false);
-                setNMFGOData(data);
-            });
-    }
+    // const fetchNMFGOExpressionData = (sampleId, cell_ids) => {
+    //     setNMFGODataLoading(true);
+    //     fetch('/get_NMF_GO_data', {
+    //         method: 'POST',
+    //         headers: { 'Content-Type': 'application/json' },
+    //         body: JSON.stringify({ sample_id: sampleId, cell_list: cell_ids })
+    //     })
+    //         .then(res => res.json())
+    //         .then(data => {
+    //             setNMFGODataLoading(false);
+    //             setNMFGOData(data);
+    //         });
+    // }
 
     const overallBounds = useMemo(() => {
-        if (!samples.length) return null;
+        if (!selectedSamples.length) return null;
         let xMin = Infinity, yMin = Infinity, xMax = -Infinity, yMax = -Infinity;
-        samples.forEach(s => {
+        selectedSamples.forEach(s => {
             const [ox, oy] = sampleOffsets[s.id] || [0, 0];
             const [w, h] = imageSizes[s.id] || [0, 0];
             xMin = Math.min(xMin, ox);
@@ -238,26 +230,26 @@ export const MultiSampleViewer = ({
             yMax = Math.max(yMax, oy + h);
         });
         return { xMin, yMin, xMax, yMax };
-    }, [samples, sampleOffsets, imageSizes]);
+    }, [selectedSamples, sampleOffsets, imageSizes]);
 
     const analyzedRegionData = useMemo(() => {
         if (!analyzedRegion) return null;
-        const region = regions.find(r => r.name === analyzedRegion);
+        const region = interestedRegions.find(r => r.name === analyzedRegion);
         if (!region) return null;
         return {
             sampleId: region.sampleId,
             cellIds: region.cellIds,
         };
-    }, [analyzedRegion, regions]);
+    }, [analyzedRegion, interestedRegions]);
 
     // save filtered cell data, only recalculate when dependencies change
     const filteredCellData = useMemo(() => {
-        return samples.reduce((acc, sample) => {
-            const data = cellTypeCoordinatesData[sample.id] || [];
+        return selectedSamples.reduce((acc, sample) => {
+            const data = coordinatesData[sample.id] || [];
             const filtered = data.filter(cell => visibleCellTypes[sample.id]?.[cell.cell_type] ?? true);
             return { ...acc, [sample.id]: filtered };
         }, {});
-    }, [samples, cellTypeCoordinatesData, visibleCellTypes]);
+    }, [selectedSamples, coordinatesData, visibleCellTypes]);
 
     const changeCellGeneMode = (sampleId, e) => {
         setRadioCellGeneModes(prev => ({
@@ -276,10 +268,10 @@ export const MultiSampleViewer = ({
 
     const confirmKosaraPlot = (sampleId) => {
         const sample = [sampleId];
-        setLoading(true);
+        setSampleDataLoading(true);
 
         if (partWholeMode) {
-            regions.forEach(region => {
+            interestedRegions.forEach(region => {
                 fetch('/get_kosara_data', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -288,7 +280,7 @@ export const MultiSampleViewer = ({
                     .then(res => res.json())
                     .then(data => {
                         setGeneExpressionData(data[sample]);
-                        setLoading(false);
+                        setSampleDataLoading(false);
                     });
             });
         } else {
@@ -299,7 +291,7 @@ export const MultiSampleViewer = ({
             })
                 .then(res => res.json())
                 .then(data => {
-                    setLoading(false);
+                    setSampleDataLoading(false);
                     setGeneExpressionData(data[sample]);
                 });
         }
@@ -566,7 +558,7 @@ export const MultiSampleViewer = ({
         return points;
     }
 
-    const collapseItems = samples.map((sample) => ({
+    const collapseItems = selectedSamples.map((sample) => ({
         key: sample.id,
         label: sample.name,
         children: (
@@ -582,8 +574,8 @@ export const MultiSampleViewer = ({
                 />
                 {radioCellGeneModes[sample.id] === 'cellTypes' ? (
                     <CellTypeSettings
-                        cellTypes={cellTypeDir[sample.id] || []}
-                        cellData={cellTypeCoordinatesData[sample.id]}
+                        cellTypes={coordinatesData[sample.id] ? [...new Set(coordinatesData[sample.id].map(cell => cell.cell_type))].filter(Boolean) : []}
+                        cellData={coordinatesData[sample.id]}
                         colorMap={colorMaps[sample.id] || {}}
                         visibleMap={visibleCellTypes[sample.id] || {}}
                         onColorChange={(type, color) => {
@@ -613,7 +605,7 @@ export const MultiSampleViewer = ({
     }));
 
     // outlines of every sample image
-    const minimapSampleOutlines = useMemo(() => samples.map(s => {
+    const minimapSampleOutlines = useMemo(() => selectedSamples.map(s => {
         const [ox, oy] = sampleOffsets[s.id] || [0, 0];
         const [w, h] = imageSizes[s.id] || [0, 0];
 
@@ -626,10 +618,10 @@ export const MultiSampleViewer = ({
                 [ox, oy]
             ]
         };
-    }), [samples, sampleOffsets, imageSizes]);
+    }), [selectedSamples, sampleOffsets, imageSizes]);
 
     // outlines of each selected region
-    const minimapRegionOutlines = useMemo(() => regions.map(r => {
+    const minimapRegionOutlines = useMemo(() => interestedRegions.map(r => {
         const [ox, oy] = sampleOffsets[r.sampleId] || [0, 0];
         // assume a single polygon in r.feature.features[0]
         const ring = r.feature.features[0].geometry.coordinates[0];
@@ -637,71 +629,71 @@ export const MultiSampleViewer = ({
             path: ring.map(([x, y]) => [x + ox, y + oy]),
             color: r.color
         };
-    }), [regions, sampleOffsets]);
+    }), [interestedRegions, sampleOffsets]);
 
     // TileLayer
-    const generateTileLayers = useCallback(() => {
-        if (currentZoom < TILE_LOAD_ZOOM_THRESHOLD) {
-            return [];
-        }
-        return samples.map(sample => {
-            const imageSize = imageSizes[sample.id];
-            if (!imageSize || imageSize.length < 2) return null;
-            const offset = sampleOffsets[sample.id] || [0, 0];
-            return new TileLayer({
-                id: `tif-tiles-${sample.id}`,
-                tileSize,
-                extent: [
-                    offset[0],
-                    offset[1],
-                    offset[0] + imageSize[0],
-                    offset[1] + imageSize[1]
-                ],
-                minZoom: 0,
-                maxZoom: 0,
-                getTileData: async ({ index }) => {
-                    try {
-                        const { x, y } = index;
-                        const tileOriginX = Math.floor(offset[0] / tileSize);
-                        const tileOriginY = Math.floor(offset[1] / tileSize);
-                        const relativeX = x - tileOriginX;
-                        const relativeY = y - tileOriginY;
-                        const response = await fetch(`/get_tile?sample_id=${sample.id}&x=${relativeX}&y=${relativeY}`);
-                        const blob = await response.blob();
-                        const tiff = await fromBlob(blob);
-                        const image = await tiff.getImage();
-                        const rgba = await image.readRasters({ interleave: true });
-                        const canvas = document.createElement('canvas');
-                        [canvas.width, canvas.height] = [image.getWidth(), image.getHeight()];
-                        const ctx = canvas.getContext('2d');
-                        ctx.translate(canvas.width, 0);
-                        ctx.scale(-1, 1);
-                        ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), canvas.width, canvas.height), 0, 0);
-                        return {
-                            image: canvas,
-                            bounds: [
-                                [relativeX * tileSize + offset[0], (relativeY + 1) * tileSize + offset[1]],
-                                [relativeX * tileSize + offset[0], relativeY * tileSize + offset[1]],
-                                [(relativeX + 1) * tileSize + offset[0], relativeY * tileSize + offset[1]],
-                                [(relativeX + 1) * tileSize + offset[0], (relativeY + 1) * tileSize + offset[1]]
-                            ]
-                        };
-                    } catch (error) {
-                        console.error('Loading tile failed:', error);
-                        return null;
-                    }
-                },
-                renderSubLayers: props => props.data && new BitmapLayer(props, {
-                    image: props.data.image,
-                    bounds: props.data.bounds
-                })
-            });
-        }).filter(Boolean);
-    }, [samples, imageSizes, tileSize, sampleOffsets, currentZoom]);
+    // const generateTileLayers = useCallback(() => {
+    //     if (currentZoom < TILE_LOAD_ZOOM_THRESHOLD) {
+    //         return [];
+    //     }
+    //     return selectedSamples.map(sample => {
+    //         const imageSize = imageSizes[sample.id];
+    //         if (!imageSize || imageSize.length < 2) return null;
+    //         const offset = sampleOffsets[sample.id] || [0, 0];
+    //         return new TileLayer({
+    //             id: `tif-tiles-${sample.id}`,
+    //             tileSize,
+    //             extent: [
+    //                 offset[0],
+    //                 offset[1],
+    //                 offset[0] + imageSize[0],
+    //                 offset[1] + imageSize[1]
+    //             ],
+    //             minZoom: 0,
+    //             maxZoom: 0,
+    //             getTileData: async ({ index }) => {
+    //                 try {
+    //                     const { x, y } = index;
+    //                     const tileOriginX = Math.floor(offset[0] / tileSize);
+    //                     const tileOriginY = Math.floor(offset[1] / tileSize);
+    //                     const relativeX = x - tileOriginX;
+    //                     const relativeY = y - tileOriginY;
+    //                     const response = await fetch(`/get_tile?sample_id=${sample.id}&x=${relativeX}&y=${relativeY}`);
+    //                     const blob = await response.blob();
+    //                     const tiff = await fromBlob(blob);
+    //                     const image = await tiff.getImage();
+    //                     const rgba = await image.readRasters({ interleave: true });
+    //                     const canvas = document.createElement('canvas');
+    //                     [canvas.width, canvas.height] = [image.getWidth(), image.getHeight()];
+    //                     const ctx = canvas.getContext('2d');
+    //                     ctx.translate(canvas.width, 0);
+    //                     ctx.scale(-1, 1);
+    //                     ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), canvas.width, canvas.height), 0, 0);
+    //                     return {
+    //                         image: canvas,
+    //                         bounds: [
+    //                             [relativeX * tileSize + offset[0], (relativeY + 1) * tileSize + offset[1]],
+    //                             [relativeX * tileSize + offset[0], relativeY * tileSize + offset[1]],
+    //                             [(relativeX + 1) * tileSize + offset[0], relativeY * tileSize + offset[1]],
+    //                             [(relativeX + 1) * tileSize + offset[0], (relativeY + 1) * tileSize + offset[1]]
+    //                         ]
+    //                     };
+    //                 } catch (error) {
+    //                     console.error('Loading tile failed:', error);
+    //                     return null;
+    //                 }
+    //             },
+    //             renderSubLayers: props => props.data && new BitmapLayer(props, {
+    //                 image: props.data.image,
+    //                 bounds: props.data.bounds
+    //             })
+    //         });
+    //     }).filter(Boolean);
+    // }, [selectedSamples, imageSizes, tileSize, sampleOffsets, currentZoom]);
 
     // whole image layer
     const generateWholePngLayers = useCallback(() => {
-        return samples.map(sample => {
+        return selectedSamples.map(sample => {
             const imageSize = imageSizes[sample.id];
             const offset = sampleOffsets[sample.id] || [0, 0];
             if (!imageSize || imageSize.length < 2) return null;
@@ -714,29 +706,29 @@ export const MultiSampleViewer = ({
                 parameters: { depthTest: false }
             });
         }).filter(Boolean);
-    }, [imageSizes, sampleOffsets, currentZoom]);
+    }, [selectedSamples, imageSizes, sampleOffsets, currentZoom]);
 
     // cell boundaries image layer
-    const generateMarkerImageLayers = useCallback(() => {
-        return samples.map(sample => {
-            const imageSize = imageSizes[sample.id];
-            const offset = sampleOffsets[sample.id] || [0, 0];
-            if (!imageSize || imageSize.length < 2) return null;
-            return new BitmapLayer({
-                id: `marker-image-${sample.id}`,
-                image: `/${sample.id}_cells_layer.png`,
-                bounds: [offset[0], offset[1] + imageSize[1], offset[0] + imageSize[0], offset[1]],
-                opacity: 1,
-                parameters: { depthTest: false }
-            });
-        }).filter(Boolean);
-    }, [samples, imageSizes]);
+    // const generateMarkerImageLayers = useCallback(() => {
+    //     return selectedSamples.map(sample => {
+    //         const imageSize = imageSizes[sample.id];
+    //         const offset = sampleOffsets[sample.id] || [0, 0];
+    //         if (!imageSize || imageSize.length < 2) return null;
+    //         return new BitmapLayer({
+    //             id: `marker-image-${sample.id}`,
+    //             image: `/${sample.id}_cells_layer.png`,
+    //             bounds: [offset[0], offset[1] + imageSize[1], offset[0] + imageSize[0], offset[1]],
+    //             opacity: 1,
+    //             parameters: { depthTest: false }
+    //         });
+    //     }).filter(Boolean);
+    // }, [selectedSamples, imageSizes]);
 
     // nucleus coordinates scatterplot layer
     const generateCellLayers = useCallback(() => {
-        return samples.map(sample => {
+        return selectedSamples.map(sample => {
             const sampleId = sample.id;
-            const useGeneData = sampleId === samples[0]?.id &&
+            const useGeneData = sampleId === selectedSamples[0]?.id &&
                 selectedGenes.length > 0 &&
                 geneExpressionData.length > 0;
 
@@ -865,12 +857,12 @@ export const MultiSampleViewer = ({
                         const isInAnalyzedRegion = analyzedRegionData.cellIds.includes(d.id);
 
                         if (isInAnalyzedRegion) {
-                            if (NMFclusterCells && NMFclusterCells.length > 0) {
-                                const isHighlighted = NMFclusterCells.includes(d.id);
-                                return isHighlighted
-                                    ? [...defaultColor, 255]
-                                    : [...defaultColor, 50];
-                            }
+                            // if (NMFclusterCells && NMFclusterCells.length > 0) {
+                            //     const isHighlighted = NMFclusterCells.includes(d.id);
+                            //     return isHighlighted
+                            //         ? [...defaultColor, 255]
+                            //         : [...defaultColor, 50];
+                            // }
 
                             return [...defaultColor, 255];
                         }
@@ -889,17 +881,17 @@ export const MultiSampleViewer = ({
                     pickable: true,
                     parameters: { depthTest: false },
                     updateTriggers: {
-                        getFillColor: [colorMaps[sampleId], visibleCellTypes[sampleId], NMFclusterCells, analyzedRegionData],
+                        getFillColor: [colorMaps[sampleId], visibleCellTypes[sampleId], analyzedRegionData],
                         data: [data]
                     }
                 });
             }
         }).filter(Boolean);
-    }, [samples, filteredCellData, colorMaps, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes, analyzedRegion, NMFclusterCells, partWholeMode, regions]);
+    }, [selectedSamples, filteredCellData, colorMaps, sampleOffsets, visibleCellTypes, geneExpressionData, selectedGenes, analyzedRegion, partWholeMode, interestedRegions]);
 
     // generate EditableGeoJsonLayer: only make the layer of the current activeDrawingSample visible
     const generateEditLayers = useCallback(() => {
-        return samples.map(sample => {
+        return selectedSamples.map(sample => {
             const tempRegion = tempRegions[sample.id] || {};
             return new EditableGeoJsonLayer({
                 id: `edit-layer-${sample.id}`,
@@ -920,7 +912,7 @@ export const MultiSampleViewer = ({
                 lineWidthMinPixels: 2
             });
         });
-    }, [samples, features, tempRegions, isDrawingActive, activeDrawingSample]);
+    }, [selectedSamples, features, tempRegions, isDrawingActive, activeDrawingSample]);
     
     // minimap layers
     const minimapLayers = [
@@ -968,7 +960,7 @@ export const MultiSampleViewer = ({
                 ...prev,
                 [sampleId]: {
                     ...prev[sampleId],
-                    data: cellTypeCoordinatesData?.[sampleId]?.filter(cell =>
+                    data: coordinatesData?.[sampleId]?.filter(cell =>
                         booleanPointInPolygon([cell.cell_x, cell.cell_y], localFeature.geometry)
                     )
                 }
@@ -985,7 +977,7 @@ export const MultiSampleViewer = ({
         }
 
         let drawnFeature = null;
-        for (const sample of samples) {
+        for (const sample of selectedSamples) {
             if (features[sample.id]?.features?.length > 0) {
                 drawnFeature = features[sample.id].features[features[sample.id].features.length - 1];
                 break;
@@ -1001,7 +993,7 @@ export const MultiSampleViewer = ({
         const [cx, cy] = centroidFeature.geometry.coordinates;
 
         let targetSampleId = null;
-        for (const sample of samples) {
+        for (const sample of selectedSamples) {
             const offset = sampleOffsets[sample.id] || [0, 0];
             const size = imageSizes[sample.id];
             if (size && size.length === 2) {
@@ -1029,7 +1021,7 @@ export const MultiSampleViewer = ({
             }
         };
 
-        const cellsInRegion = (cellTypeCoordinatesData[targetSampleId] || []).filter(cell =>
+        const cellsInRegion = (coordinatesData[targetSampleId] || []).filter(cell =>
             booleanPointInPolygon([cell.cell_x, cell.cell_y], localFeature.geometry)
         );
         const cellIds = cellsInRegion.map(cell => cell.id);
@@ -1046,9 +1038,9 @@ export const MultiSampleViewer = ({
             cellIds: cellIds
         };
 
-        setRegions(prev => [...prev, newRegion]);
+        setInterestedRegions(prev => [...prev, newRegion]);
         const newFeatures = {};
-        samples.forEach(sample => {
+        selectedSamples.forEach(sample => {
             newFeatures[sample.id] = { type: 'FeatureCollection', features: [] };
         });
         setFeatures(newFeatures);
@@ -1064,14 +1056,14 @@ export const MultiSampleViewer = ({
     };
 
     const handleDeleteRegion = (regionId) => {
-        setRegions(prev => prev.filter(region => region.id !== regionId));
+        setInterestedRegions(prev => prev.filter(region => region.id !== regionId));
         message.success('Region deleted!');
     };
 
     const layers = useMemo(() => {
         const regionLabelLayer = new TextLayer({
             id: 'region-labels',
-            data: regions
+            data: interestedRegions
                 .map(region => {
                     if (!region.feature?.features) return null;
                     const offset = sampleOffsets[region.sampleId] || [0, 0];
@@ -1099,11 +1091,11 @@ export const MultiSampleViewer = ({
         });
         return [
             ...generateWholePngLayers(),
-            ...generateTileLayers(),
-            ...generateMarkerImageLayers(),
+            // ...generateTileLayers(),
+            // ...generateMarkerImageLayers(),
             ...generateEditLayers(),
             regionLabelLayer,
-            ...regions.map(region => {
+            ...interestedRegions.map(region => {
                 const offset = sampleOffsets[region.sampleId] || [0, 0];
                 const globalFeature = {
                     ...region.feature,
@@ -1142,13 +1134,22 @@ export const MultiSampleViewer = ({
             .concat(minimapLayers);
     }, [
         generateWholePngLayers,
-        generateTileLayers,
-        generateMarkerImageLayers,
+        // generateTileLayers,
+        // generateMarkerImageLayers,
         generateCellLayers,
         generateEditLayers,
-        regions,
+        interestedRegions,
         sampleOffsets
     ]);
+
+    const handleViewStateChange = useCallback(({ viewState, viewId }) => {
+        if (viewId === 'main') {
+            setMainViewState(viewState);
+            if (Math.abs(viewState.zoom - currentZoom) > 0.01) {
+                debouncedSetZoom(viewState.zoom);
+            }
+        }
+    }, [currentZoom, debouncedSetZoom]);
 
     return (
         <div style={{ width: '100%', height: '100%', display: 'flex', borderRight: '2px solid #e8e8e8' }}>
@@ -1192,18 +1193,12 @@ export const MultiSampleViewer = ({
                             })()
                         } : undefined
                     }}
-                    onViewStateChange={({ viewState, viewId }) => {
-                        if (viewId === 'main') {
-                            setMainViewState(viewState);
-                            debouncedSetZoom(viewState.zoom);
-                        }
-                    }}
-
+                    onViewStateChange={handleViewStateChange}
                     onClick={info => {
                         if (info.object && info.layer.id.startsWith('Selected-')) {
                             // fetchGeneExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
                             setAnalyzedRegion(info.object.properties.__regionMeta.name);
-                            fetchNMFGOExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
+                            // fetchNMFGOExpressionData(info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
                             // fetchCell2CellInteractionData(info.object.properties.__regionMeta.name, info.object.properties.__regionMeta.sampleId, info.object.properties.__regionMeta.cell_ids);
                         }
                     }}
@@ -1325,7 +1320,7 @@ export const MultiSampleViewer = ({
                                 variant="outlined"
                                 onClick={() => {
                                     if (!isDrawingActive) {
-                                        const defaultSampleId = samples[0]?.id;
+                                        const defaultSampleId = selectedSamples[0]?.id;
                                         setActiveDrawingSample(defaultSampleId);
                                         setFeatures(prev => ({
                                             ...prev,
@@ -1344,11 +1339,11 @@ export const MultiSampleViewer = ({
                     </div>
 
                     {/* saved regions */}
-                    <Collapse style={{ marginTop: 10, background: 'rgba(255,255,255,0.8)' }}>
-                        <Collapse.Panel header={`Selected Region (${regions.length})`} key="selected-region">
-                            {regions.length > 0 && (
+                    {/* <Collapse style={{ marginTop: 10, background: 'rgba(255,255,255,0.8)' }}>
+                        <Collapse.Panel header={`Selected Region (${interestedRegions.length})`} key="selected-region">
+                            {interestedRegions.length > 0 && (
                                 <>
-                                    {regions.map(region => {
+                                    {interestedRegions.map(region => {
                                         const sampleId = region.sampleId;
                                         const cellCount = getCellCount(region);
                                         return (
@@ -1386,11 +1381,11 @@ export const MultiSampleViewer = ({
                                     })}
                                 </>
                             )}
-                            {regions.length === 0 && (
+                            {interestedRegions.length === 0 && (
                                 <div style={{ fontSize: '12px', color: '#999' }}>No regions selected</div>
                             )}
                         </Collapse.Panel>
-                    </Collapse>
+                    </Collapse> */}
                 </div>
             </div>
         </div>
