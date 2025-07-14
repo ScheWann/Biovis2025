@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Select, Spin, message, Button, Splitter, Modal, Form, Input, Upload } from 'antd';
 import './App.css';
 import { MultiSampleViewer } from './components/MultiSampleViewer';
+import MultiSampleViewerNew from './components/MultiSampleViewerNew';
 import { PlusOutlined, InboxOutlined, PaperClipOutlined } from '@ant-design/icons';
 import '@ant-design/v5-patch-for-react-19';
 // import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
@@ -219,19 +220,14 @@ function App() {
           {selectedSamples.length > 0 ? (
             <Splitter lazy style={{ width: "100%", height: "100%" }}>
               <Splitter.Panel defaultSize="70%" min="50%" max="80%">
-                <MultiSampleViewer
+                <MultiSampleViewerNew
                   setSampleDataLoading={setSampleDataLoading}
                   selectedSamples={selectedSamples}
                   coordinatesData={coordinatesData}
-                  // cellTypeDir={cellTypeDir}
                   interestedRegions={interestedRegions}
                   setInterestedRegions={setInterestedRegions}
                   analyzedRegion={analyzedRegion}
                   setAnalyzedRegion={setAnalyzedRegion}
-                  // setNMFGOData={setNMFGOData}
-                  // setNMFGODataLoading={setNMFGODataLoading}
-                  // NMFclusterCells={NMFclusterCells}
-                  setSelectedRegionGeneExpressionData={setSelectedRegionGeneExpressionData}
                 />
               </Splitter.Panel>
               <Splitter.Panel defaultSize="30%" min="20%" max="50%">

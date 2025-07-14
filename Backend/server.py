@@ -50,8 +50,8 @@ def get_gene_list_route():
     """
     Get list of all genes for the selected samples
     """
-    sample_names = request.json["sample_names"]
-    return jsonify(get_gene_list(sample_names))
+    sample_ids = request.json["sample_ids"]
+    return jsonify(get_gene_list(sample_ids))
 
 
 @app.route("/api/get_kosara_data", methods=["POST"])
