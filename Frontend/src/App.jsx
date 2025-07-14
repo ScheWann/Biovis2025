@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Select, Spin, message, Button, Splitter, Modal, Form, Input, Upload } from 'antd';
 import './App.css';
-import { MultiSampleViewer } from './components/MultiSampleViewer';
-import MultiSampleViewerNew from './components/MultiSampleViewerNew';
+// import { MultiSampleViewer } from './components/MultiSampleViewer';
+import { SampleViewer } from './components/SampleViewer';
 import { PlusOutlined, InboxOutlined, PaperClipOutlined } from '@ant-design/icons';
 import '@ant-design/v5-patch-for-react-19';
 // import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
@@ -220,7 +220,7 @@ function App() {
           {selectedSamples.length > 0 ? (
             <Splitter lazy style={{ width: "100%", height: "100%" }}>
               <Splitter.Panel defaultSize="70%" min="50%" max="80%">
-                <MultiSampleViewerNew
+                {/* <MultiSampleViewerNew
                   setSampleDataLoading={setSampleDataLoading}
                   selectedSamples={selectedSamples}
                   coordinatesData={coordinatesData}
@@ -228,6 +228,10 @@ function App() {
                   setInterestedRegions={setInterestedRegions}
                   analyzedRegion={analyzedRegion}
                   setAnalyzedRegion={setAnalyzedRegion}
+                /> */}
+                <SampleViewer
+                  selectedSamples={selectedSamples}
+                  coordinatesData={coordinatesData}
                 />
               </Splitter.Panel>
               <Splitter.Panel defaultSize="30%" min="20%" max="50%">
