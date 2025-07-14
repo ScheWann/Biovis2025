@@ -1,7 +1,10 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
+import { GeneSettings } from './GeneList';
+import { Collapse, Radio } from "antd";
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
+
 
 export const SampleViewer = ({
     selectedSamples,
@@ -11,11 +14,28 @@ export const SampleViewer = ({
     const [mainViewState, setMainViewState] = useState(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [imageSizes, setImageSizes] = useState({});
-    
+    const [geneList, setGeneList] = useState({}); // The gene list for each sample
+    const [availableGenes, setAvailableGenes] = useState([]); // All genes that have been added to the list
+    const [selectedGenes, setSelectedGenes] = useState([]); // Currently selected (checked) genes
+    const [radioCellGeneModes, setRadioCellGeneModes] = useState(
+        selectedSamples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {})
+    );
+
+    const radioOptions = [
+        {
+            label: 'Cell Type',
+            value: 'cellTypes',
+        },
+        {
+            label: 'Genes',
+            value: 'genes',
+        },
+    ];
+
     // Calculate sample offsets based on image sizes
     const sampleOffsets = useMemo(() => {
         if (selectedSamples.length <= 1) return {};
-        
+
         const offsets = {};
         let currentX = 0;
 
@@ -67,6 +87,19 @@ export const SampleViewer = ({
             .then(data => {
                 setImageSizes(data);
             });
+    }, [selectedSamples.length]);
+
+    // Initialize radio modes for new samples
+    useEffect(() => {
+        setRadioCellGeneModes(prev => {
+            const newModes = { ...prev };
+            selectedSamples.forEach(sample => {
+                if (!newModes[sample.id]) {
+                    newModes[sample.id] = 'cellTypes';
+                }
+            });
+            return newModes;
+        });
     }, [selectedSamples]);
 
     // Set initial view state when image sizes or offsets change
@@ -104,6 +137,51 @@ export const SampleViewer = ({
             return acc;
         }, {});
     }, [selectedSamples, coordinatesData, sampleOffsets]);
+
+    const changeCellGeneMode = (sampleId, e) => {
+        setRadioCellGeneModes(prev => ({
+            ...prev,
+            [sampleId]: e.target.value
+        }));
+    };
+
+    // Create collapse items for each sample
+    const collapseItems = selectedSamples.map((sample, index) => ({
+        key: sample.id,
+        label: sample.name,
+        children: (
+            <>
+                <Radio.Group
+                    block
+                    options={radioOptions}
+                    size='small'
+                    value={radioCellGeneModes[sample.id]}
+                    optionType="button"
+                    style={{ marginBottom: 10 }}
+                    onChange={(e) => changeCellGeneMode(sample.id, e)}
+                />
+                {radioCellGeneModes[sample.id] === 'cellTypes' ? (
+                    <div style={{ padding: '10px 0' }}>
+                        <div>Cell Type view selected</div>
+                    </div>
+                ) : (
+                    <GeneSettings
+                        sampleId={sample.id}
+                        availableGenes={availableGenes}
+                        setAvailableGenes={setAvailableGenes}
+                        selectedGenes={selectedGenes}
+                        setSelectedGenes={setSelectedGenes}
+                    />
+                )}
+            </>
+        )
+    }));
+
+    const handleViewStateChange = useCallback(({ viewState, viewId }) => {
+        if (viewId === 'main') {
+            setMainViewState(viewState);
+        }
+    }, []);
 
     // Generate tissue image layers
     const generateImageLayers = useCallback(() => {
@@ -151,12 +229,6 @@ export const SampleViewer = ({
         ...generateCellLayers()
     ], [generateImageLayers, generateCellLayers]);
 
-    const handleViewStateChange = useCallback(({ viewState, viewId }) => {
-        if (viewId === 'main') {
-            setMainViewState(viewState);
-        }
-    }, []);
-
     return (
         <div style={{ width: '100%', height: '100%' }}>
             <div
@@ -176,6 +248,15 @@ export const SampleViewer = ({
                     onViewStateChange={handleViewStateChange}
                     controller={true}
                 />
+
+                {/* Sample controls */}
+                <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
+                    <Collapse
+                        items={collapseItems}
+                        defaultActiveKey={[selectedSamples[0]?.id]}
+                        style={{ background: '#ffffff', width: 300, opacity: 0.9 }}
+                    />
+                </div>
             </div>
         </div>
     );

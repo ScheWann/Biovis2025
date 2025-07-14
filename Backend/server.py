@@ -75,21 +75,29 @@ def get_selected_region_data_route():
     return jsonify(get_selected_region_data(sample_id, cell_list))
 
 
-@app.route("/api/get_gene_name_search")
+@app.route("/api/get_gene_name_search", methods=["POST"])
 def get_gene_name_search():
     """
-    Search for gene names based on a query string.
+    Search for gene names based on a query string and return matching gene names.
     """
-    query = request.args.get("q", "").strip().lower()
-    gene_list = get_gene_list()
+    sample_id = request.json["sample_id"]
+    gene_name = request.json["gene_name"]
 
-    if not query:
-        return jsonify(gene_list)
+    if not gene_name or len(gene_name) < 2:
+        return jsonify([])
 
-    pattern = re.compile(re.escape(query), re.IGNORECASE)
-    results = [item for item in gene_list if pattern.search(item)]
+    sample_gene_dict = get_gene_list([sample_id])
 
-    return jsonify(results)
+    if sample_id not in sample_gene_dict:
+        return jsonify([])
+
+    gene_list = sample_gene_dict[sample_id]
+
+    # Filter genes that match the search query
+    pattern = re.compile(re.escape(gene_name), re.IGNORECASE)
+    matching_genes = [gene for gene in gene_list if pattern.search(gene)]
+
+    return jsonify(matching_genes)
 
 
 @app.route("/api/upload_spaceranger", methods=["POST"])

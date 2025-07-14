@@ -1,0 +1,163 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Button, Checkbox, AutoComplete } from "antd";
+
+export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes }) => {
+    const [searchText, setSearchText] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    const debounce = (func, delay) => {
+        let timeoutId;
+        return (...args) => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => func.apply(null, args), delay);
+        };
+    };
+
+    // Function to handle adding a gene to the visibility list
+    const onVisibilityGeneChange = (gene) => {
+        if (!availableGenes.includes(gene)) {
+            setAvailableGenes([...availableGenes, gene]);
+            setSelectedGenes([...selectedGenes, gene]);
+        }
+    };
+
+    // Function to toggle gene selection
+    const toggleGeneSelection = (gene) => {
+        if (selectedGenes.includes(gene)) {
+            setSelectedGenes(selectedGenes.filter(g => g !== gene));
+        } else {
+            setSelectedGenes([...selectedGenes, gene]);
+        }
+    };
+
+    // Function to clear all gene selections
+    const cleanGeneSelection = () => {
+        setAvailableGenes([]);
+        setSelectedGenes([]);
+    };
+
+    // Function to remove a gene from the visibility list
+    const removeGene = (geneToRemove) => {
+        setAvailableGenes(availableGenes.filter(gene => gene !== geneToRemove));
+        setSelectedGenes(selectedGenes.filter(gene => gene !== geneToRemove));
+    };
+
+    // Function to confirm gene selection
+    const confirmGeneSelection = (sampleId) => {
+        console.log('Selected genes for sample', sampleId, ':', selectedGenes);
+    };
+
+    // Debounced search function to avoid too many API calls
+    const searchGenes = useMemo(
+        () =>
+            debounce(async (query) => {
+                if (!query || query.length < 2) {
+                    setSearchResults([]);
+                    setIsSearching(false);
+                    return;
+                }
+
+                setIsSearching(true);
+                try {
+                    const response = await fetch('/api/get_gene_name_search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sample_id: sampleId,
+                            gene_name: query
+                        })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Filter out already added genes and limit results
+                        const filteredResults = data
+                            .filter(gene => !availableGenes.includes(gene))
+                            .slice(0, 10);
+
+                        setSearchResults(filteredResults);
+                    } else {
+                        console.error('Gene search failed:', response.status, response.statusText);
+                        setSearchResults([]);
+                    }
+                } catch (error) {
+                    console.error('Gene search error:', error);
+                    setSearchResults([]);
+                }
+                setIsSearching(false);
+            }, 300),
+        [sampleId, availableGenes]
+    );
+
+    // Effect to trigger search when searchText changes
+    useEffect(() => {
+        searchGenes(searchText);
+    }, [searchText, searchGenes]);
+
+    const handleGeneSelect = (gene) => {
+        onVisibilityGeneChange(gene);
+        setSearchText(''); // Clear search after selection
+    };
+
+    return (
+        <div style={{ maxHeight: 400 }}>
+            <AutoComplete
+                size="small"
+                placeholder="Search and add genes..."
+                value={searchText}
+                options={searchResults.map(gene => ({ value: gene, label: gene }))}
+                onSearch={setSearchText}
+                onSelect={handleGeneSelect}
+                loading={isSearching}
+                style={{ width: '100%', marginBottom: 8 }}
+                notFoundContent={searchText.length >= 2 ? (isSearching ? 'Searching...' : 'No genes found') : null}
+                showSearch
+            />
+
+            {/* Selected genes list */}
+            <div style={{ marginBottom: 8 }}>
+                <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                    {availableGenes.length === 0 ? (
+                        <div style={{ fontSize: 12, color: '#999', fontStyle: 'italic' }}>
+                            No genes added. Use search above to add genes.
+                        </div>
+                    ) : (
+                        availableGenes.map((gene) => (
+                            <div key={gene} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '4px 0',
+                                borderBottom: '1px solid #f0f0f0',
+                            }}>
+                                <Checkbox
+                                    checked={selectedGenes.includes(gene)}
+                                    onChange={() => toggleGeneSelection(gene)}
+                                    style={{ marginRight: 8 }}
+                                />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                    <span style={{ fontSize: 12, color: selectedGenes.includes(gene) ? '#000' : '#999' }}>
+                                        {gene}
+                                    </span>
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        onClick={() => removeGene(gene)}
+                                        style={{ padding: '0 4px', fontSize: 10, color: '#333333' }}
+                                    >
+                                        ×
+                                    </Button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 5 }}>
+                <Button size='small' style={{ width: '50%' }} onClick={cleanGeneSelection}>Clear</Button>
+                <Button size='small' style={{ width: '50%' }} onClick={() => confirmGeneSelection(sampleId)}>Confirm</Button>
+            </div>
+        </div>
+    );
+};
