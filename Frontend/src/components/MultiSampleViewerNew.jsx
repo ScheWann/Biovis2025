@@ -26,7 +26,6 @@ export const MultiSampleViewerNew = ({
     setAnalyzedRegion,
 }) => {
     const containerRef = useRef(null);
-    const layersRef = useRef([]);
     const [mainViewState, setMainViewState] = useState(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [imageSizes, setImageSizes] = useState({});
@@ -293,7 +292,7 @@ export const MultiSampleViewerNew = ({
     }, [selectedSamples, features, isDrawingActive, activeDrawingSample, regionColor]);
 
     // Handle region updates during drawing
-    const handleRegionUpdate = (sampleId, updatedData) => {
+    const handleRegionUpdate = useCallback((sampleId, updatedData) => {
         if (!updatedData.features.length) return;
 
         const polygon = updatedData.features[0];
@@ -313,7 +312,7 @@ export const MultiSampleViewerNew = ({
                 cellCount: cellsInRegion.length
             }
         }));
-    };
+    }, [filteredCellData]);
 
     // Save drawn region
     const handleSaveRegion = () => {
@@ -431,48 +430,26 @@ export const MultiSampleViewerNew = ({
         })
     ];
 
-    // Combine all layers with stable references during zoom
-    const layers = useMemo(() => {
-        const newLayers = [
-            ...generateImageLayers(),
-            ...generateCellLayers(),
-            ...generateEditLayers(),
-            ...minimapLayers
-        ];
-        
-        // During zoom operations, use cached layers to prevent flashing
-        if (isZooming && layersRef.current.length > 0) {
-            // Only update non-interactive layers during zoom
-            const interactiveLayers = newLayers.filter(layer => 
-                layer.id.includes('editable') || layer.id.includes('minimap')
-            );
-            const staticLayers = layersRef.current.filter(layer => 
-                !layer.id.includes('editable') && !layer.id.includes('minimap')
-            );
-            
-            layersRef.current = [...staticLayers, ...interactiveLayers];
-            return layersRef.current;
-        }
-        
-        layersRef.current = newLayers;
-        return newLayers;
-    }, [
+    // Combine all layers
+    const layers = useMemo(() => [
+        ...generateImageLayers(),
+        ...generateCellLayers(),
+        ...generateEditLayers(),
+        ...minimapLayers
+    ], [
         generateImageLayers,
         generateCellLayers,
         generateEditLayers,
-        minimapLayers,
-        isZooming
+        minimapLayers
     ]);
 
     const handleViewStateChange = useCallback(({ viewState, viewId }) => {
         if (viewId === 'main') {
             setMainViewState(viewState);
-            if (!isZooming) {
-                setIsZooming(true);
-            }
-            debouncedSetZoom(viewState.zoom);
+            setIsZooming(true);
+            // debouncedSetZoom(viewState.zoom);
         }
-    }, [debouncedSetZoom, isZooming]);
+    }, []);
 
     // Gene settings component
     const GeneSettings = ({ geneList, sampleId }) => {
