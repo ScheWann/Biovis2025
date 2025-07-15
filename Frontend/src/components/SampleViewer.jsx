@@ -177,13 +177,16 @@ export const SampleViewer = ({
                 color: '#ff0000'
             };
             
-            // Calculate the centroid of the drawn area for tooltip positioning
-            const centroid = calculateCentroid(drawingPoints);
+            // Find the rightmost point of the drawn area for tooltip positioning
+            const rightmostPoint = findRightmostPoint(drawingPoints);
+            // Find the vertical center of the drawn area
+            const verticalCenter = findVerticalCenter(drawingPoints);
             
             setPendingArea(newPendingArea);
             setAreaName(newPendingArea.name);
             setAreaColor(newPendingArea.color);
-            setTooltipPosition(centroid);
+            // Use rightmost x-coordinate but vertical center for y-coordinate
+            setTooltipPosition({ x: rightmostPoint.x, y: verticalCenter.y });
             setIsAreaTooltipVisible(true);
             
             // Keep drawing state until tooltip is closed so area remains visible
@@ -255,6 +258,35 @@ export const SampleViewer = ({
         };
     };
 
+    // Find the rightmost point of a polygon for tooltip positioning
+    const findRightmostPoint = (points) => {
+        if (points.length === 0) return { x: 0, y: 0 };
+        
+        const rightmost = points.reduce((max, point) => {
+            return point[0] > max[0] ? point : max;
+        }, points[0]);
+        
+        return {
+            x: rightmost[0],
+            y: rightmost[1]
+        };
+    };
+
+    // Find the vertical center of a polygon for tooltip positioning
+    const findVerticalCenter = (points) => {
+        if (points.length === 0) return { x: 0, y: 0 };
+        
+        const yCoordinates = points.map(point => point[1]);
+        const minY = Math.min(...yCoordinates);
+        const maxY = Math.max(...yCoordinates);
+        const centerY = (minY + maxY) / 2;
+        
+        return {
+            x: 0, // x is not used, only y matters for vertical center
+            y: centerY
+        };
+    };
+
     // Convert world coordinates to screen coordinates for tooltip positioning
     const worldToScreen = (worldX, worldY) => {
         if (!mainViewState || !containerRef.current) return { x: 0, y: 0 };
@@ -271,7 +303,7 @@ export const SampleViewer = ({
         
         // Transform world coordinates to screen coordinates
         const screenX = centerX + (worldX - mainViewState.target[0]) * scale;
-        const screenY = centerY - (worldY - mainViewState.target[1]) * scale; // Y is inverted
+        const screenY = centerY + (worldY - mainViewState.target[1]) * scale; // Removed inversion
         
         return { x: screenX, y: screenY };
     };
@@ -290,34 +322,28 @@ export const SampleViewer = ({
         const tooltipWidth = 280;
         const tooltipHeight = 180;
         
-        // Position closer to the area - try different positions in order of preference
-        let left = screenPos.x + 150; // Closer to the right
-        let top = screenPos.y - 300; // Slightly above center
+        // Position to the right of the rightmost point with some spacing
+        let left = screenPos.x + 20; // 20px to the right of the rightmost point
+        let top = screenPos.y - tooltipHeight / 2; // Center vertically on the area's vertical center
         
         // Check if tooltip would go off the right edge
         if (left + tooltipWidth > rect.width - 10) {
-            left = screenPos.x - tooltipWidth - 15; // Position to the left instead
+            left = screenPos.x - tooltipWidth - 20; // Position to the left instead
         }
         
         // Check if tooltip would go off the left edge
         if (left < 10) {
-            left = screenPos.x + 15; // Back to right side
-            if (left + tooltipWidth > rect.width - 10) {
-                left = 10; // Force to left edge if necessary
-            }
+            left = 10; // Force to left edge
         }
         
         // Check if tooltip would go off the top edge
         if (top < 10) {
-            top = screenPos.y + 15; // Position below instead
+            top = 10; // Force to top edge
         }
         
         // Check if tooltip would go off the bottom edge
         if (top + tooltipHeight > rect.height - 10) {
-            top = screenPos.y - tooltipHeight - 15; // Position above instead
-            if (top < 10) {
-                top = 10; // Force to top if necessary
-            }
+            top = rect.height - tooltipHeight - 10; // Force to bottom edge
         }
         
         return { left, top };
@@ -574,78 +600,112 @@ export const SampleViewer = ({
         if ((isDrawing || isAreaTooltipVisible) && (drawingPoints.length > 0 || pendingArea)) {
             const pointsToShow = pendingArea ? pendingArea.points : drawingPoints;
             
-            // Draw completed points
-            if (pointsToShow.length > 0) {
+            // When tooltip is visible, show the finalized area without animation effects
+            if (isAreaTooltipVisible && pendingArea) {
+                // Show finalized polygon with pending area color
+                const pendingAreaColor = hexToRgb(areaColor || pendingArea.color);
+                layers.push(new PolygonLayer({
+                    id: 'pending-area-preview',
+                    data: [{ polygon: pendingArea.points }],
+                    getPolygon: d => d.polygon,
+                    getFillColor: [...pendingAreaColor, 50],
+                    getLineColor: [...pendingAreaColor, 200],
+                    getLineWidth: 2,
+                    lineWidthUnits: 'pixels',
+                    pickable: false,
+                }));
+                
+                // Show clean points without animation
                 layers.push(new ScatterplotLayer({
-                    id: 'drawing-points',
-                    data: pointsToShow.map((point, index) => ({
+                    id: 'pending-area-points',
+                    data: pendingArea.points.map((point, index) => ({
                         position: point,
-                        index,
-                        isFirst: index === 0
+                        index
                     })),
                     getPosition: d => d.position,
-                    getRadius: d => {
-                        if (d.isFirst && pointsToShow.length >= 3) {
-                            // Make first point larger and pulsing when it can be snapped to
-                            const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
-                            return shouldSnap ? 12 : 8;
-                        }
-                        return 5;
-                    },
-                    getFillColor: d => {
-                        if (d.isFirst && pointsToShow.length >= 3) {
-                            const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
-                            return shouldSnap ? [255, 255, 0, 255] : [255, 255, 0, 200];
-                        }
-                        return [0, 255, 0, 200];
-                    },
-                    getLineColor: d => {
-                        if (d.isFirst && pointsToShow.length >= 3) {
-                            const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
-                            return shouldSnap ? [255, 165, 0, 255] : [200, 200, 0, 255];
-                        }
-                        return [0, 150, 0, 255];
-                    },
-                    getLineWidth: d => d.isFirst && pointsToShow.length >= 3 ? 3 : 2,
+                    getRadius: 4,
+                    getFillColor: pendingAreaColor,
+                    getLineColor: [0, 0, 0, 150],
+                    getLineWidth: 1,
                     radiusUnits: 'pixels',
                     lineWidthUnits: 'pixels',
                     pickable: false,
                 }));
-            }
-
-            // Draw lines connecting the points
-            if (pointsToShow.length > 1) {
-                const lineSegments = [];
-                for (let i = 0; i < pointsToShow.length - 1; i++) {
-                    lineSegments.push({
-                        sourcePosition: pointsToShow[i],
-                        targetPosition: pointsToShow[i + 1]
-                    });
+            } else {
+                // Normal drawing mode with animation effects
+                // Draw completed points
+                if (pointsToShow.length > 0) {
+                    layers.push(new ScatterplotLayer({
+                        id: 'drawing-points',
+                        data: pointsToShow.map((point, index) => ({
+                            position: point,
+                            index,
+                            isFirst: index === 0
+                        })),
+                        getPosition: d => d.position,
+                        getRadius: d => {
+                            if (d.isFirst && pointsToShow.length >= 3) {
+                                // Make first point larger and pulsing when it can be snapped to
+                                const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
+                                return shouldSnap ? 12 : 8;
+                            }
+                            return 5;
+                        },
+                        getFillColor: d => {
+                            if (d.isFirst && pointsToShow.length >= 3) {
+                                const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
+                                return shouldSnap ? [255, 255, 0, 255] : [255, 255, 0, 200];
+                            }
+                            return [0, 255, 0, 200];
+                        },
+                        getLineColor: d => {
+                            if (d.isFirst && pointsToShow.length >= 3) {
+                                const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
+                                return shouldSnap ? [255, 165, 0, 255] : [200, 200, 0, 255];
+                            }
+                            return [0, 150, 0, 255];
+                        },
+                        getLineWidth: d => d.isFirst && pointsToShow.length >= 3 ? 3 : 2,
+                        radiusUnits: 'pixels',
+                        lineWidthUnits: 'pixels',
+                        pickable: false,
+                    }));
                 }
 
-                layers.push(new LineLayer({
-                    id: 'drawing-lines',
-                    data: lineSegments,
-                    getSourcePosition: d => d.sourcePosition,
-                    getTargetPosition: d => d.targetPosition,
-                    getColor: [0, 255, 0, 200],
-                    getWidth: 2,
-                    widthUnits: 'pixels',
-                    pickable: false,
-                }));
-            }
+                // Draw lines connecting the points
+                if (pointsToShow.length > 1) {
+                    const lineSegments = [];
+                    for (let i = 0; i < pointsToShow.length - 1; i++) {
+                        lineSegments.push({
+                            sourcePosition: pointsToShow[i],
+                            targetPosition: pointsToShow[i + 1]
+                        });
+                    }
 
-            // Show polygon preview when we have at least 3 points
-            if (pointsToShow.length >= 3) {
-                layers.push(new PolygonLayer({
-                    id: 'drawing-preview',
-                    data: [{ polygon: pointsToShow }],
-                    getPolygon: d => d.polygon,
-                    getFillColor: [0, 255, 0, 30],
-                    getLineColor: [0, 255, 0, 0],
-                    getLineWidth: 0,
-                    pickable: false,
-                }));
+                    layers.push(new LineLayer({
+                        id: 'drawing-lines',
+                        data: lineSegments,
+                        getSourcePosition: d => d.sourcePosition,
+                        getTargetPosition: d => d.targetPosition,
+                        getColor: [0, 255, 0, 200],
+                        getWidth: 2,
+                        widthUnits: 'pixels',
+                        pickable: false,
+                    }));
+                }
+
+                // Show polygon preview when we have at least 3 points
+                if (pointsToShow.length >= 3) {
+                    layers.push(new PolygonLayer({
+                        id: 'drawing-preview',
+                        data: [{ polygon: pointsToShow }],
+                        getPolygon: d => d.polygon,
+                        getFillColor: [0, 255, 0, 30],
+                        getLineColor: [0, 255, 0, 0],
+                        getLineWidth: 0,
+                        pickable: false,
+                    }));
+                }
             }
 
             // Only show mouse interactions if still actively drawing (not just showing tooltip)
@@ -707,7 +767,7 @@ export const SampleViewer = ({
         }
 
         return layers;
-    }, [customAreas, isDrawing, drawingPoints, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst]);
+    }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst]);
 
     // Combine all layers
     const layers = useMemo(() => [
@@ -763,7 +823,7 @@ export const SampleViewer = ({
                 </div>
 
                 {/* Drawing instructions */}
-                {isDrawing && (
+                {/* {isDrawing && (
                     <div style={{
                         position: 'absolute',
                         top: 10,
@@ -795,7 +855,7 @@ export const SampleViewer = ({
                             </div>
                         )}
                     </div>
-                )}
+                )} */}
 
                 {/* Area Customization Tooltip */}
                 {isAreaTooltipVisible && pendingArea && (
