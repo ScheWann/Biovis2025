@@ -27,12 +27,12 @@ export const SampleViewer = ({
     const [customAreas, setCustomAreas] = useState([]);
     const [currentDrawingSample, setCurrentDrawingSample] = useState(null);
     const [mousePosition, setMousePosition] = useState(null);
-    
+
     // Area customization tooltip state
     const [isAreaTooltipVisible, setIsAreaTooltipVisible] = useState(false);
     const [pendingArea, setPendingArea] = useState(null);
     const [areaName, setAreaName] = useState('');
-    const [areaColor, setAreaColor] = useState('#ff0000');
+    const [areaColor, setAreaColor] = useState('#f72585');
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
     const radioOptions = [
@@ -174,25 +174,22 @@ export const SampleViewer = ({
                 sampleId: currentDrawingSample,
                 points: [...drawingPoints],
                 name: `Custom Area ${customAreas.length + 1}`,
-                color: '#ff0000'
+                color: '#f72585'
             };
-            
+
             // Find the rightmost point of the drawn area for tooltip positioning
             const rightmostPoint = findRightmostPoint(drawingPoints);
             // Find the vertical center of the drawn area
             const verticalCenter = findVerticalCenter(drawingPoints);
-            
+
             setPendingArea(newPendingArea);
             setAreaName(newPendingArea.name);
             setAreaColor(newPendingArea.color);
+            
             // Use rightmost x-coordinate but vertical center for y-coordinate
             setTooltipPosition({ x: rightmostPoint.x, y: verticalCenter.y });
             setIsAreaTooltipVisible(true);
-            
-            // Keep drawing state until tooltip is closed so area remains visible
-            // Don't clear drawing state here - it will be cleared when tooltip is closed
         } else {
-            // If not enough points, just clear the drawing state
             setIsDrawing(false);
             setDrawingPoints([]);
             setCurrentDrawingSample(null);
@@ -219,24 +216,23 @@ export const SampleViewer = ({
             };
             setCustomAreas(prev => [...prev, finalArea]);
         }
-        
-        // Clear all drawing and tooltip state
+
         setIsAreaTooltipVisible(false);
         setPendingArea(null);
         setAreaName('');
-        setAreaColor('#ff0000');
+        setAreaColor('#f72585');
         setIsDrawing(false);
         setDrawingPoints([]);
         setCurrentDrawingSample(null);
         setMousePosition(null);
     };
 
+    // Clear all drawing and tooltip state without saving
     const handleAreaTooltipCancel = () => {
-        // Clear all drawing and tooltip state without saving
         setIsAreaTooltipVisible(false);
         setPendingArea(null);
         setAreaName('');
-        setAreaColor('#ff0000');
+        setAreaColor('#f72585');
         setIsDrawing(false);
         setDrawingPoints([]);
         setCurrentDrawingSample(null);
@@ -244,28 +240,28 @@ export const SampleViewer = ({
     };
 
     // Calculate centroid of a polygon for tooltip positioning
-    const calculateCentroid = (points) => {
-        if (points.length === 0) return { x: 0, y: 0 };
-        
-        const sum = points.reduce((acc, point) => ({
-            x: acc.x + point[0],
-            y: acc.y + point[1]
-        }), { x: 0, y: 0 });
-        
-        return {
-            x: sum.x / points.length,
-            y: sum.y / points.length
-        };
-    };
+    // const calculateCentroid = (points) => {
+    //     if (points.length === 0) return { x: 0, y: 0 };
+
+    //     const sum = points.reduce((acc, point) => ({
+    //         x: acc.x + point[0],
+    //         y: acc.y + point[1]
+    //     }), { x: 0, y: 0 });
+
+    //     return {
+    //         x: sum.x / points.length,
+    //         y: sum.y / points.length
+    //     };
+    // };
 
     // Find the rightmost point of a polygon for tooltip positioning
     const findRightmostPoint = (points) => {
         if (points.length === 0) return { x: 0, y: 0 };
-        
+
         const rightmost = points.reduce((max, point) => {
             return point[0] > max[0] ? point : max;
         }, points[0]);
-        
+
         return {
             x: rightmost[0],
             y: rightmost[1]
@@ -275,14 +271,14 @@ export const SampleViewer = ({
     // Find the vertical center of a polygon for tooltip positioning
     const findVerticalCenter = (points) => {
         if (points.length === 0) return { x: 0, y: 0 };
-        
+
         const yCoordinates = points.map(point => point[1]);
         const minY = Math.min(...yCoordinates);
         const maxY = Math.max(...yCoordinates);
         const centerY = (minY + maxY) / 2;
-        
+
         return {
-            x: 0, // x is not used, only y matters for vertical center
+            x: 0,
             y: centerY
         };
     };
@@ -290,21 +286,21 @@ export const SampleViewer = ({
     // Convert world coordinates to screen coordinates for tooltip positioning
     const worldToScreen = (worldX, worldY) => {
         if (!mainViewState || !containerRef.current) return { x: 0, y: 0 };
-        
+
         const container = containerRef.current;
         const rect = container.getBoundingClientRect();
-        
+
         // Get the center of the view
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;
-        
+
         // Calculate the scale based on zoom
         const scale = Math.pow(2, mainViewState.zoom);
-        
+
         // Transform world coordinates to screen coordinates
         const screenX = centerX + (worldX - mainViewState.target[0]) * scale;
         const screenY = centerY + (worldY - mainViewState.target[1]) * scale; // Removed inversion
-        
+
         return { x: screenX, y: screenY };
     };
 
@@ -318,23 +314,24 @@ export const SampleViewer = ({
         const screenPos = worldToScreen(tooltipPosition.x, tooltipPosition.y);
         const container = containerRef.current;
         const rect = container.getBoundingClientRect();
-        
+
         const tooltipWidth = 280;
         const tooltipHeight = 180;
-        
-        // Calculate position relative to viewport (for fixed positioning)
-        const left = rect.left + screenPos.x + 20; // 20px to the right of the rightmost point
-        let top = rect.top + screenPos.y - tooltipHeight / 2; // Center vertically on the area's vertical center
-        
+
+        // 20px to the right of the rightmost point
+        const left = rect.left + screenPos.x + 20;
+        let top = rect.top + screenPos.y - tooltipHeight / 2;
+
         // Only constrain the top position to stay within the viewport bounds
         if (top < 10) {
-            top = 10; // Force to top edge of viewport
+            top = 10;
         }
-        
+
         if (top + tooltipHeight > window.innerHeight - 10) {
-            top = window.innerHeight - tooltipHeight - 10; // Force to bottom edge of viewport
+             // Force to bottom edge of viewport
+            top = window.innerHeight - tooltipHeight - 10;
         }
-        
+
         return { left, top };
     }, [isAreaTooltipVisible, pendingArea, tooltipPosition, mainViewState]);
 
@@ -349,11 +346,11 @@ export const SampleViewer = ({
     };
 
     // Undo last point
-    const undoLastPoint = () => {
-        if (drawingPoints.length > 0) {
-            setDrawingPoints(prev => prev.slice(0, -1));
-        }
-    };
+    // const undoLastPoint = () => {
+    //     if (drawingPoints.length > 0) {
+    //         setDrawingPoints(prev => prev.slice(0, -1));
+    //     }
+    // };
 
     // Check if point should snap to first point (auto-close)
     const shouldSnapToFirst = useCallback((currentPoint) => {
@@ -405,24 +402,24 @@ export const SampleViewer = ({
         }
     }, [isDrawing]);
 
-    const handleKeyPress = useCallback((event) => {
-        if (!isDrawing) return;
+    // const handleKeyPress = useCallback((event) => {
+    //     if (!isDrawing) return;
 
-        if (event.key === 'Enter') {
-            finishDrawing();
-        } else if (event.key === 'Escape') {
-            cancelDrawing();
-        } else if (event.key === 'Backspace' || event.key === 'Delete') {
-            event.preventDefault();
-            undoLastPoint();
-        }
-    }, [isDrawing, drawingPoints, currentDrawingSample]);
+    //     if (event.key === 'Enter') {
+    //         finishDrawing();
+    //     } else if (event.key === 'Escape') {
+    //         cancelDrawing();
+    //     } else if (event.key === 'Backspace' || event.key === 'Delete') {
+    //         event.preventDefault();
+    //         undoLastPoint();
+    //     }
+    // }, [isDrawing, drawingPoints, currentDrawingSample]);
 
-    // Add keyboard event listener
-    useEffect(() => {
-        document.addEventListener('keydown', handleKeyPress);
-        return () => document.removeEventListener('keydown', handleKeyPress);
-    }, [handleKeyPress]);
+    // // Add keyboard event listener
+    // useEffect(() => {
+    //     document.addEventListener('keydown', handleKeyPress);
+    //     return () => document.removeEventListener('keydown', handleKeyPress);
+    // }, [handleKeyPress]);
 
     // Create collapse items for each sample
     const collapseItems = selectedSamples.map((sample, index) => ({
@@ -458,9 +455,9 @@ export const SampleViewer = ({
                     </Button>
                     {isDrawing && currentDrawingSample === sample.id && (
                         <>
-                            <Button size="small" onClick={undoLastPoint} style={{ marginRight: 5 }}>
+                            {/* <Button size="small" onClick={undoLastPoint} style={{ marginRight: 5 }}>
                                 Undo
-                            </Button>
+                            </Button> */}
                             <Button size="small" onClick={cancelDrawing}>
                                 Cancel
                             </Button>
@@ -553,17 +550,30 @@ export const SampleViewer = ({
         return selectedSamples.map(sample => {
             const cellData = filteredCellData[sample.id] || [];
 
+            // Calculate dynamic radius based on zoom level
+            // At zoom 0, radius = 5 pixels
+            // At zoom -3, radius = 1 pixel (zoomed out)
+            // At zoom 2, radius = 20 pixels (zoomed in)
+            const baseRadius = 5;
+            const zoomFactor = Math.pow(2, mainViewState?.zoom || 0);
+            const dynamicRadius = Math.max(1, Math.min(20, baseRadius * zoomFactor));
+
             return new ScatterplotLayer({
                 id: `cells-${sample.id}`,
                 data: cellData,
                 getPosition: d => [d.x, d.y],
-                getRadius: 3,
-                getFillColor: [150, 150, 150, 100],
+                getRadius: dynamicRadius,
+                getFillColor: [0, 0, 0, 0],
+                getLineColor: [150, 150, 150, 255], // Outline color
+                getLineWidth: 1,
+                lineWidthUnits: 'pixels',
                 pickable: true,
                 radiusUnits: 'pixels',
+                stroked: true,
+                filled: false,
             });
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData]);
+    }, [selectedSamples, filteredCellData, mainViewState]);
 
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {
@@ -572,7 +582,7 @@ export const SampleViewer = ({
         // Completed custom areas
         customAreas.forEach(area => {
             const areaColor = hexToRgb(area.color || '#ff0000');
-            
+
             layers.push(new PolygonLayer({
                 id: `custom-area-${area.id}`,
                 data: [{ polygon: area.points }],
@@ -588,10 +598,9 @@ export const SampleViewer = ({
         // Current drawing visualization
         if ((isDrawing || isAreaTooltipVisible) && (drawingPoints.length > 0 || pendingArea)) {
             const pointsToShow = pendingArea ? pendingArea.points : drawingPoints;
-            
+
             // When tooltip is visible, show the finalized area without animation effects
             if (isAreaTooltipVisible && pendingArea) {
-                // Show finalized polygon with pending area color
                 const pendingAreaColor = hexToRgb(areaColor || pendingArea.color);
                 layers.push(new PolygonLayer({
                     id: 'pending-area-preview',
@@ -603,8 +612,7 @@ export const SampleViewer = ({
                     lineWidthUnits: 'pixels',
                     pickable: false,
                 }));
-                
-                // Show clean points without animation
+
                 layers.push(new ScatterplotLayer({
                     id: 'pending-area-points',
                     data: pendingArea.points.map((point, index) => ({
@@ -621,7 +629,6 @@ export const SampleViewer = ({
                     pickable: false,
                 }));
             } else {
-                // Normal drawing mode with animation effects
                 // Draw completed points
                 if (pointsToShow.length > 0) {
                     layers.push(new ScatterplotLayer({
@@ -643,16 +650,16 @@ export const SampleViewer = ({
                         getFillColor: d => {
                             if (d.isFirst && pointsToShow.length >= 3) {
                                 const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
-                                return shouldSnap ? [255, 255, 0, 255] : [255, 255, 0, 200];
+                                return shouldSnap ? [255, 202, 58, 255] : [255, 202, 58, 200];
                             }
-                            return [0, 255, 0, 200];
+                            return [0, 255, 150, 200];
                         },
                         getLineColor: d => {
                             if (d.isFirst && pointsToShow.length >= 3) {
                                 const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
                                 return shouldSnap ? [255, 165, 0, 255] : [200, 200, 0, 255];
                             }
-                            return [0, 150, 0, 255];
+                            return [0, 255, 150, 255];
                         },
                         getLineWidth: d => d.isFirst && pointsToShow.length >= 3 ? 3 : 2,
                         radiusUnits: 'pixels',
@@ -676,7 +683,7 @@ export const SampleViewer = ({
                         data: lineSegments,
                         getSourcePosition: d => d.sourcePosition,
                         getTargetPosition: d => d.targetPosition,
-                        getColor: [0, 255, 0, 200],
+                        getColor: [0, 255, 150, 200],
                         getWidth: 2,
                         widthUnits: 'pixels',
                         pickable: false,
@@ -689,8 +696,8 @@ export const SampleViewer = ({
                         id: 'drawing-preview',
                         data: [{ polygon: pointsToShow }],
                         getPolygon: d => d.polygon,
-                        getFillColor: [0, 255, 0, 30],
-                        getLineColor: [0, 255, 0, 0],
+                        getFillColor: [0, 255, 150, 30],
+                        getLineColor: [0, 255, 150, 0],
                         getLineWidth: 0,
                         pickable: false,
                     }));
@@ -707,8 +714,8 @@ export const SampleViewer = ({
                         data: [{ position: mousePosition }],
                         getPosition: d => d.position,
                         getRadius: shouldSnap ? 10 : 4,
-                        getFillColor: shouldSnap ? [255, 165, 0, 200] : [0, 255, 0, 150],
-                        getLineColor: shouldSnap ? [255, 140, 0, 255] : [0, 255, 0, 200],
+                        getFillColor: shouldSnap ? [255, 202, 58, 200] : [0, 255, 150, 150],
+                        getLineColor: shouldSnap ? [255, 140, 0, 255] : [0, 255, 150, 200],
                         getLineWidth: shouldSnap ? 3 : 1,
                         radiusUnits: 'pixels',
                         lineWidthUnits: 'pixels',
@@ -728,7 +735,7 @@ export const SampleViewer = ({
                             }],
                             getSourcePosition: d => d.sourcePosition,
                             getTargetPosition: d => d.targetPosition,
-                            getColor: shouldSnap ? [255, 165, 0, 200] : [0, 255, 0, 150],
+                            getColor: shouldSnap ? [255, 202, 58, 200] : [0, 255, 150, 150],
                             getWidth: shouldSnap ? 4 : 2,
                             widthUnits: 'pixels',
                             pickable: false,
@@ -785,12 +792,12 @@ export const SampleViewer = ({
                     onClick={handleMapClick}
                     onHover={handleMouseMove}
                     controller={
-                        isAreaTooltipVisible ? false : // Disable all interactions when tooltip is visible
-                        !isDrawing ? true : { dragPan: false, dragRotate: false, doubleClickZoom: false }
+                        isAreaTooltipVisible ? false :
+                            !isDrawing ? true : { dragPan: false, dragRotate: false, doubleClickZoom: false }
                     }
                     getCursor={({ isHovering, isDragging }) => {
                         if (isAreaTooltipVisible) {
-                            return 'default'; // Normal cursor when tooltip is visible
+                            return 'default';
                         }
                         if (isDrawing) {
                             if (mousePosition && shouldSnapToFirst(mousePosition)) {
@@ -803,7 +810,7 @@ export const SampleViewer = ({
                 />
 
                 {/* Sample controls */}
-                <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
+                <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 20 }}>
                     <Collapse
                         items={collapseItems}
                         defaultActiveKey={[selectedSamples[0]?.id]}
@@ -811,66 +818,31 @@ export const SampleViewer = ({
                     />
                 </div>
 
-                {/* Drawing instructions */}
-                {/* {isDrawing && (
-                    <div style={{
-                        position: 'absolute',
-                        top: 10,
-                        right: 10,
-                        zIndex: 10,
-                        background: '#ffffff',
-                        padding: '10px',
-                        borderRadius: '4px',
-                        opacity: 0.9,
-                        fontSize: '12px'
-                    }}>
-                        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-                            Drawing Mode Active
-                        </div>
-                        <div>• Click to add points</div>
-                        <div>• Press Enter to finish</div>
-                        <div>• Press Escape to cancel</div>
-                        <div>• Backspace/Delete to undo</div>
-                        <div>• Click near first point to auto-close</div>
-                        <div>• Points: {drawingPoints.length}</div>
-                        {drawingPoints.length >= 3 && mousePosition && shouldSnapToFirst(mousePosition) && (
-                            <div style={{ color: 'orange', fontWeight: 'bold' }}>
-                                Click to close polygon!
-                            </div>
-                        )}
-                        {drawingPoints.length >= 3 && (!mousePosition || !shouldSnapToFirst(mousePosition)) && (
-                            <div style={{ color: 'green', fontWeight: 'bold' }}>
-                                Ready to finish!
-                            </div>
-                        )}
-                    </div>
-                )} */}
-
                 {/* Area Customization Tooltip */}
                 {isAreaTooltipVisible && pendingArea && (
                     <>
                         {/* Overlay to prevent interactions with the map */}
-                        <div 
+                        <div
                             style={{
                                 position: 'absolute',
                                 top: 0,
                                 left: 0,
                                 right: 0,
                                 bottom: 0,
-                                zIndex: 9000, // Lower than tooltip but higher than deck.gl
+                                zIndex: 25,
                                 backgroundColor: 'rgba(0, 0, 0, 0.1)',
                                 cursor: 'default',
                                 pointerEvents: 'auto'
                             }}
                             onClick={(e) => e.stopPropagation()}
                         />
-                        
-                        <div 
+
+                        <div
                             style={{
-                                position: 'fixed', // Changed from absolute to fixed to allow positioning outside container
+                                position: 'fixed',
                                 left: getTooltipPosition().left,
                                 top: getTooltipPosition().top,
-                                zIndex: 10000, // Increased z-index to ensure it's above everything
+                                zIndex: 10000,
                                 background: '#ffffff',
                                 border: '1px solid #d9d9d9',
                                 borderRadius: 8,
@@ -878,104 +850,91 @@ export const SampleViewer = ({
                                 padding: 12,
                                 minWidth: 240,
                                 maxWidth: 280,
-                                pointerEvents: 'auto' // Ensure tooltip is interactive
+                                pointerEvents: 'auto'
                             }}
                         >
-                        {/* Close button */}
-                        <div style={{ 
-                            position: 'absolute', 
-                            top: 8, 
-                            right: 8,
-                            cursor: 'pointer',
-                            padding: 4,
-                            borderRadius: 4,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }}
-                        onClick={handleAreaTooltipCancel}
-                        onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
-                        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                        >
-                            <CloseOutlined style={{ fontSize: 12, color: '#666' }} />
-                        </div>
+                            {/* Close button */}
+                            <div style={{
+                                position: 'absolute',
+                                top: 8,
+                                right: 8,
+                                cursor: 'pointer',
+                                padding: 4,
+                                borderRadius: 4,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                                onClick={handleAreaTooltipCancel}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                            >
+                                <CloseOutlined style={{ fontSize: 12, color: '#666' }} />
+                            </div>
 
-                        {/* Title */}
-                        <div style={{ 
-                            fontWeight: 'bold', 
-                            marginBottom: 12, 
-                            fontSize: 14,
-                            color: '#262626',
-                            paddingRight: 20
-                        }}>
-                            Customize Area
-                        </div>
+                            {/* Title */}
+                            <div style={{
+                                fontWeight: 'bold',
+                                marginBottom: 5,
+                                fontSize: 14,
+                                color: '#262626',
+                                paddingRight: 20,
+                                textAlign: 'left'
+                            }}>
+                                Customize Area
+                            </div>
 
-                        {/* Area Name Input */}
-                        <div style={{ marginBottom: 12 }}>
-                            <label style={{ 
-                                display: 'block', 
-                                marginBottom: 6, 
-                                fontSize: 12,
-                                fontWeight: 500,
-                                color: '#595959'
-                            }}>
-                                Area Name:
-                            </label>
-                            <Input
-                                value={areaName}
-                                onChange={(e) => setAreaName(e.target.value)}
-                                placeholder="Enter area name"
-                                maxLength={50}
-                                size="small"
-                            />
-                        </div>
-                        
-                        {/* Color Picker */}
-                        <div style={{ marginBottom: 12 }}>
-                            <label style={{ 
-                                display: 'block', 
-                                marginBottom: 6,
-                                fontSize: 12,
-                                fontWeight: 500,
-                                color: '#595959'
-                            }}>
-                                Area Color:
-                            </label>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <ColorPicker
-                                    value={areaColor}
-                                    onChange={(color) => setAreaColor(color.toHexString())}
+                            {/* Area Name Input */}
+                            <div style={{ marginBottom: 8 }}>
+                                <label style={{
+                                    display: 'block',
+                                    marginBottom: 6,
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    color: '#595959',
+                                    textAlign: 'left'
+                                }}>
+                                    Area Name:
+                                </label>
+                                <Input
+                                    value={areaName}
+                                    onChange={(e) => setAreaName(e.target.value)}
+                                    placeholder="Enter area name"
+                                    maxLength={50}
                                     size="small"
                                 />
-                                <div 
-                                    style={{ 
-                                        width: 24, 
-                                        height: 24, 
-                                        backgroundColor: areaColor,
-                                        border: '1px solid #d9d9d9',
-                                        borderRadius: 4
-                                    }}
-                                />
                             </div>
-                        </div>
 
-                        {/* Action Buttons */}
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <Button 
-                                size="small" 
-                                onClick={handleAreaTooltipCancel}
-                            >
-                                Cancel
-                            </Button>
-                            <Button 
-                                size="small" 
-                                type="primary"
-                                onClick={handleAreaTooltipSave}
-                            >
-                                Save Area
-                            </Button>
-                        </div>
+                            {/* Color Picker */}
+                            <div style={{ marginBottom: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <label style={{
+                                        fontSize: 12,
+                                        fontWeight: 500,
+                                        color: '#595959',
+                                        minWidth: 'fit-content'
+                                    }}>
+                                        Area Color:
+                                    </label>
+                                    <ColorPicker
+                                        value={areaColor}
+                                        onChange={(color) => setAreaColor(color.toHexString())}
+                                        size="small"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end' }}>
+                                <Button
+                                    size="small"
+                                    color="pink"
+                                    variant="solid"
+                                    onClick={handleAreaTooltipSave}
+                                >
+                                    Save Area
+                                </Button>
+                            </div>
                         </div>
                     </>
                 )}
