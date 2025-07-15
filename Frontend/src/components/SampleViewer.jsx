@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
-import { Collapse, Radio, Button } from "antd";
+import { Collapse, Radio, Button, Input, ColorPicker } from "antd";
+import { CloseOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
 
@@ -26,6 +27,13 @@ export const SampleViewer = ({
     const [customAreas, setCustomAreas] = useState([]);
     const [currentDrawingSample, setCurrentDrawingSample] = useState(null);
     const [mousePosition, setMousePosition] = useState(null);
+    
+    // Area customization tooltip state
+    const [isAreaTooltipVisible, setIsAreaTooltipVisible] = useState(false);
+    const [pendingArea, setPendingArea] = useState(null);
+    const [areaName, setAreaName] = useState('');
+    const [areaColor, setAreaColor] = useState('#ff0000');
+    const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
     const radioOptions = [
         {
@@ -160,17 +168,32 @@ export const SampleViewer = ({
 
     const finishDrawing = () => {
         if (drawingPoints.length >= 3 && currentDrawingSample) {
-            const newArea = {
+            // Create pending area and show tooltip for customization
+            const newPendingArea = {
                 id: `area-${Date.now()}`,
                 sampleId: currentDrawingSample,
                 points: [...drawingPoints],
-                name: `Custom Area ${customAreas.length + 1}`
+                name: `Custom Area ${customAreas.length + 1}`,
+                color: '#ff0000'
             };
-            setCustomAreas(prev => [...prev, newArea]);
+            
+            // Calculate the centroid of the drawn area for tooltip positioning
+            const centroid = calculateCentroid(drawingPoints);
+            
+            setPendingArea(newPendingArea);
+            setAreaName(newPendingArea.name);
+            setAreaColor(newPendingArea.color);
+            setTooltipPosition(centroid);
+            setIsAreaTooltipVisible(true);
+            
+            // Keep drawing state until tooltip is closed so area remains visible
+            // Don't clear drawing state here - it will be cleared when tooltip is closed
+        } else {
+            // If not enough points, just clear the drawing state
+            setIsDrawing(false);
+            setDrawingPoints([]);
+            setCurrentDrawingSample(null);
         }
-        setIsDrawing(false);
-        setDrawingPoints([]);
-        setCurrentDrawingSample(null);
     };
 
     const cancelDrawing = () => {
@@ -181,6 +204,133 @@ export const SampleViewer = ({
 
     const deleteArea = (areaId) => {
         setCustomAreas(prev => prev.filter(area => area.id !== areaId));
+    };
+
+    // Handle area tooltip actions
+    const handleAreaTooltipSave = () => {
+        if (pendingArea) {
+            const finalArea = {
+                ...pendingArea,
+                name: areaName || pendingArea.name,
+                color: areaColor
+            };
+            setCustomAreas(prev => [...prev, finalArea]);
+        }
+        
+        // Clear all drawing and tooltip state
+        setIsAreaTooltipVisible(false);
+        setPendingArea(null);
+        setAreaName('');
+        setAreaColor('#ff0000');
+        setIsDrawing(false);
+        setDrawingPoints([]);
+        setCurrentDrawingSample(null);
+        setMousePosition(null);
+    };
+
+    const handleAreaTooltipCancel = () => {
+        // Clear all drawing and tooltip state without saving
+        setIsAreaTooltipVisible(false);
+        setPendingArea(null);
+        setAreaName('');
+        setAreaColor('#ff0000');
+        setIsDrawing(false);
+        setDrawingPoints([]);
+        setCurrentDrawingSample(null);
+        setMousePosition(null);
+    };
+
+    // Calculate centroid of a polygon for tooltip positioning
+    const calculateCentroid = (points) => {
+        if (points.length === 0) return { x: 0, y: 0 };
+        
+        const sum = points.reduce((acc, point) => ({
+            x: acc.x + point[0],
+            y: acc.y + point[1]
+        }), { x: 0, y: 0 });
+        
+        return {
+            x: sum.x / points.length,
+            y: sum.y / points.length
+        };
+    };
+
+    // Convert world coordinates to screen coordinates for tooltip positioning
+    const worldToScreen = (worldX, worldY) => {
+        if (!mainViewState || !containerRef.current) return { x: 0, y: 0 };
+        
+        const container = containerRef.current;
+        const rect = container.getBoundingClientRect();
+        
+        // Get the center of the view
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        
+        // Calculate the scale based on zoom
+        const scale = Math.pow(2, mainViewState.zoom);
+        
+        // Transform world coordinates to screen coordinates
+        const screenX = centerX + (worldX - mainViewState.target[0]) * scale;
+        const screenY = centerY - (worldY - mainViewState.target[1]) * scale; // Y is inverted
+        
+        return { x: screenX, y: screenY };
+    };
+
+    // Calculate tooltip position with real-time updates based on current view state
+    const getTooltipPosition = useCallback(() => {
+        if (!isAreaTooltipVisible || !pendingArea || !containerRef.current || !mainViewState) {
+            return { left: 0, top: 0 };
+        }
+
+        // Recalculate screen position based on current view state
+        const screenPos = worldToScreen(tooltipPosition.x, tooltipPosition.y);
+        const container = containerRef.current;
+        const rect = container.getBoundingClientRect();
+        
+        const tooltipWidth = 280;
+        const tooltipHeight = 180;
+        
+        // Position closer to the area - try different positions in order of preference
+        let left = screenPos.x + 150; // Closer to the right
+        let top = screenPos.y - 300; // Slightly above center
+        
+        // Check if tooltip would go off the right edge
+        if (left + tooltipWidth > rect.width - 10) {
+            left = screenPos.x - tooltipWidth - 15; // Position to the left instead
+        }
+        
+        // Check if tooltip would go off the left edge
+        if (left < 10) {
+            left = screenPos.x + 15; // Back to right side
+            if (left + tooltipWidth > rect.width - 10) {
+                left = 10; // Force to left edge if necessary
+            }
+        }
+        
+        // Check if tooltip would go off the top edge
+        if (top < 10) {
+            top = screenPos.y + 15; // Position below instead
+        }
+        
+        // Check if tooltip would go off the bottom edge
+        if (top + tooltipHeight > rect.height - 10) {
+            top = screenPos.y - tooltipHeight - 15; // Position above instead
+            if (top < 10) {
+                top = 10; // Force to top if necessary
+            }
+        }
+        
+        return { left, top };
+    }, [isAreaTooltipVisible, pendingArea, tooltipPosition, mainViewState]);
+
+    // Convert hex color to RGB array
+    const hexToRgb = (hex) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? [
+            parseInt(result[1], 16),
+            parseInt(result[2], 16),
+            parseInt(result[3], 16)
+        ] : [255, 0, 0];
     };
 
     // Undo last point
@@ -315,17 +465,22 @@ export const SampleViewer = ({
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
                                 fontSize: '11px',
-                                marginBottom: 3
+                                marginBottom: 3,
+                                padding: '4px 6px',
+                                backgroundColor: '#f8f9fa',
+                                borderRadius: 4,
+                                border: `1px solid ${area.color || '#ff0000'}`,
+                                borderLeft: `4px solid ${area.color || '#ff0000'}`
                             }}>
-                                <span>{area.name}</span>
+                                <span style={{ fontWeight: 500 }}>{area.name}</span>
                                 <Button
                                     size="small"
                                     type="text"
                                     danger
                                     onClick={() => deleteArea(area.id)}
-                                    style={{ fontSize: '10px', padding: '0 4px' }}
+                                    style={{ fontSize: '10px', padding: '0 4px', height: 20 }}
                                 >
-                                    Delete
+                                    ×
                                 </Button>
                             </div>
                         ))}
@@ -401,14 +556,14 @@ export const SampleViewer = ({
 
         // Completed custom areas
         customAreas.forEach(area => {
-            // const offset = sampleOffsets[area.sampleId] || [0, 0];
-
+            const areaColor = hexToRgb(area.color || '#ff0000');
+            
             layers.push(new PolygonLayer({
                 id: `custom-area-${area.id}`,
                 data: [{ polygon: area.points }],
                 getPolygon: d => d.polygon,
-                getFillColor: [255, 0, 0, 50],
-                getLineColor: [255, 0, 0, 200],
+                getFillColor: [...areaColor, 50],
+                getLineColor: [...areaColor, 200],
                 getLineWidth: 2,
                 lineWidthUnits: 'pixels',
                 pickable: true,
@@ -416,19 +571,21 @@ export const SampleViewer = ({
         });
 
         // Current drawing visualization
-        if (isDrawing && currentDrawingSample) {
+        if ((isDrawing || isAreaTooltipVisible) && (drawingPoints.length > 0 || pendingArea)) {
+            const pointsToShow = pendingArea ? pendingArea.points : drawingPoints;
+            
             // Draw completed points
-            if (drawingPoints.length > 0) {
+            if (pointsToShow.length > 0) {
                 layers.push(new ScatterplotLayer({
                     id: 'drawing-points',
-                    data: drawingPoints.map((point, index) => ({
+                    data: pointsToShow.map((point, index) => ({
                         position: point,
                         index,
                         isFirst: index === 0
                     })),
                     getPosition: d => d.position,
                     getRadius: d => {
-                        if (d.isFirst && drawingPoints.length >= 3) {
+                        if (d.isFirst && pointsToShow.length >= 3) {
                             // Make first point larger and pulsing when it can be snapped to
                             const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
                             return shouldSnap ? 12 : 8;
@@ -436,87 +593,33 @@ export const SampleViewer = ({
                         return 5;
                     },
                     getFillColor: d => {
-                        if (d.isFirst && drawingPoints.length >= 3) {
+                        if (d.isFirst && pointsToShow.length >= 3) {
                             const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
                             return shouldSnap ? [255, 255, 0, 255] : [255, 255, 0, 200];
                         }
                         return [0, 255, 0, 200];
                     },
                     getLineColor: d => {
-                        if (d.isFirst && drawingPoints.length >= 3) {
+                        if (d.isFirst && pointsToShow.length >= 3) {
                             const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
                             return shouldSnap ? [255, 165, 0, 255] : [200, 200, 0, 255];
                         }
                         return [0, 150, 0, 255];
                     },
-                    getLineWidth: d => d.isFirst && drawingPoints.length >= 3 ? 3 : 2,
+                    getLineWidth: d => d.isFirst && pointsToShow.length >= 3 ? 3 : 2,
                     radiusUnits: 'pixels',
                     lineWidthUnits: 'pixels',
                     pickable: false,
                 }));
-            }
-
-            // Draw mouse cursor when hovering
-            if (mousePosition) {
-                const shouldSnap = shouldSnapToFirst(mousePosition);
-                layers.push(new ScatterplotLayer({
-                    id: 'drawing-cursor',
-                    data: [{ position: mousePosition }],
-                    getPosition: d => d.position,
-                    getRadius: shouldSnap ? 10 : 4,
-                    getFillColor: shouldSnap ? [255, 165, 0, 200] : [0, 255, 0, 150],
-                    getLineColor: shouldSnap ? [255, 140, 0, 255] : [0, 255, 0, 200],
-                    getLineWidth: shouldSnap ? 3 : 1,
-                    radiusUnits: 'pixels',
-                    lineWidthUnits: 'pixels',
-                    pickable: false,
-                }));
-
-                // Draw preview line from last point to mouse
-                if (drawingPoints.length > 0) {
-                    const lastPoint = drawingPoints[drawingPoints.length - 1];
-                    const targetPoint = shouldSnap ? drawingPoints[0] : mousePosition;
-
-                    layers.push(new LineLayer({
-                        id: 'drawing-preview-line',
-                        data: [{
-                            sourcePosition: lastPoint,
-                            targetPosition: targetPoint
-                        }],
-                        getSourcePosition: d => d.sourcePosition,
-                        getTargetPosition: d => d.targetPosition,
-                        getColor: shouldSnap ? [255, 165, 0, 200] : [0, 255, 0, 150],
-                        getWidth: shouldSnap ? 4 : 2,
-                        widthUnits: 'pixels',
-                        pickable: false,
-                    }));
-                }
-
-                // Show snap zone indicator when close to first point
-                if (shouldSnap && drawingPoints.length >= 3) {
-                    const firstPoint = drawingPoints[0];
-                    layers.push(new ScatterplotLayer({
-                        id: 'snap-zone-indicator',
-                        data: [{ position: firstPoint }],
-                        getPosition: d => d.position,
-                        getRadius: 15,
-                        getFillColor: [255, 165, 0, 50],
-                        getLineColor: [255, 165, 0, 150],
-                        getLineWidth: 2,
-                        radiusUnits: 'pixels',
-                        lineWidthUnits: 'pixels',
-                        pickable: false,
-                    }));
-                }
             }
 
             // Draw lines connecting the points
-            if (drawingPoints.length > 1) {
+            if (pointsToShow.length > 1) {
                 const lineSegments = [];
-                for (let i = 0; i < drawingPoints.length - 1; i++) {
+                for (let i = 0; i < pointsToShow.length - 1; i++) {
                     lineSegments.push({
-                        sourcePosition: drawingPoints[i],
-                        targetPosition: drawingPoints[i + 1]
+                        sourcePosition: pointsToShow[i],
+                        targetPosition: pointsToShow[i + 1]
                     });
                 }
 
@@ -533,16 +636,73 @@ export const SampleViewer = ({
             }
 
             // Show polygon preview when we have at least 3 points
-            if (drawingPoints.length >= 3) {
+            if (pointsToShow.length >= 3) {
                 layers.push(new PolygonLayer({
                     id: 'drawing-preview',
-                    data: [{ polygon: drawingPoints }],
+                    data: [{ polygon: pointsToShow }],
                     getPolygon: d => d.polygon,
                     getFillColor: [0, 255, 0, 30],
                     getLineColor: [0, 255, 0, 0],
                     getLineWidth: 0,
                     pickable: false,
                 }));
+            }
+
+            // Only show mouse interactions if still actively drawing (not just showing tooltip)
+            if (isDrawing && !isAreaTooltipVisible) {
+                // Draw mouse cursor when hovering
+                if (mousePosition) {
+                    const shouldSnap = shouldSnapToFirst(mousePosition);
+                    layers.push(new ScatterplotLayer({
+                        id: 'drawing-cursor',
+                        data: [{ position: mousePosition }],
+                        getPosition: d => d.position,
+                        getRadius: shouldSnap ? 10 : 4,
+                        getFillColor: shouldSnap ? [255, 165, 0, 200] : [0, 255, 0, 150],
+                        getLineColor: shouldSnap ? [255, 140, 0, 255] : [0, 255, 0, 200],
+                        getLineWidth: shouldSnap ? 3 : 1,
+                        radiusUnits: 'pixels',
+                        lineWidthUnits: 'pixels',
+                        pickable: false,
+                    }));
+
+                    // Draw preview line from last point to mouse
+                    if (drawingPoints.length > 0) {
+                        const lastPoint = drawingPoints[drawingPoints.length - 1];
+                        const targetPoint = shouldSnap ? drawingPoints[0] : mousePosition;
+
+                        layers.push(new LineLayer({
+                            id: 'drawing-preview-line',
+                            data: [{
+                                sourcePosition: lastPoint,
+                                targetPosition: targetPoint
+                            }],
+                            getSourcePosition: d => d.sourcePosition,
+                            getTargetPosition: d => d.targetPosition,
+                            getColor: shouldSnap ? [255, 165, 0, 200] : [0, 255, 0, 150],
+                            getWidth: shouldSnap ? 4 : 2,
+                            widthUnits: 'pixels',
+                            pickable: false,
+                        }));
+                    }
+
+                    // Show snap zone indicator when close to first point
+                    if (shouldSnap && drawingPoints.length >= 3) {
+                        const firstPoint = drawingPoints[0];
+                        layers.push(new ScatterplotLayer({
+                            id: 'snap-zone-indicator',
+                            data: [{ position: firstPoint }],
+                            getPosition: d => d.position,
+                            getRadius: 15,
+                            getFillColor: [255, 165, 0, 50],
+                            getLineColor: [255, 165, 0, 150],
+                            getLineWidth: 2,
+                            radiusUnits: 'pixels',
+                            lineWidthUnits: 'pixels',
+                            pickable: false,
+                        }));
+                    }
+                }
             }
         }
 
@@ -575,8 +735,14 @@ export const SampleViewer = ({
                     onViewStateChange={handleViewStateChange}
                     onClick={handleMapClick}
                     onHover={handleMouseMove}
-                    controller={!isDrawing ? true : { dragPan: false, dragRotate: false, doubleClickZoom: false }}
+                    controller={
+                        isAreaTooltipVisible ? false : // Disable all interactions when tooltip is visible
+                        !isDrawing ? true : { dragPan: false, dragRotate: false, doubleClickZoom: false }
+                    }
                     getCursor={({ isHovering, isDragging }) => {
+                        if (isAreaTooltipVisible) {
+                            return 'default'; // Normal cursor when tooltip is visible
+                        }
                         if (isDrawing) {
                             if (mousePosition && shouldSnapToFirst(mousePosition)) {
                                 return 'pointer';
@@ -629,6 +795,138 @@ export const SampleViewer = ({
                             </div>
                         )}
                     </div>
+                )}
+
+                {/* Area Customization Tooltip */}
+                {isAreaTooltipVisible && pendingArea && (
+                    <>
+                        {/* Overlay to prevent interactions with the map */}
+                        <div 
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                zIndex: 900,
+                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                cursor: 'default'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        
+                        <div 
+                            style={{
+                                position: 'absolute',
+                                left: getTooltipPosition().left,
+                                top: getTooltipPosition().top,
+                                zIndex: 1000,
+                                background: '#ffffff',
+                                border: '1px solid #d9d9d9',
+                                borderRadius: 8,
+                                boxShadow: '0 6px 16px rgba(0, 0, 0, 0.12)',
+                                padding: 12,
+                                minWidth: 240,
+                                maxWidth: 280
+                            }}
+                        >
+                        {/* Close button */}
+                        <div style={{ 
+                            position: 'absolute', 
+                            top: 8, 
+                            right: 8,
+                            cursor: 'pointer',
+                            padding: 4,
+                            borderRadius: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                        onClick={handleAreaTooltipCancel}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                        >
+                            <CloseOutlined style={{ fontSize: 12, color: '#666' }} />
+                        </div>
+
+                        {/* Title */}
+                        <div style={{ 
+                            fontWeight: 'bold', 
+                            marginBottom: 12, 
+                            fontSize: 14,
+                            color: '#262626',
+                            paddingRight: 20
+                        }}>
+                            Customize Area
+                        </div>
+
+                        {/* Area Name Input */}
+                        <div style={{ marginBottom: 12 }}>
+                            <label style={{ 
+                                display: 'block', 
+                                marginBottom: 6, 
+                                fontSize: 12,
+                                fontWeight: 500,
+                                color: '#595959'
+                            }}>
+                                Area Name:
+                            </label>
+                            <Input
+                                value={areaName}
+                                onChange={(e) => setAreaName(e.target.value)}
+                                placeholder="Enter area name"
+                                maxLength={50}
+                                size="small"
+                            />
+                        </div>
+                        
+                        {/* Color Picker */}
+                        <div style={{ marginBottom: 12 }}>
+                            <label style={{ 
+                                display: 'block', 
+                                marginBottom: 6,
+                                fontSize: 12,
+                                fontWeight: 500,
+                                color: '#595959'
+                            }}>
+                                Area Color:
+                            </label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <ColorPicker
+                                    value={areaColor}
+                                    onChange={(color) => setAreaColor(color.toHexString())}
+                                    size="small"
+                                />
+                                <div 
+                                    style={{ 
+                                        width: 24, 
+                                        height: 24, 
+                                        backgroundColor: areaColor,
+                                        border: '1px solid #d9d9d9',
+                                        borderRadius: 4
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <Button 
+                                size="small" 
+                                onClick={handleAreaTooltipCancel}
+                            >
+                                Cancel
+                            </Button>
+                            <Button 
+                                size="small" 
+                                type="primary"
+                                onClick={handleAreaTooltipSave}
+                            >
+                                Save Area
+                            </Button>
+                        </div>
+                        </div>
+                    </>
                 )}
             </div>
         </div>
