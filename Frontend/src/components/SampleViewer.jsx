@@ -322,28 +322,17 @@ export const SampleViewer = ({
         const tooltipWidth = 280;
         const tooltipHeight = 180;
         
-        // Position to the right of the rightmost point with some spacing
-        let left = screenPos.x + 20; // 20px to the right of the rightmost point
-        let top = screenPos.y - tooltipHeight / 2; // Center vertically on the area's vertical center
+        // Calculate position relative to viewport (for fixed positioning)
+        const left = rect.left + screenPos.x + 20; // 20px to the right of the rightmost point
+        let top = rect.top + screenPos.y - tooltipHeight / 2; // Center vertically on the area's vertical center
         
-        // Check if tooltip would go off the right edge
-        if (left + tooltipWidth > rect.width - 10) {
-            left = screenPos.x - tooltipWidth - 20; // Position to the left instead
-        }
-        
-        // Check if tooltip would go off the left edge
-        if (left < 10) {
-            left = 10; // Force to left edge
-        }
-        
-        // Check if tooltip would go off the top edge
+        // Only constrain the top position to stay within the viewport bounds
         if (top < 10) {
-            top = 10; // Force to top edge
+            top = 10; // Force to top edge of viewport
         }
         
-        // Check if tooltip would go off the bottom edge
-        if (top + tooltipHeight > rect.height - 10) {
-            top = rect.height - tooltipHeight - 10; // Force to bottom edge
+        if (top + tooltipHeight > window.innerHeight - 10) {
+            top = window.innerHeight - tooltipHeight - 10; // Force to bottom edge of viewport
         }
         
         return { left, top };
@@ -868,26 +857,28 @@ export const SampleViewer = ({
                                 left: 0,
                                 right: 0,
                                 bottom: 0,
-                                zIndex: 900,
+                                zIndex: 9000, // Lower than tooltip but higher than deck.gl
                                 backgroundColor: 'rgba(0, 0, 0, 0.1)',
-                                cursor: 'default'
+                                cursor: 'default',
+                                pointerEvents: 'auto'
                             }}
                             onClick={(e) => e.stopPropagation()}
                         />
                         
                         <div 
                             style={{
-                                position: 'absolute',
+                                position: 'fixed', // Changed from absolute to fixed to allow positioning outside container
                                 left: getTooltipPosition().left,
                                 top: getTooltipPosition().top,
-                                zIndex: 1000,
+                                zIndex: 10000, // Increased z-index to ensure it's above everything
                                 background: '#ffffff',
                                 border: '1px solid #d9d9d9',
                                 borderRadius: 8,
                                 boxShadow: '0 6px 16px rgba(0, 0, 0, 0.12)',
                                 padding: 12,
                                 minWidth: 240,
-                                maxWidth: 280
+                                maxWidth: 280,
+                                pointerEvents: 'auto' // Ensure tooltip is interactive
                             }}
                         >
                         {/* Close button */}
