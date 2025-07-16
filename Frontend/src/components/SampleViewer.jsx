@@ -643,7 +643,7 @@ export const SampleViewer = ({
                             if (d.isFirst && pointsToShow.length >= 3) {
                                 // Make first point larger and pulsing when it can be snapped to
                                 const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
-                                return shouldSnap ? 12 : 8;
+                                return shouldSnap ? 10 : 4;
                             }
                             return 5;
                         },
@@ -713,7 +713,7 @@ export const SampleViewer = ({
                         id: 'drawing-cursor',
                         data: [{ position: mousePosition }],
                         getPosition: d => d.position,
-                        getRadius: shouldSnap ? 10 : 4,
+                        getRadius: shouldSnap ? 8 : 5,
                         getFillColor: shouldSnap ? [255, 202, 58, 200] : [0, 255, 150, 150],
                         getLineColor: shouldSnap ? [255, 140, 0, 255] : [0, 255, 150, 200],
                         getLineWidth: shouldSnap ? 3 : 1,
