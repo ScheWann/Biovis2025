@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
 import { Collapse, Radio, Button, Input, ColorPicker } from "antd";
-import { CloseOutlined, EditOutlined } from '@ant-design/icons';
+import { CloseOutlined, EditOutlined, RedoOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
 
@@ -180,6 +180,26 @@ export const SampleViewer = ({
         setIsDrawing(true);
         setCurrentDrawingSample(sampleId);
         setDrawingPoints([]);
+    };
+
+    // Reset view to initial position and zoom
+    const resetView = () => {
+        if (!selectedSamples.length || !imageSizes[selectedSamples[0]?.id]) return;
+
+        const firstSample = selectedSamples[0];
+        const offset = sampleOffsets[firstSample.id] ?? [0, 0];
+        const size = imageSizes[firstSample.id] ?? [0, 0];
+
+        setMainViewState({
+            target: [
+                offset[0] + size[0] / 2,
+                offset[1] + size[1] / 2,
+                0
+            ],
+            zoom: -3,
+            maxZoom: 2.5,
+            minZoom: -5
+        });
     };
 
     const finishDrawing = () => {
@@ -833,7 +853,25 @@ export const SampleViewer = ({
                 </div>
 
                 {/* Global Drawing Control */}
-                <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 20 }}>
+                <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 20, display: 'flex', gap: 8 }}>
+                    {/* Reset View Button */}
+                    <Button
+                        size="big"
+                        onClick={resetView}
+                        style={{
+                            backgroundColor: '#ffffff',
+                            borderColor: '#d9d9d9',
+                            color: '#000000',
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                        icon={<RedoOutlined style={{ fontSize: '18px' }} />}
+                        title="Reset view to initial position and zoom"
+                    />
+                    
+                    {/* Drawing Toggle Button */}
                     <Button
                         size="big"
                         onClick={toggleDrawingMode}
