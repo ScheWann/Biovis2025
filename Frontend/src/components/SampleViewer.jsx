@@ -47,6 +47,7 @@ export const SampleViewer = ({
 
     // Minimap state
     const [minimapVisible, setMinimapVisible] = useState(true);
+    const [minimapAnimating, setMinimapAnimating] = useState(false);
     const minimapRef = useRef(null);
 
     const radioOptions = [
@@ -234,6 +235,30 @@ export const SampleViewer = ({
             target: [worldX, worldY, 0]
         }));
     }, [selectedSamples, imageSizes, sampleOffsets]);
+
+    // Toggle minimap with fade animation
+    const toggleMinimapVisible = useCallback(() => {
+        if (minimapVisible) {
+            setMinimapVisible(false);
+            setMinimapAnimating(true);
+
+            // Stop animating
+            setTimeout(() => {
+                setMinimapAnimating(false);
+            }, 300);
+        } else {
+            setMinimapAnimating(true);
+
+            setTimeout(() => {
+                setMinimapVisible(true);
+            }, 10);
+
+            // Reset animating state after transition completes
+            setTimeout(() => {
+                setMinimapAnimating(false);
+            }, 310);
+        }
+    }, [minimapVisible]);
 
     // Toggle drawing mode
     const toggleDrawingMode = () => {
@@ -1002,7 +1027,7 @@ export const SampleViewer = ({
                         {/* Minimap Toggle Button */}
                         <Button
                             size="big"
-                            onClick={() => setMinimapVisible(!minimapVisible)}
+                            onClick={toggleMinimapVisible}
                             style={{
                                 backgroundColor: minimapVisible ? '#1890ff' : '#ffffff',
                                 borderColor: minimapVisible ? '#1890ff' : '#d9d9d9',
@@ -1203,7 +1228,7 @@ export const SampleViewer = ({
                 )}
 
                 {/* Minimap */}
-                {minimapVisible && selectedSamples.length > 0 && imageSizes[selectedSamples[0]?.id] && (
+                {(minimapVisible || minimapAnimating) && selectedSamples.length > 0 && imageSizes[selectedSamples[0]?.id] && (
                     <div
                         style={{
                             position: 'absolute',
@@ -1217,7 +1242,11 @@ export const SampleViewer = ({
                             borderRadius: 8,
                             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                             overflow: 'hidden',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            opacity: minimapVisible ? 1 : 0,
+                            transition: 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out',
+                            transform: minimapVisible ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.95)',
+                            pointerEvents: minimapVisible ? 'auto' : 'none'
                         }}
                         ref={minimapRef}
                         onClick={handleMinimapClick}
@@ -1282,7 +1311,7 @@ export const SampleViewer = ({
                             }}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                setMinimapVisible(false);
+                                toggleMinimapVisible();
                             }}
                             onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(245, 245, 245, 0.9)'}
                             onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.9)'}
