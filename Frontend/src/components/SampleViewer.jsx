@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
 import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete } from "antd";
-import { CloseOutlined, EditOutlined, RedoOutlined } from '@ant-design/icons';
+import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
 
@@ -44,6 +44,10 @@ export const SampleViewer = ({
     const [editNeighbors, setEditNeighbors] = useState(10);
     const [editNPcas, setEditNPcas] = useState(50);
     const [editResolution, setEditResolution] = useState(0.5);
+
+    // Minimap state
+    const [minimapVisible, setMinimapVisible] = useState(true);
+    const minimapRef = useRef(null);
 
     const radioOptions = [
         {
@@ -172,6 +176,64 @@ export const SampleViewer = ({
 
         return { x: screenX, y: screenY };
     };
+
+    // Calculate minimap viewport bounds based on current view state
+    const getMinimapViewportBounds = useCallback(() => {
+        if (!mainViewState || !containerSize.width || !selectedSamples.length) return null;
+
+        const firstSample = selectedSamples[0];
+        const imageSize = imageSizes[firstSample.id];
+        const offset = sampleOffsets[firstSample.id] || [0, 0];
+
+        if (!imageSize) return null;
+
+        // Calculate the world bounds of the current viewport
+        const scale = Math.pow(2, mainViewState.zoom);
+        const halfWidth = containerSize.width / (2 * scale);
+        const halfHeight = containerSize.height / (2 * scale);
+
+        const viewportBounds = {
+            left: mainViewState.target[0] - halfWidth,
+            right: mainViewState.target[0] + halfWidth,
+            top: mainViewState.target[1] - halfHeight,
+            bottom: mainViewState.target[1] + halfHeight
+        };
+
+        // Convert to relative coordinates within the first sample's image
+        const relativeBounds = {
+            left: Math.max(0, (viewportBounds.left - offset[0]) / imageSize[0]),
+            right: Math.min(1, (viewportBounds.right - offset[0]) / imageSize[0]),
+            top: Math.max(0, (viewportBounds.top - offset[1]) / imageSize[1]),
+            bottom: Math.min(1, (viewportBounds.bottom - offset[1]) / imageSize[1])
+        };
+
+        return relativeBounds;
+    }, [mainViewState, containerSize, selectedSamples, imageSizes, sampleOffsets]);
+
+    // Handle minimap click to navigate
+    const handleMinimapClick = useCallback((event) => {
+        if (!minimapRef.current || !selectedSamples.length) return;
+
+        const firstSample = selectedSamples[0];
+        const imageSize = imageSizes[firstSample.id];
+        const offset = sampleOffsets[firstSample.id] || [0, 0];
+
+        if (!imageSize) return;
+
+        const rect = minimapRef.current.getBoundingClientRect();
+        const x = (event.clientX - rect.left) / rect.width;
+        const y = (event.clientY - rect.top) / rect.height;
+
+        // Convert relative coordinates to world coordinates
+        const worldX = offset[0] + x * imageSize[0];
+        const worldY = offset[1] + y * imageSize[1];
+
+        // Update main view to center on clicked position
+        setMainViewState(prev => ({
+            ...prev,
+            target: [worldX, worldY, 0]
+        }));
+    }, [selectedSamples, imageSizes, sampleOffsets]);
 
     // Toggle drawing mode
     const toggleDrawingMode = () => {
@@ -937,6 +999,23 @@ export const SampleViewer = ({
                             title="Reset view to initial position and zoom"
                         />
 
+                        {/* Minimap Toggle Button */}
+                        <Button
+                            size="big"
+                            onClick={() => setMinimapVisible(!minimapVisible)}
+                            style={{
+                                backgroundColor: minimapVisible ? '#1890ff' : '#ffffff',
+                                borderColor: minimapVisible ? '#1890ff' : '#d9d9d9',
+                                color: minimapVisible ? '#ffffff' : '#000000',
+                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                            icon={<BorderOutlined style={{ fontSize: '18px' }} />}
+                            title={minimapVisible ? 'Hide minimap' : 'Show minimap'}
+                        />
+
                         {/* Drawing Toggle Button */}
                         <Button
                             size="big"
@@ -1121,6 +1200,96 @@ export const SampleViewer = ({
                             </div>
                         </div>
                     </>
+                )}
+
+                {/* Minimap */}
+                {minimapVisible && selectedSamples.length > 0 && imageSizes[selectedSamples[0]?.id] && (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            bottom: 10,
+                            right: 10,
+                            width: 200,
+                            height: 150,
+                            zIndex: 15,
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            border: '2px solid #d9d9d9',
+                            borderRadius: 8,
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                            overflow: 'hidden',
+                            cursor: 'pointer'
+                        }}
+                        ref={minimapRef}
+                        onClick={handleMinimapClick}
+                    >
+                        {/* Minimap background image */}
+                        <img
+                            src={`/${selectedSamples[0].id}_full.jpg`}
+                            alt="Minimap"
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                display: 'block'
+                            }}
+                            draggable={false}
+                        />
+
+                        {/* Viewport indicator */}
+                        {(() => {
+                            const viewportBounds = getMinimapViewportBounds();
+                            if (!viewportBounds) return null;
+
+                            const left = viewportBounds.left * 100;
+                            const top = viewportBounds.top * 100;
+                            const width = (viewportBounds.right - viewportBounds.left) * 100;
+                            const height = (viewportBounds.bottom - viewportBounds.top) * 100;
+
+                            return (
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        left: `${Math.max(0, Math.min(100, left))}%`,
+                                        top: `${Math.max(0, Math.min(100, top))}%`,
+                                        width: `${Math.max(0, Math.min(100 - left, width))}%`,
+                                        height: `${Math.max(0, Math.min(100 - top, height))}%`,
+                                        border: '2px solid #1890ff',
+                                        backgroundColor: 'rgba(24, 144, 255, 0.2)',
+                                        pointerEvents: 'none',
+                                        boxSizing: 'border-box'
+                                    }}
+                                />
+                            );
+                        })()}
+
+                        {/* Close button */}
+                        <div
+                            style={{
+                                position: 'absolute',
+                                top: 4,
+                                right: 4,
+                                width: 18,
+                                height: 18,
+                                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                border: '1px solid #d9d9d9',
+                                borderRadius: 3,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                color: '#666'
+                            }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setMinimapVisible(false);
+                            }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(245, 245, 245, 0.9)'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.9)'}
+                        >
+                            <CloseOutlined style={{ fontSize: 8, color: '#666' }} />
+                        </div>
+                    </div>
                 )}
 
                 {/* Area Edit/Delete Popup */}
