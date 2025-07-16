@@ -1012,9 +1012,6 @@ export const SampleViewer = ({
                             size="big"
                             onClick={resetView}
                             style={{
-                                backgroundColor: '#ffffff',
-                                borderColor: '#d9d9d9',
-                                color: '#000000',
                                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -1027,11 +1024,9 @@ export const SampleViewer = ({
                         {/* Minimap Toggle Button */}
                         <Button
                             size="big"
+                            type={minimapVisible ? "primary" : "default"}
                             onClick={toggleMinimapVisible}
                             style={{
-                                backgroundColor: minimapVisible ? '#1890ff' : '#ffffff',
-                                borderColor: minimapVisible ? '#1890ff' : '#d9d9d9',
-                                color: minimapVisible ? '#ffffff' : '#000000',
                                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -1044,11 +1039,9 @@ export const SampleViewer = ({
                         {/* Drawing Toggle Button */}
                         <Button
                             size="big"
+                            type={isDrawing ? "primary" : "default"}
                             onClick={toggleDrawingMode}
                             style={{
-                                backgroundColor: isDrawing ? '#1890ff' : '#ffffff',
-                                borderColor: isDrawing ? '#1890ff' : '#ffffff',
-                                color: isDrawing ? '#ffffff' : '#000000',
                                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
                                 display: 'flex',
                                 alignItems: 'center',
