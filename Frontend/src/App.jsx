@@ -5,30 +5,13 @@ import './App.css';
 import { SampleViewer } from './components/SampleViewer';
 import { PlusOutlined, InboxOutlined, PaperClipOutlined } from '@ant-design/icons';
 import '@ant-design/v5-patch-for-react-19';
-// import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer';
-// import { NMFGOExpressionViewer } from './components/NMFGOExpressionViewer2';
-// import { Cell2CellViewer } from './components/Cell2CellViewer';
-// import { Cell2CellViewer2 } from './components/Cell2CellViewer2';
-// import { GeneExpressionViewer } from './components/GeneExpressionViewer';
-// import { PseudoTemporalViewer } from './components/PseudoTemporalViewer';
 
 function App() {
   const [coordinatesData, setCoordinatesData] = useState({}); // each sample's cell type directory(e.g. {"skin_TXK6Z4X_A1": [{"cell_type": "cd19+cd20+ b","cell_x": 3526, "cell_y": 3780, "id": "ID_1}, ...}])'
   const [selectOptions, setSelectOptions] = useState([]); // Available sample Option(e.g. [{value: 'skin_TXK6Z4X_A1', label: 'skin_TXK6Z4X_A1'}, ...])
   const [selectedSamples, setSelectedSamples] = useState([]); // Confirmed sample to be displayed(e.g. [{id: 'sample_id', name: 'sample_id'}, ...])
   const [tempSamples, setTempSamples] = useState([]); // The sample identified in the selector
-  // const [cellTypeDir, setCellTypeDir] = useState({}); // Each sample's cell type directory based on users' sample selection(e.g. {"skin_TXK6Z4X_A1": ["cd19+cd20+ b", "cd19+cd20+ t"], ...})
-  const [interestedRegions, setInterestedRegions] = useState([]); // Selected regions in the multiSampleViewer to perform analysis (e.g. [{name: 'region1', sampleId: 'skin_TXK6Z4X_A1', cellIds: ['ID_1', 'ID_2']}, ...])
   const [sampleDataLoading, setSampleDataLoading] = useState(false); // Sample Data Loading
-  const [analyzedRegion, setAnalyzedRegion] = useState({}); // Selected in the multiSampleViewer to perform analysis(e.g.{'region1': true, 'region2': false, ...})
-  // NMF data and its loading settings
-  // const [NMFGOData, setNMFGOData] = useState({});
-  // const [NMFGODataLoading, setNMFGODataLoading] = useState(false);
-  // const [NMFclusterCells, setNMFclusterCells] = useState([]);
-  // cell2cell data and its loading settings
-  // const [cell2cellData, setCell2cellData] = useState({});
-  // const [cell2cellDataLoading, setCell2cellDataLoading] = useState(false);
-  const [selectedRegionGeneExpressionData, setSelectedRegionGeneExpressionData] = useState({});
   const [uploadFormVisible, setUploadFormVisible] = useState(false); // Upload form visibility
 
   useEffect(() => {
@@ -211,7 +194,7 @@ function App() {
               justifyContent: "center",
               alignItems: "center",
               background: "rgba(0, 0, 0, 0.5)",
-              zIndex: 20
+              zIndex: 1000
             }}>
               <Spin spinning={true} size="large" />
             </div>
@@ -220,15 +203,6 @@ function App() {
           {selectedSamples.length > 0 ? (
             <Splitter lazy style={{ width: "100%", height: "100%" }}>
               <Splitter.Panel defaultSize="70%" min="50%" max="80%">
-                {/* <MultiSampleViewerNew
-                  setSampleDataLoading={setSampleDataLoading}
-                  selectedSamples={selectedSamples}
-                  coordinatesData={coordinatesData}
-                  interestedRegions={interestedRegions}
-                  setInterestedRegions={setInterestedRegions}
-                  analyzedRegion={analyzedRegion}
-                  setAnalyzedRegion={setAnalyzedRegion}
-                /> */}
                 <SampleViewer
                   selectedSamples={selectedSamples}
                   coordinatesData={coordinatesData}
