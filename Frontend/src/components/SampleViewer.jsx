@@ -260,7 +260,7 @@ export const SampleViewer = ({
     };
 
     // Calculate tooltip position with real-time updates based on current view state
-    const getTooltipPosition = useCallback(() => {
+    const getTempAreaCompleteTooltipPosition = useCallback(() => {
         if (!isAreaTooltipVisible || !pendingArea || !containerRef.current || !mainViewState) {
             return { left: 0, top: 0 };
         }
@@ -1024,8 +1024,8 @@ export const SampleViewer = ({
                         <div
                             style={{
                                 position: 'fixed',
-                                left: getTooltipPosition().left,
-                                top: getTooltipPosition().top,
+                                left: getTempAreaCompleteTooltipPosition().left,
+                                top: getTempAreaCompleteTooltipPosition().top,
                                 zIndex: 1000,
                                 background: '#ffffff',
                                 border: '1px solid #d9d9d9',
