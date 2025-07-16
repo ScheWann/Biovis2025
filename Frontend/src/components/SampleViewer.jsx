@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
-import { Collapse, Radio, Button, Input, ColorPicker } from "antd";
+import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete } from "antd";
 import { CloseOutlined, EditOutlined, RedoOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
@@ -41,6 +41,9 @@ export const SampleViewer = ({
     const [editAreaName, setEditAreaName] = useState('');
     const [editAreaColor, setEditAreaColor] = useState('#f72585');
     const [editPopupPosition, setEditPopupPosition] = useState({ x: 0, y: 0 });
+    const [editNeighbors, setEditNeighbors] = useState(10);
+    const [editNPcas, setEditNPcas] = useState(50);
+    const [editResolution, setEditResolution] = useState(0.5);
 
     const radioOptions = [
         {
@@ -347,6 +350,9 @@ export const SampleViewer = ({
                     setSelectedAreaForEdit(area);
                     setEditAreaName(area.name);
                     setEditAreaColor(area.color);
+                    setEditNeighbors(area.neighbors || 10);
+                    setEditNPcas(area.n_pcas || 50);
+                    setEditResolution(area.resolution || 0.5);
 
                     // Set popup position near the click point
                     const screenPos = worldToScreen(info.coordinate[0], info.coordinate[1]);
@@ -369,7 +375,14 @@ export const SampleViewer = ({
         if (selectedAreaForEdit) {
             setCustomAreas(prev => prev.map(area =>
                 area.id === selectedAreaForEdit.id
-                    ? { ...area, name: editAreaName, color: editAreaColor }
+                    ? {
+                        ...area,
+                        name: editAreaName,
+                        color: editAreaColor,
+                        neighbors: editNeighbors,
+                        n_pcas: editNPcas,
+                        resolution: editResolution
+                    }
                     : area
             ));
         }
@@ -390,6 +403,9 @@ export const SampleViewer = ({
         setSelectedAreaForEdit(null);
         setEditAreaName('');
         setEditAreaColor('#f72585');
+        setEditNeighbors(10);
+        setEditNPcas(50);
+        setEditResolution(0.5);
     };
 
     // Convert hex color to RGB array
@@ -1172,8 +1188,9 @@ export const SampleViewer = ({
                                     <label style={{
                                         fontSize: 12,
                                         fontWeight: 500,
+                                        minWidth: '70px',
+                                        textAlign: 'left',
                                         color: '#595959',
-                                        minWidth: 'fit-content'
                                     }}>
                                         Area Color:
                                     </label>
@@ -1181,6 +1198,101 @@ export const SampleViewer = ({
                                         value={editAreaColor}
                                         onChange={(color) => setEditAreaColor(color.toHexString())}
                                         size="small"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Neighbors Input */}
+                            <div style={{ marginBottom: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <label style={{
+                                        fontSize: 12,
+                                        fontWeight: 500,
+                                        color: '#595959',
+                                        minWidth: '70px',
+                                        textAlign: 'left'
+                                    }}>
+                                        Neighbors:
+                                    </label>
+                                    <AutoComplete
+                                        value={editNeighbors.toString()}
+                                        onChange={(value) => setEditNeighbors(parseInt(value) || 10)}
+                                        options={[
+                                            { value: '5' },
+                                            { value: '10' },
+                                            { value: '15' },
+                                            { value: '20' },
+                                            { value: '25' },
+                                            { value: '30' }
+                                        ]}
+                                        size="small"
+                                        style={{ flex: 1 }}
+                                        placeholder="10"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* N PCAs Input */}
+                            <div style={{ marginBottom: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <label style={{
+                                        fontSize: 12,
+                                        fontWeight: 500,
+                                        color: '#595959',
+                                        minWidth: '70px',
+                                        textAlign: 'left'
+                                    }}>
+                                        N PCAs:
+                                    </label>
+                                    <AutoComplete
+                                        value={editNPcas.toString()}
+                                        onChange={(value) => setEditNPcas(parseInt(value) || 50)}
+                                        options={[
+                                            { value: '10' },
+                                            { value: '20' },
+                                            { value: '30' },
+                                            { value: '40' },
+                                            { value: '50' },
+                                            { value: '75' },
+                                            { value: '100' }
+                                        ]}
+                                        size="small"
+                                        style={{ flex: 1 }}
+                                        placeholder="50"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Resolution Input */}
+                            <div style={{ marginBottom: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <label style={{
+                                        fontSize: 12,
+                                        fontWeight: 500,
+                                        color: '#595959',
+                                        minWidth: '70px',
+                                        textAlign: 'left'
+                                    }}>
+                                        Resolution:
+                                    </label>
+                                    <AutoComplete
+                                        value={editResolution.toString()}
+                                        onChange={(value) => setEditResolution(parseFloat(value) || 0.5)}
+                                        options={[
+                                            { value: '0.1' },
+                                            { value: '0.2' },
+                                            { value: '0.3' },
+                                            { value: '0.4' },
+                                            { value: '0.5' },
+                                            { value: '0.6' },
+                                            { value: '0.7' },
+                                            { value: '0.8' },
+                                            { value: '0.9' },
+                                            { value: '1.0' }
+                                        ]}
+                                        size="small"
+                                        style={{ flex: 1 }}
+                                        placeholder="0.5"
                                     />
                                 </div>
                             </div>
