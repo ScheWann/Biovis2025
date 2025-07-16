@@ -1,3 +1,6 @@
+### Introduction
+Put the **_Example_Data_** folder under the root project directory.
+
 ### Backend
 
 1. Navigate to Backend folder

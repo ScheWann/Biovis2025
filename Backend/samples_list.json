@@ -6,7 +6,8 @@
         "image_tif_path": "../Example_Data/H1-TXK6Z4X-A1_2um/H1-TXK6Z4X-A1_2um_lite.tif",
         "gene_list_path": "../Example_Data/H1-TXK6Z4X-A1_2um/chunks/weighted_by_area/bin_to_cell_assign/patch_0_2.csv",
         "cells_path": "../Example_Data/H1-TXK6Z4X-A1_2um/cells_df.csv",
-        "nuclei_path": "../Example_Data/H1-TXK6Z4X-A1_2um/nuclei_df.csv"
+        "nuclei_path": "../Example_Data/H1-TXK6Z4X-A1_2um/nuclei_df.csv",
+        "gene_expression_path": "../Example_Data/H1-TXK6Z4X-A1_2um/gene_expression.parquet"
     },
     "skin_TXK6Z4X_D1": {
         "id": "skin_TXK6Z4X_D1",
@@ -15,6 +16,7 @@
         "image_tif_path": "../Example_Data/H1-TXK6Z4X-D1_2um/H1-TXK6Z4X-D1_2um_lite.tif",
         "gene_list_path": "../Example_Data/H1-TXK6Z4X-D1_2um/chunks/weighted_by_area/bin_to_cell_assign/patch_3_3.csv",
         "cells_path": "../Example_Data/H1-TXK6Z4X-D1_2um/cells_df.csv",
-        "nuclei_path": "../Example_Data/H1-TXK6Z4X-D1_2um/nuclei_df.csv"
+        "nuclei_path": "../Example_Data/H1-TXK6Z4X-D1_2um/nuclei_df.csv",
+        "gene_expression_path": "../Example_Data/H1-TXK6Z4X-D1_2um/gene_expression.parquet"
     }
 }
