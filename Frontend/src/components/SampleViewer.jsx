@@ -221,7 +221,7 @@ export const SampleViewer = ({
             setPendingArea(newPendingArea);
             setAreaName(newPendingArea.name);
             setAreaColor(newPendingArea.color);
-            
+
             // Use rightmost x-coordinate but vertical center for y-coordinate
             setTooltipPosition({ x: rightmostPoint.x, y: verticalCenter.y });
             setIsAreaTooltipVisible(true);
@@ -364,7 +364,7 @@ export const SampleViewer = ({
         }
 
         if (top + tooltipHeight > window.innerHeight - 10) {
-             // Force to bottom edge of viewport
+            // Force to bottom edge of viewport
             top = window.innerHeight - tooltipHeight - 10;
         }
 
@@ -382,11 +382,11 @@ export const SampleViewer = ({
     };
 
     // Undo last point
-    // const undoLastPoint = () => {
-    //     if (drawingPoints.length > 0) {
-    //         setDrawingPoints(prev => prev.slice(0, -1));
-    //     }
-    // };
+    const undoLastPoint = () => {
+        if (drawingPoints.length > 0) {
+            setDrawingPoints(prev => prev.slice(0, -1));
+        }
+    };
 
     // Check if point should snap to first point (auto-close)
     const shouldSnapToFirst = useCallback((currentPoint) => {
@@ -416,12 +416,12 @@ export const SampleViewer = ({
         for (const sample of selectedSamples) {
             const offset = sampleOffsets[sample.id] || [0, 0];
             const imageSize = imageSizes[sample.id];
-            
+
             if (imageSize) {
                 const [offsetX, offsetY] = offset;
                 const [width, height] = imageSize;
-                
-                if (x >= offsetX && x <= offsetX + width && 
+
+                if (x >= offsetX && x <= offsetX + width &&
                     y >= offsetY && y <= offsetY + height) {
                     return sample.id;
                 }
@@ -853,40 +853,86 @@ export const SampleViewer = ({
                 </div>
 
                 {/* Global Drawing Control */}
-                <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 20, display: 'flex', gap: 8 }}>
-                    {/* Reset View Button */}
-                    <Button
-                        size="big"
-                        onClick={resetView}
-                        style={{
-                            backgroundColor: '#ffffff',
-                            borderColor: '#d9d9d9',
+                <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                        {/* Reset View Button */}
+                        <Button
+                            size="big"
+                            onClick={resetView}
+                            style={{
+                                backgroundColor: '#ffffff',
+                                borderColor: '#d9d9d9',
+                                color: '#000000',
+                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                            icon={<RedoOutlined style={{ fontSize: '18px' }} />}
+                            title="Reset view to initial position and zoom"
+                        />
+
+                        {/* Drawing Toggle Button */}
+                        <Button
+                            size="big"
+                            onClick={toggleDrawingMode}
+                            style={{
+                                backgroundColor: isDrawing ? '#1890ff' : '#ffffff',
+                                borderColor: isDrawing ? '#1890ff' : '#ffffff',
+                                color: isDrawing ? '#ffffff' : '#000000',
+                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                            icon={<EditOutlined style={{ fontSize: '18px' }} />}
+                            title={isDrawing ? 'Click to finish/cancel drawing' : 'Click to start drawing areas'}
+                        />
+                    </div>
+
+                    {/* Keyboard Shortcuts Panel */}
+                    {isDrawing && (
+                        <div style={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.8)',
                             color: '#000000',
-                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }}
-                        icon={<RedoOutlined style={{ fontSize: '18px' }} />}
-                        title="Reset view to initial position and zoom"
-                    />
-                    
-                    {/* Drawing Toggle Button */}
-                    <Button
-                        size="big"
-                        onClick={toggleDrawingMode}
-                        style={{
-                            backgroundColor: isDrawing ? '#1890ff' : '#ffffff',
-                            borderColor: isDrawing ? '#1890ff' : '#ffffff',
-                            color: isDrawing ? '#ffffff' : '#000000',
-                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }}
-                        icon={<EditOutlined style={{ fontSize: '18px' }} />}
-                        title={isDrawing ? 'Click to finish/cancel drawing' : 'Click to start drawing areas'}
-                    />
+                            padding: '8px 12px',
+                            borderRadius: 6,
+                            fontSize: '12px',
+                            lineHeight: '1.4',
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                            minWidth: '200px',
+                            textAlign: 'left'
+                        }}>
+                            <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Keyboard Shortcuts:</div>
+                            <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <kbd style={{
+                                    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                    padding: '2px 4px',
+                                    borderRadius: 3,
+                                    fontSize: '11px',
+                                }}>Enter</kbd>
+                                <span>Finish drawing</span>
+                            </div>
+                            <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <kbd style={{
+                                    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                    padding: '2px 4px',
+                                    borderRadius: 3,
+                                    fontSize: '11px'
+                                }}>Esc</kbd> 
+                                <span>Cancel drawing</span>
+                            </div>
+                            <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <kbd style={{
+                                    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                    padding: '2px 4px',
+                                    borderRadius: 3,
+                                    fontSize: '11px'
+                                }}>Backspace</kbd> 
+                                <span>Undo last point</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Area Customization Tooltip */}
