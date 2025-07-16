@@ -176,12 +176,6 @@ export const SampleViewer = ({
         }
     };
 
-    const startDrawing = (sampleId) => {
-        setIsDrawing(true);
-        setCurrentDrawingSample(sampleId);
-        setDrawingPoints([]);
-    };
-
     // Reset view to initial position and zoom
     const resetView = () => {
         if (!selectedSamples.length || !imageSizes[selectedSamples[0]?.id]) return;
@@ -238,10 +232,6 @@ export const SampleViewer = ({
         setCurrentDrawingSample(null);
     };
 
-    const deleteArea = (areaId) => {
-        setCustomAreas(prev => prev.filter(area => area.id !== areaId));
-    };
-
     // Handle area tooltip actions
     const handleAreaTooltipSave = () => {
         if (pendingArea) {
@@ -274,21 +264,6 @@ export const SampleViewer = ({
         setCurrentDrawingSample(null);
         setMousePosition(null);
     };
-
-    // Calculate centroid of a polygon for tooltip positioning
-    // const calculateCentroid = (points) => {
-    //     if (points.length === 0) return { x: 0, y: 0 };
-
-    //     const sum = points.reduce((acc, point) => ({
-    //         x: acc.x + point[0],
-    //         y: acc.y + point[1]
-    //     }), { x: 0, y: 0 });
-
-    //     return {
-    //         x: sum.x / points.length,
-    //         y: sum.y / points.length
-    //     };
-    // };
 
     // Find the rightmost point of a polygon for tooltip positioning
     const findRightmostPoint = (points) => {
@@ -498,40 +473,6 @@ export const SampleViewer = ({
                     style={{ marginBottom: 10 }}
                     onChange={(e) => changeCellGeneMode(sample.id, e)}
                 />
-
-                {/* Show custom areas for this sample */}
-                {/* {customAreas.filter(area => area.sampleId === sample.id).length > 0 && (
-                    <div style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: 5 }}>
-                            Custom Areas:
-                        </div>
-                        {customAreas.filter(area => area.sampleId === sample.id).map(area => (
-                            <div key={area.id} style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                fontSize: '11px',
-                                marginBottom: 3,
-                                padding: '4px 6px',
-                                backgroundColor: '#f8f9fa',
-                                borderRadius: 4,
-                                border: `1px solid ${area.color || '#ff0000'}`,
-                                borderLeft: `4px solid ${area.color || '#ff0000'}`
-                            }}>
-                                <span style={{ fontWeight: 500 }}>{area.name}</span>
-                                <Button
-                                    size="small"
-                                    type="text"
-                                    danger
-                                    onClick={() => deleteArea(area.id)}
-                                    style={{ fontSize: '10px', padding: '0 4px', height: 20 }}
-                                >
-                                    ×
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
-                )} */}
 
                 {radioCellGeneModes[sample.id] === 'cellTypes' ? (
                     <div style={{ padding: '10px 0' }}>
