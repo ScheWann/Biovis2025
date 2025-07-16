@@ -354,14 +354,45 @@ export const SampleViewer = ({
                     setEditNPcas(area.n_pcas || 50);
                     setEditResolution(area.resolution || 0.5);
 
-                    // Set popup position near the click point
-                    const screenPos = worldToScreen(info.coordinate[0], info.coordinate[1]);
+                    // Find the rightmost point and vertical center of the area
+                    const rightmostPoint = findRightmostPoint(area.points);
+                    const verticalCenter = findVerticalCenter(area.points);
+                    const areaPosition = { x: rightmostPoint.x, y: verticalCenter.y };
+
+                    const screenPos = worldToScreen(areaPosition.x, areaPosition.y);
                     const container = containerRef.current;
                     const rect = container.getBoundingClientRect();
 
+                    // Popup dimensions
+                    const popupWidth = 280;
+                    const popupHeight = 300;
+
+                    let left = rect.left + screenPos.x + 20;
+                    let top = rect.top + screenPos.y - popupHeight / 2;
+
+                    // Check if popup would go off the right edge of the screen
+                    if (left + popupWidth > window.innerWidth - 10) {
+                        left = rect.left + screenPos.x - popupWidth - 20;
+                    }
+
+                    // Ensure popup doesn't go off the left edge of the screen
+                    if (left < 10) {
+                        left = 10;
+                    }
+
+                    // Constrain the top position to stay within the viewport bounds
+                    if (top < 10) {
+                        top = 10;
+                    }
+
+                    if (top + popupHeight > window.innerHeight - 10) {
+                        // Force to bottom edge of viewport
+                        top = window.innerHeight - popupHeight - 10;
+                    }
+
                     setEditPopupPosition({
-                        x: rect.left + screenPos.x + 20,
-                        y: rect.top + screenPos.y - 50
+                        x: left,
+                        y: top
                     });
 
                     setIsAreaEditPopupVisible(true);
