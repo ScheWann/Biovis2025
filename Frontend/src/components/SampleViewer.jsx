@@ -829,7 +829,7 @@ export const SampleViewer = ({
                                 left: 0,
                                 right: 0,
                                 bottom: 0,
-                                zIndex: 25,
+                                zIndex: 999,
                                 backgroundColor: 'rgba(0, 0, 0, 0.1)',
                                 cursor: 'default',
                                 pointerEvents: 'auto'
@@ -842,7 +842,7 @@ export const SampleViewer = ({
                                 position: 'fixed',
                                 left: getTooltipPosition().left,
                                 top: getTooltipPosition().top,
-                                zIndex: 10000,
+                                zIndex: 1000,
                                 background: '#ffffff',
                                 border: '1px solid #d9d9d9',
                                 borderRadius: 8,
