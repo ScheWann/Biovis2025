@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
 import { Collapse, Radio, Button, Input, ColorPicker } from "antd";
-import { CloseOutlined } from '@ant-design/icons';
+import { CloseOutlined, EditOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
 
@@ -160,6 +160,22 @@ export const SampleViewer = ({
     };
 
     // Drawing methods
+    const toggleDrawingMode = () => {
+        if (isDrawing) {
+            // If currently drawing, finish or cancel
+            if (drawingPoints.length >= 3) {
+                finishDrawing();
+            } else {
+                cancelDrawing();
+            }
+        } else {
+            // Start drawing mode - sample will be determined on first click
+            setIsDrawing(true);
+            setCurrentDrawingSample(null);
+            setDrawingPoints([]);
+        }
+    };
+
     const startDrawing = (sampleId) => {
         setIsDrawing(true);
         setCurrentDrawingSample(sampleId);
@@ -375,11 +391,37 @@ export const SampleViewer = ({
         return worldDistance < dynamicSnapDistance;
     }, [drawingPoints, mainViewState]);
 
+    // Determine which sample contains the given coordinate
+    const getSampleAtCoordinate = useCallback((x, y) => {
+        for (const sample of selectedSamples) {
+            const offset = sampleOffsets[sample.id] || [0, 0];
+            const imageSize = imageSizes[sample.id];
+            
+            if (imageSize) {
+                const [offsetX, offsetY] = offset;
+                const [width, height] = imageSize;
+                
+                if (x >= offsetX && x <= offsetX + width && 
+                    y >= offsetY && y <= offsetY + height) {
+                    return sample.id;
+                }
+            }
+        }
+        return null;
+    }, [selectedSamples, sampleOffsets, imageSizes]);
+
     const handleMapClick = useCallback((info) => {
         if (!isDrawing || !info.coordinate) return;
 
         const [x, y] = info.coordinate;
         const currentPoint = [x, y];
+
+        // If this is the first point and no sample is selected, determine the sample
+        if (!currentDrawingSample && drawingPoints.length === 0) {
+            const sampleId = getSampleAtCoordinate(x, y);
+            if (!sampleId) return; // Click outside any sample
+            setCurrentDrawingSample(sampleId);
+        }
 
         // Check for auto-close (snap to first point)
         if (shouldSnapToFirst(currentPoint)) {
@@ -388,7 +430,7 @@ export const SampleViewer = ({
         }
 
         setDrawingPoints(prev => [...prev, currentPoint]);
-    }, [isDrawing, shouldSnapToFirst]);
+    }, [isDrawing, shouldSnapToFirst, currentDrawingSample, drawingPoints.length, getSampleAtCoordinate]);
 
     // Track mouse movement for preview
     const handleMouseMove = useCallback((info) => {
@@ -402,24 +444,24 @@ export const SampleViewer = ({
         }
     }, [isDrawing]);
 
-    // const handleKeyPress = useCallback((event) => {
-    //     if (!isDrawing) return;
+    const handleKeyPress = useCallback((event) => {
+        if (!isDrawing) return;
 
-    //     if (event.key === 'Enter') {
-    //         finishDrawing();
-    //     } else if (event.key === 'Escape') {
-    //         cancelDrawing();
-    //     } else if (event.key === 'Backspace' || event.key === 'Delete') {
-    //         event.preventDefault();
-    //         undoLastPoint();
-    //     }
-    // }, [isDrawing, drawingPoints, currentDrawingSample]);
+        if (event.key === 'Enter') {
+            finishDrawing();
+        } else if (event.key === 'Escape') {
+            cancelDrawing();
+        } else if (event.key === 'Backspace' || event.key === 'Delete') {
+            event.preventDefault();
+            undoLastPoint();
+        }
+    }, [isDrawing, drawingPoints, currentDrawingSample]);
 
-    // // Add keyboard event listener
-    // useEffect(() => {
-    //     document.addEventListener('keydown', handleKeyPress);
-    //     return () => document.removeEventListener('keydown', handleKeyPress);
-    // }, [handleKeyPress]);
+    // Add keyboard event listener
+    useEffect(() => {
+        document.addEventListener('keydown', handleKeyPress);
+        return () => document.removeEventListener('keydown', handleKeyPress);
+    }, [handleKeyPress]);
 
     // Create collapse items for each sample
     const collapseItems = selectedSamples.map((sample, index) => ({
@@ -437,36 +479,8 @@ export const SampleViewer = ({
                     onChange={(e) => changeCellGeneMode(sample.id, e)}
                 />
 
-                {/* Drawing controls */}
-                <div style={{ marginBottom: 10 }}>
-                    <Button
-                        size="small"
-                        type={isDrawing && currentDrawingSample === sample.id ? "primary" : "default"}
-                        onClick={() => {
-                            if (isDrawing && currentDrawingSample === sample.id) {
-                                finishDrawing();
-                            } else {
-                                startDrawing(sample.id);
-                            }
-                        }}
-                        style={{ marginRight: 5 }}
-                    >
-                        {isDrawing && currentDrawingSample === sample.id ? "Finish Area" : "Draw Area"}
-                    </Button>
-                    {isDrawing && currentDrawingSample === sample.id && (
-                        <>
-                            {/* <Button size="small" onClick={undoLastPoint} style={{ marginRight: 5 }}>
-                                Undo
-                            </Button> */}
-                            <Button size="small" onClick={cancelDrawing}>
-                                Cancel
-                            </Button>
-                        </>
-                    )}
-                </div>
-
                 {/* Show custom areas for this sample */}
-                {customAreas.filter(area => area.sampleId === sample.id).length > 0 && (
+                {/* {customAreas.filter(area => area.sampleId === sample.id).length > 0 && (
                     <div style={{ marginBottom: 10 }}>
                         <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: 5 }}>
                             Custom Areas:
@@ -497,7 +511,7 @@ export const SampleViewer = ({
                             </div>
                         ))}
                     </div>
-                )}
+                )} */}
 
                 {radioCellGeneModes[sample.id] === 'cellTypes' ? (
                     <div style={{ padding: '10px 0' }}>
@@ -815,6 +829,25 @@ export const SampleViewer = ({
                         items={collapseItems}
                         defaultActiveKey={[selectedSamples[0]?.id]}
                         style={{ background: '#ffffff', width: 300, opacity: 0.9 }}
+                    />
+                </div>
+
+                {/* Global Drawing Control */}
+                <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 20 }}>
+                    <Button
+                        size="big"
+                        onClick={toggleDrawingMode}
+                        style={{
+                            backgroundColor: isDrawing ? '#1890ff' : '#ffffff',
+                            borderColor: isDrawing ? '#1890ff' : '#ffffff',
+                            color: isDrawing ? '#ffffff' : '#000000',
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                        icon={<EditOutlined style={{ fontSize: '18px' }} />}
+                        title={isDrawing ? 'Click to finish/cancel drawing' : 'Click to start drawing areas'}
                     />
                 </div>
 
