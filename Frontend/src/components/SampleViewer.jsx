@@ -35,6 +35,13 @@ export const SampleViewer = ({
     const [areaColor, setAreaColor] = useState('#f72585');
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
+    // Area edit/delete popup state
+    const [isAreaEditPopupVisible, setIsAreaEditPopupVisible] = useState(false);
+    const [selectedAreaForEdit, setSelectedAreaForEdit] = useState(null);
+    const [editAreaName, setEditAreaName] = useState('');
+    const [editAreaColor, setEditAreaColor] = useState('#f72585');
+    const [editPopupPosition, setEditPopupPosition] = useState({ x: 0, y: 0 });
+
     const radioOptions = [
         {
             label: 'Cell Type',
@@ -45,6 +52,12 @@ export const SampleViewer = ({
             value: 'genes',
         },
     ];
+
+    // Main view
+    const mainView = new OrthographicView({
+        id: 'main',
+        controller: true
+    });
 
     // Calculate sample offsets based on image sizes
     const sampleOffsets = useMemo(() => {
@@ -63,12 +76,6 @@ export const SampleViewer = ({
         return offsets;
     }, [selectedSamples, imageSizes]);
 
-    // Main view
-    const mainView = new OrthographicView({
-        id: 'main',
-        controller: true
-    });
-
     // Set container size
     useEffect(() => {
         const container = containerRef.current;
@@ -85,7 +92,7 @@ export const SampleViewer = ({
         return () => resizeObserver.disconnect();
     }, []);
 
-    // Consolidated effect for managing samples and view state
+    // Get image sizes for selected samples
     useEffect(() => {
         if (selectedSamples.length === 0) return;
 
@@ -103,7 +110,7 @@ export const SampleViewer = ({
             });
     }, [selectedSamples.length]);
 
-    // Initialize radio modes for new samples
+    // Initialize modes(cell type or genes) for samples
     useEffect(() => {
         setRadioCellGeneModes(prev => {
             const newModes = { ...prev };
@@ -152,28 +159,12 @@ export const SampleViewer = ({
         }, {});
     }, [selectedSamples, coordinatesData, sampleOffsets]);
 
+    // Change cell/gene mode for a sample
     const changeCellGeneMode = (sampleId, e) => {
         setRadioCellGeneModes(prev => ({
             ...prev,
             [sampleId]: e.target.value
         }));
-    };
-
-    // Drawing methods
-    const toggleDrawingMode = () => {
-        if (isDrawing) {
-            // If currently drawing, finish or cancel
-            if (drawingPoints.length >= 3) {
-                finishDrawing();
-            } else {
-                cancelDrawing();
-            }
-        } else {
-            // Start drawing mode - sample will be determined on first click
-            setIsDrawing(true);
-            setCurrentDrawingSample(null);
-            setDrawingPoints([]);
-        }
     };
 
     // Reset view to initial position and zoom
@@ -194,6 +185,73 @@ export const SampleViewer = ({
             maxZoom: 2.5,
             minZoom: -5
         });
+    };
+
+    // Find the rightmost point of a polygon for tooltip positioning
+    const findRightmostPoint = (points) => {
+        if (points.length === 0) return { x: 0, y: 0 };
+
+        const rightmost = points.reduce((max, point) => {
+            return point[0] > max[0] ? point : max;
+        }, points[0]);
+
+        return {
+            x: rightmost[0],
+            y: rightmost[1]
+        };
+    };
+
+    // Find the vertical center of a polygon for tooltip positioning
+    const findVerticalCenter = (points) => {
+        if (points.length === 0) return { x: 0, y: 0 };
+
+        const yCoordinates = points.map(point => point[1]);
+        const minY = Math.min(...yCoordinates);
+        const maxY = Math.max(...yCoordinates);
+        const centerY = (minY + maxY) / 2;
+
+        return {
+            x: 0,
+            y: centerY
+        };
+    };
+
+    // Convert world coordinates to screen coordinates for tooltip positioning
+    const worldToScreen = (worldX, worldY) => {
+        if (!mainViewState || !containerRef.current) return { x: 0, y: 0 };
+
+        const container = containerRef.current;
+        const rect = container.getBoundingClientRect();
+
+        // Get the center of the view
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+
+        // Calculate the scale based on zoom
+        const scale = Math.pow(2, mainViewState.zoom);
+
+        // Transform world coordinates to screen coordinates
+        const screenX = centerX + (worldX - mainViewState.target[0]) * scale;
+        const screenY = centerY + (worldY - mainViewState.target[1]) * scale; // Removed inversion
+
+        return { x: screenX, y: screenY };
+    };
+
+    // Toggle drawing mode
+    const toggleDrawingMode = () => {
+        if (isDrawing) {
+            // If currently drawing, finish or cancel
+            if (drawingPoints.length >= 3) {
+                finishDrawing();
+            } else {
+                cancelDrawing();
+            }
+        } else {
+            // Start drawing mode - sample will be determined on first click
+            setIsDrawing(true);
+            setCurrentDrawingSample(null);
+            setDrawingPoints([]);
+        }
     };
 
     const finishDrawing = () => {
@@ -265,56 +323,6 @@ export const SampleViewer = ({
         setMousePosition(null);
     };
 
-    // Find the rightmost point of a polygon for tooltip positioning
-    const findRightmostPoint = (points) => {
-        if (points.length === 0) return { x: 0, y: 0 };
-
-        const rightmost = points.reduce((max, point) => {
-            return point[0] > max[0] ? point : max;
-        }, points[0]);
-
-        return {
-            x: rightmost[0],
-            y: rightmost[1]
-        };
-    };
-
-    // Find the vertical center of a polygon for tooltip positioning
-    const findVerticalCenter = (points) => {
-        if (points.length === 0) return { x: 0, y: 0 };
-
-        const yCoordinates = points.map(point => point[1]);
-        const minY = Math.min(...yCoordinates);
-        const maxY = Math.max(...yCoordinates);
-        const centerY = (minY + maxY) / 2;
-
-        return {
-            x: 0,
-            y: centerY
-        };
-    };
-
-    // Convert world coordinates to screen coordinates for tooltip positioning
-    const worldToScreen = (worldX, worldY) => {
-        if (!mainViewState || !containerRef.current) return { x: 0, y: 0 };
-
-        const container = containerRef.current;
-        const rect = container.getBoundingClientRect();
-
-        // Get the center of the view
-        const centerX = rect.width / 2;
-        const centerY = rect.height / 2;
-
-        // Calculate the scale based on zoom
-        const scale = Math.pow(2, mainViewState.zoom);
-
-        // Transform world coordinates to screen coordinates
-        const screenX = centerX + (worldX - mainViewState.target[0]) * scale;
-        const screenY = centerY + (worldY - mainViewState.target[1]) * scale; // Removed inversion
-
-        return { x: screenX, y: screenY };
-    };
-
     // Calculate tooltip position with real-time updates based on current view state
     const getTooltipPosition = useCallback(() => {
         if (!isAreaTooltipVisible || !pendingArea || !containerRef.current || !mainViewState) {
@@ -346,22 +354,25 @@ export const SampleViewer = ({
         return { left, top };
     }, [isAreaTooltipVisible, pendingArea, tooltipPosition, mainViewState]);
 
-    // Convert hex color to RGB array
-    const hexToRgb = (hex) => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? [
-            parseInt(result[1], 16),
-            parseInt(result[2], 16),
-            parseInt(result[3], 16)
-        ] : [255, 0, 0];
-    };
-
     // Undo last point
     const undoLastPoint = () => {
         if (drawingPoints.length > 0) {
             setDrawingPoints(prev => prev.slice(0, -1));
         }
     };
+
+    const handleKeyPress = useCallback((event) => {
+        if (!isDrawing) return;
+
+        if (event.key === 'Enter') {
+            finishDrawing();
+        } else if (event.key === 'Escape') {
+            cancelDrawing();
+        } else if (event.key === 'Backspace' || event.key === 'Delete') {
+            event.preventDefault();
+            undoLastPoint();
+        }
+    }, [isDrawing, drawingPoints, currentDrawingSample]);
 
     // Check if point should snap to first point (auto-close)
     const shouldSnapToFirst = useCallback((currentPoint) => {
@@ -386,6 +397,78 @@ export const SampleViewer = ({
         return worldDistance < dynamicSnapDistance;
     }, [drawingPoints, mainViewState]);
 
+    // Handle area click for editing
+    const handleAreaClick = useCallback((info) => {
+        if (isDrawing || isAreaTooltipVisible) return;
+
+        // Find which area was clicked
+        const clickedObject = info.object;
+        if (clickedObject) {
+            // Extract area ID from layer ID
+            const layerId = info.layer?.id;
+            if (layerId && layerId.startsWith('custom-area-')) {
+                const areaId = layerId.replace('custom-area-', '');
+                const area = customAreas.find(a => a.id === areaId);
+
+                if (area) {
+                    setSelectedAreaForEdit(area);
+                    setEditAreaName(area.name);
+                    setEditAreaColor(area.color);
+
+                    // Set popup position near the click point
+                    const screenPos = worldToScreen(info.coordinate[0], info.coordinate[1]);
+                    const container = containerRef.current;
+                    const rect = container.getBoundingClientRect();
+
+                    setEditPopupPosition({
+                        x: rect.left + screenPos.x + 20,
+                        y: rect.top + screenPos.y - 50
+                    });
+
+                    setIsAreaEditPopupVisible(true);
+                }
+            }
+        }
+    }, [isDrawing, isAreaTooltipVisible, customAreas, worldToScreen]);
+
+    // Handle area edit save
+    const handleAreaEditSave = () => {
+        if (selectedAreaForEdit) {
+            setCustomAreas(prev => prev.map(area =>
+                area.id === selectedAreaForEdit.id
+                    ? { ...area, name: editAreaName, color: editAreaColor }
+                    : area
+            ));
+        }
+        handleAreaEditCancel();
+    };
+
+    // Handle area deletion
+    const handleAreaDelete = () => {
+        if (selectedAreaForEdit) {
+            setCustomAreas(prev => prev.filter(area => area.id !== selectedAreaForEdit.id));
+        }
+        handleAreaEditCancel();
+    };
+
+    // Cancel area edit popup
+    const handleAreaEditCancel = () => {
+        setIsAreaEditPopupVisible(false);
+        setSelectedAreaForEdit(null);
+        setEditAreaName('');
+        setEditAreaColor('#f72585');
+    };
+
+    // Convert hex color to RGB array
+    const hexToRgb = (hex) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? [
+            parseInt(result[1], 16),
+            parseInt(result[2], 16),
+            parseInt(result[3], 16)
+        ] : [255, 0, 0];
+    };
+
     // Determine which sample contains the given coordinate
     const getSampleAtCoordinate = useCallback((x, y) => {
         for (const sample of selectedSamples) {
@@ -406,6 +489,12 @@ export const SampleViewer = ({
     }, [selectedSamples, sampleOffsets, imageSizes]);
 
     const handleMapClick = useCallback((info) => {
+        // First check if we clicked on a custom area (for editing)
+        if (!isDrawing && !isAreaTooltipVisible) {
+            handleAreaClick(info);
+            return;
+        }
+
         if (!isDrawing || !info.coordinate) return;
 
         const [x, y] = info.coordinate;
@@ -425,7 +514,7 @@ export const SampleViewer = ({
         }
 
         setDrawingPoints(prev => [...prev, currentPoint]);
-    }, [isDrawing, shouldSnapToFirst, currentDrawingSample, drawingPoints.length, getSampleAtCoordinate]);
+    }, [isDrawing, isAreaTooltipVisible, shouldSnapToFirst, currentDrawingSample, drawingPoints.length, getSampleAtCoordinate, handleAreaClick]);
 
     // Track mouse movement for preview
     const handleMouseMove = useCallback((info) => {
@@ -438,19 +527,6 @@ export const SampleViewer = ({
             setMousePosition(info.coordinate);
         }
     }, [isDrawing]);
-
-    const handleKeyPress = useCallback((event) => {
-        if (!isDrawing) return;
-
-        if (event.key === 'Enter') {
-            finishDrawing();
-        } else if (event.key === 'Escape') {
-            cancelDrawing();
-        } else if (event.key === 'Backspace' || event.key === 'Delete') {
-            event.preventDefault();
-            undoLastPoint();
-        }
-    }, [isDrawing, drawingPoints, currentDrawingSample]);
 
     // Add keyboard event listener
     useEffect(() => {
@@ -560,13 +636,14 @@ export const SampleViewer = ({
 
             layers.push(new PolygonLayer({
                 id: `custom-area-${area.id}`,
-                data: [{ polygon: area.points }],
+                data: [{ polygon: area.points, areaId: area.id }],
                 getPolygon: d => d.polygon,
                 getFillColor: [...areaColor, 50],
                 getLineColor: [...areaColor, 200],
                 getLineWidth: 2,
                 lineWidthUnits: 'pixels',
                 pickable: true,
+                onClick: (info) => handleAreaClick(info),
             }));
         });
 
@@ -767,11 +844,11 @@ export const SampleViewer = ({
                     onClick={handleMapClick}
                     onHover={handleMouseMove}
                     controller={
-                        isAreaTooltipVisible ? false :
+                        isAreaTooltipVisible || isAreaEditPopupVisible ? false :
                             !isDrawing ? true : { dragPan: false, dragRotate: false, doubleClickZoom: false }
                     }
                     getCursor={({ isHovering, isDragging }) => {
-                        if (isAreaTooltipVisible) {
+                        if (isAreaTooltipVisible || isAreaEditPopupVisible) {
                             return 'default';
                         }
                         if (isDrawing) {
@@ -863,7 +940,7 @@ export const SampleViewer = ({
                                 padding: '2px 4px',
                                 borderRadius: 3,
                                 fontSize: '11px'
-                            }}>Esc</kbd> 
+                            }}>Esc</kbd>
                             <span>Cancel drawing</span>
                         </div>
                         <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -872,7 +949,7 @@ export const SampleViewer = ({
                                 padding: '2px 4px',
                                 borderRadius: 3,
                                 fontSize: '11px'
-                            }}>Backspace</kbd> 
+                            }}>Backspace</kbd>
                             <span>Undo last point</span>
                         </div>
                     </div>
@@ -993,6 +1070,138 @@ export const SampleViewer = ({
                                     onClick={handleAreaTooltipSave}
                                 >
                                     Save Area
+                                </Button>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {/* Area Edit/Delete Popup */}
+                {isAreaEditPopupVisible && selectedAreaForEdit && (
+                    <>
+                        {/* Overlay to prevent interactions with the map */}
+                        <div
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                zIndex: 999,
+                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                cursor: 'default',
+                                pointerEvents: 'auto'
+                            }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleAreaEditCancel();
+                            }}
+                        />
+
+                        <div
+                            style={{
+                                position: 'fixed',
+                                left: editPopupPosition.x,
+                                top: editPopupPosition.y,
+                                zIndex: 1000,
+                                background: '#ffffff',
+                                border: '1px solid #d9d9d9',
+                                borderRadius: 8,
+                                boxShadow: '0 6px 16px rgba(0, 0, 0, 0.12)',
+                                padding: 12,
+                                minWidth: 240,
+                                maxWidth: 280,
+                                pointerEvents: 'auto'
+                            }}
+                        >
+                            {/* Close button */}
+                            <div style={{
+                                position: 'absolute',
+                                top: 8,
+                                right: 8,
+                                cursor: 'pointer',
+                                padding: 4,
+                                borderRadius: 4,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                                onClick={handleAreaEditCancel}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                            >
+                                <CloseOutlined style={{ fontSize: 12, color: '#666' }} />
+                            </div>
+
+                            {/* Title */}
+                            <div style={{
+                                fontWeight: 'bold',
+                                marginBottom: 5,
+                                fontSize: 14,
+                                color: '#262626',
+                                paddingRight: 20,
+                                textAlign: 'left'
+                            }}>
+                                Edit Area
+                            </div>
+
+                            {/* Area Name Input */}
+                            <div style={{ marginBottom: 8 }}>
+                                <label style={{
+                                    display: 'block',
+                                    marginBottom: 6,
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    color: '#595959',
+                                    textAlign: 'left'
+                                }}>
+                                    Area Name:
+                                </label>
+                                <Input
+                                    value={editAreaName}
+                                    onChange={(e) => setEditAreaName(e.target.value)}
+                                    placeholder="Enter area name"
+                                    maxLength={50}
+                                    size="small"
+                                />
+                            </div>
+
+                            {/* Color Picker */}
+                            <div style={{ marginBottom: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <label style={{
+                                        fontSize: 12,
+                                        fontWeight: 500,
+                                        color: '#595959',
+                                        minWidth: 'fit-content'
+                                    }}>
+                                        Area Color:
+                                    </label>
+                                    <ColorPicker
+                                        value={editAreaColor}
+                                        onChange={(color) => setEditAreaColor(color.toHexString())}
+                                        size="small"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div style={{ display: 'flex', gap: 5, justifyContent: 'space-between' }}>
+                                <Button
+                                    size="small"
+                                    danger
+                                    onClick={handleAreaDelete}
+                                    style={{ flex: 1 }}
+                                >
+                                    Delete
+                                </Button>
+                                <Button
+                                    size="small"
+                                    type="primary"
+                                    onClick={handleAreaEditSave}
+                                    style={{ flex: 1 }}
+                                >
+                                    Save
                                 </Button>
                             </div>
                         </div>
