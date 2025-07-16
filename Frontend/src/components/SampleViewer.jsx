@@ -76,73 +76,6 @@ export const SampleViewer = ({
         return offsets;
     }, [selectedSamples, imageSizes]);
 
-    // Set container size
-    useEffect(() => {
-        const container = containerRef.current;
-        if (!container) return;
-
-        const resizeObserver = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-                const { width, height } = entry.contentRect;
-                setContainerSize({ width, height });
-            }
-        });
-
-        resizeObserver.observe(container);
-        return () => resizeObserver.disconnect();
-    }, []);
-
-    // Get image sizes for selected samples
-    useEffect(() => {
-        if (selectedSamples.length === 0) return;
-
-        const sampleIds = selectedSamples.map(sample => sample.id);
-
-        // Fetch image sizes
-        fetch('/api/get_hires_image_size', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sample_ids: sampleIds })
-        })
-            .then(res => res.json())
-            .then(data => {
-                setImageSizes(data);
-            });
-    }, [selectedSamples.length]);
-
-    // Initialize modes(cell type or genes) for samples
-    useEffect(() => {
-        setRadioCellGeneModes(prev => {
-            const newModes = { ...prev };
-            selectedSamples.forEach(sample => {
-                if (!newModes[sample.id]) {
-                    newModes[sample.id] = 'cellTypes';
-                }
-            });
-            return newModes;
-        });
-    }, [selectedSamples]);
-
-    // Set initial view state when image sizes or offsets change
-    useEffect(() => {
-        if (!selectedSamples.length || !imageSizes[selectedSamples[0]?.id]) return;
-
-        const firstSample = selectedSamples[0];
-        const offset = sampleOffsets[firstSample.id] ?? [0, 0];
-        const size = imageSizes[firstSample.id] ?? [0, 0];
-
-        setMainViewState({
-            target: [
-                offset[0] + size[0] / 2,
-                offset[1] + size[1] / 2,
-                0
-            ],
-            zoom: -3,
-            maxZoom: 2.5,
-            minZoom: -5
-        });
-    }, [selectedSamples, imageSizes, sampleOffsets]);
-
     // Filter cell data for scatter plots
     const filteredCellData = useMemo(() => {
         return selectedSamples.reduce((acc, sample) => {
@@ -528,12 +461,6 @@ export const SampleViewer = ({
         }
     }, [isDrawing]);
 
-    // Add keyboard event listener
-    useEffect(() => {
-        document.addEventListener('keydown', handleKeyPress);
-        return () => document.removeEventListener('keydown', handleKeyPress);
-    }, [handleKeyPress]);
-
     // Create collapse items for each sample
     const collapseItems = selectedSamples.map((sample, index) => ({
         key: sample.id,
@@ -823,6 +750,79 @@ export const SampleViewer = ({
         ...generateCellLayers(),
         ...generateCustomAreaLayers()
     ], [generateImageLayers, generateCellLayers, generateCustomAreaLayers]);
+
+    // Set container size
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const { width, height } = entry.contentRect;
+                setContainerSize({ width, height });
+            }
+        });
+
+        resizeObserver.observe(container);
+        return () => resizeObserver.disconnect();
+    }, []);
+
+    // Get image sizes for selected samples
+    useEffect(() => {
+        if (selectedSamples.length === 0) return;
+
+        const sampleIds = selectedSamples.map(sample => sample.id);
+
+        // Fetch image sizes
+        fetch('/api/get_hires_image_size', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sample_ids: sampleIds })
+        })
+            .then(res => res.json())
+            .then(data => {
+                setImageSizes(data);
+            });
+    }, [selectedSamples.length]);
+
+    // Initialize modes(cell type or genes) for samples
+    useEffect(() => {
+        setRadioCellGeneModes(prev => {
+            const newModes = { ...prev };
+            selectedSamples.forEach(sample => {
+                if (!newModes[sample.id]) {
+                    newModes[sample.id] = 'cellTypes';
+                }
+            });
+            return newModes;
+        });
+    }, [selectedSamples]);
+
+    // Set initial view state when image sizes or offsets change
+    useEffect(() => {
+        if (!selectedSamples.length || !imageSizes[selectedSamples[0]?.id]) return;
+
+        const firstSample = selectedSamples[0];
+        const offset = sampleOffsets[firstSample.id] ?? [0, 0];
+        const size = imageSizes[firstSample.id] ?? [0, 0];
+
+        setMainViewState({
+            target: [
+                offset[0] + size[0] / 2,
+                offset[1] + size[1] / 2,
+                0
+            ],
+            zoom: -3,
+            maxZoom: 2.5,
+            minZoom: -5
+        });
+    }, [selectedSamples, imageSizes, sampleOffsets]);
+
+    // Add keyboard event listener
+    useEffect(() => {
+        document.addEventListener('keydown', handleKeyPress);
+        return () => document.removeEventListener('keydown', handleKeyPress);
+    }, [handleKeyPress]);
 
     return (
         <div style={{ width: '100%', height: '100%' }}>
