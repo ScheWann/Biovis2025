@@ -891,48 +891,50 @@ export const SampleViewer = ({
                     </div>
 
                     {/* Keyboard Shortcuts Panel */}
-                    {isDrawing && (
-                        <div style={{
-                            backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                            color: '#000000',
-                            padding: '8px 12px',
-                            borderRadius: 6,
-                            fontSize: '12px',
-                            lineHeight: '1.4',
-                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-                            minWidth: '200px',
-                            textAlign: 'left'
-                        }}>
-                            <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Keyboard Shortcuts:</div>
-                            <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                <kbd style={{
-                                    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-                                    padding: '2px 4px',
-                                    borderRadius: 3,
-                                    fontSize: '11px',
-                                }}>Enter</kbd>
-                                <span>Finish drawing</span>
-                            </div>
-                            <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                <kbd style={{
-                                    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-                                    padding: '2px 4px',
-                                    borderRadius: 3,
-                                    fontSize: '11px'
-                                }}>Esc</kbd> 
-                                <span>Cancel drawing</span>
-                            </div>
-                            <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                <kbd style={{
-                                    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-                                    padding: '2px 4px',
-                                    borderRadius: 3,
-                                    fontSize: '11px'
-                                }}>Backspace</kbd> 
-                                <span>Undo last point</span>
-                            </div>
+                    <div style={{
+                        opacity: isDrawing ? 1 : 0,
+                        visibility: isDrawing ? 'visible' : 'hidden',
+                        transform: isDrawing ? 'translateY(0)' : 'translateY(-10px)',
+                        transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out, transform 0.3s ease-in-out',
+                        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                        color: '#000000',
+                        padding: '8px 12px',
+                        borderRadius: 6,
+                        fontSize: '12px',
+                        lineHeight: '1.4',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                        minWidth: '200px',
+                        textAlign: 'left'
+                    }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Keyboard Shortcuts:</div>
+                        <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <kbd style={{
+                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                padding: '2px 4px',
+                                borderRadius: 3,
+                                fontSize: '11px',
+                            }}>Enter</kbd>
+                            <span>Finish drawing</span>
                         </div>
-                    )}
+                        <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <kbd style={{
+                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                padding: '2px 4px',
+                                borderRadius: 3,
+                                fontSize: '11px'
+                            }}>Esc</kbd> 
+                            <span>Cancel drawing</span>
+                        </div>
+                        <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <kbd style={{
+                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                padding: '2px 4px',
+                                borderRadius: 3,
+                                fontSize: '11px'
+                            }}>Backspace</kbd> 
+                            <span>Undo last point</span>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Area Customization Tooltip */}
