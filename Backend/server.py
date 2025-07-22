@@ -1,4 +1,6 @@
 from flask import Flask, request, jsonify, send_file
+from process import SAMPLES
+import PIL.Image
 from flask_cors import CORS
 import re
 import os
@@ -10,7 +12,6 @@ from process import (
     get_gene_list,
     get_kosara_data,
     get_selected_region_data,
-    get_hires_image_crop,
 )
 
 
@@ -102,28 +103,6 @@ def get_gene_name_search():
     return jsonify(matching_genes)
 
 
-@app.route("/api/get_hires_crop", methods=["POST"])
-def get_hires_crop_route():
-    """
-    Get a high-resolution crop of the image for the specified region
-    """
-    data = request.json
-    sample_id = data["sample_id"]
-    center_x = data["center_x"]
-    center_y = data["center_y"]
-    crop_size = data.get("crop_size", 512)  # Default crop size
-    
-    try:
-        image_bytes = get_hires_image_crop(sample_id, center_x, center_y, crop_size)
-        return send_file(
-            io.BytesIO(image_bytes),
-            mimetype='image/jpeg',
-            as_attachment=False
-        )
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
 @app.route("/api/get_hires_image", methods=["POST"])
 def get_hires_image_route():
     """
@@ -131,8 +110,7 @@ def get_hires_image_route():
     """
     data = request.json
     sample_id = data["sample_id"]
-    from process import SAMPLES
-    import PIL.Image
+
     if sample_id not in SAMPLES:
         return jsonify({"error": f"Sample {sample_id} not found"}), 404
     image_path = SAMPLES[sample_id]["image_tif_path"]

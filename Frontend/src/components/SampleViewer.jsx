@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
-import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete } from "antd";
+import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Spin } from "antd";
 import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
@@ -1504,7 +1504,7 @@ export const SampleViewer = ({
                 )}
 
                 {/* Magnifying Glass */}
-                {magnifierVisible && magnifierData && (
+                {magnifierVisible && (
                     <div
                         ref={magnifierRef}
                         style={{
@@ -1535,7 +1535,7 @@ export const SampleViewer = ({
                             justifyContent: 'space-between',
                             alignItems: 'center'
                         }}>
-                            <span>Magnifier - {magnifierData.sampleId}</span>
+                            <span>Magnifier - {magnifierData?.sampleId || ''}</span>
                             <span style={{ fontSize: '9px', color: '#666' }}>
                                 Hold Space/M
                             </span>
@@ -1547,81 +1547,89 @@ export const SampleViewer = ({
                             width: '100%',
                             height: 280,
                             overflow: 'hidden',
-                            backgroundColor: '#f5f5f5'
+                            backgroundColor: '#f5f5f5',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
                         }}>
-                            {magnifierData.imageUrl && (
-                                <>
-                                    {/* Full HD Image */}
-                                    <img
-                                        src={magnifierData.imageUrl}
-                                        alt="HD Magnifier"
-                                        style={{
+                            {(() => {
+                                const hoveredSample = magnifierData?.sampleId;
+                                const imageUrl = hoveredSample ? hiresImages[hoveredSample] : null;
+                                const imageSize = hoveredSample ? imageSizes[hoveredSample] : null;
+                                if (!imageUrl || !imageSize) {
+                                    return <Spin size="large" />;
+                                }
+                                return (
+                                    <>
+                                        {/* Full HD Image */}
+                                        <img
+                                            src={imageUrl}
+                                            alt="HD Magnifier"
+                                            style={{
+                                                position: 'absolute',
+                                                width: imageSize[0] * 2, // 2x zoom
+                                                height: imageSize[1] * 2,
+                                                left: -(magnifierViewport.x * imageSize[0] * 2) + 150, // Center on viewport
+                                                top: -(magnifierViewport.y * imageSize[1] * 2) + 140,
+                                                imageRendering: 'crisp-edges',
+                                                transition: 'left 0.1s ease-out, top 0.1s ease-out'
+                                            }}
+                                            draggable={false}
+                                        />
+                                        {/* Crosshairs */}
+                                        <div style={{
                                             position: 'absolute',
-                                            width: magnifierData.imageSize[0] * 2, // 2x zoom
-                                            height: magnifierData.imageSize[1] * 2,
-                                            left: -(magnifierViewport.x * magnifierData.imageSize[0] * 2) + 150, // Center on viewport
-                                            top: -(magnifierViewport.y * magnifierData.imageSize[1] * 2) + 140,
-                                            imageRendering: 'crisp-edges',
-                                            transition: 'left 0.1s ease-out, top 0.1s ease-out'
-                                        }}
-                                        draggable={false}
-                                    />
-
-                                    {/* Crosshairs */}
-                                    <div style={{
-                                        position: 'absolute',
-                                        left: 150,
-                                        top: 0,
-                                        width: 1,
-                                        height: '100%',
-                                        backgroundColor: '#ff4d4f',
-                                        pointerEvents: 'none',
-                                        boxShadow: '0 0 2px rgba(0,0,0,0.5)',
-                                        zIndex: 2
-                                    }} />
-                                    <div style={{
-                                        position: 'absolute',
-                                        left: 0,
-                                        top: 140,
-                                        width: '100%',
-                                        height: 1,
-                                        backgroundColor: '#ff4d4f',
-                                        pointerEvents: 'none',
-                                        boxShadow: '0 0 2px rgba(0,0,0,0.5)',
-                                        zIndex: 2
-                                    }} />
-
-                                    {/* Center circle */}
-                                    <div style={{
-                                        position: 'absolute',
-                                        left: 147,
-                                        top: 137,
-                                        width: 6,
-                                        height: 6,
-                                        borderRadius: '50%',
-                                        backgroundColor: '#ff4d4f',
-                                        border: '1px solid white',
-                                        pointerEvents: 'none',
-                                        boxShadow: '0 0 4px rgba(0,0,0,0.5)',
-                                        zIndex: 3
-                                    }} />
-
-                                    {/* Viewport indicator */}
-                                    <div style={{
-                                        position: 'absolute',
-                                        bottom: 5,
-                                        right: 5,
-                                        padding: '2px 6px',
-                                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                                        color: 'white',
-                                        fontSize: '9px',
-                                        borderRadius: 3,
-                                        fontFamily: 'monospace'
-                                    }}>
-                                        X: {Math.round(magnifierMousePos.x)} Y: {Math.round(magnifierMousePos.y)}
-                                    </div>
-                                </>
-                            )}
+                                            left: 150,
+                                            top: 0,
+                                            width: 1,
+                                            height: '100%',
+                                            backgroundColor: '#ff4d4f',
+                                            pointerEvents: 'none',
+                                            boxShadow: '0 0 2px rgba(0,0,0,0.5)',
+                                            zIndex: 2
+                                        }} />
+                                        <div style={{
+                                            position: 'absolute',
+                                            left: 0,
+                                            top: 140,
+                                            width: '100%',
+                                            height: 1,
+                                            backgroundColor: '#ff4d4f',
+                                            pointerEvents: 'none',
+                                            boxShadow: '0 0 2px rgba(0,0,0,0.5)',
+                                            zIndex: 2
+                                        }} />
+                                        {/* Center circle */}
+                                        <div style={{
+                                            position: 'absolute',
+                                            left: 147,
+                                            top: 137,
+                                            width: 6,
+                                            height: 6,
+                                            borderRadius: '50%',
+                                            backgroundColor: '#ff4d4f',
+                                            border: '1px solid white',
+                                            pointerEvents: 'none',
+                                            boxShadow: '0 0 4px rgba(0,0,0,0.5)',
+                                            zIndex: 3
+                                        }} />
+                                        {/* Viewport indicator */}
+                                        <div style={{
+                                            position: 'absolute',
+                                            bottom: 5,
+                                            right: 5,
+                                            padding: '2px 6px',
+                                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                            color: 'white',
+                                            fontSize: '9px',
+                                            borderRadius: 3,
+                                            fontFamily: 'monospace'
+                                        }}>
+                                            X: {Math.round(magnifierMousePos.x)} Y: {Math.round(magnifierMousePos.y)}
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
                 )}

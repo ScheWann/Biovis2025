@@ -51,47 +51,6 @@ def get_hires_image_size(sample_ids):
     return tissue_image_size
 
 
-def get_hires_image_crop(sample_id, center_x, center_y, crop_size):
-    """
-    Get a cropped high-resolution image centered at the specified coordinates.
-    
-    Args:
-        sample_id: ID of the sample
-        center_x: X coordinate of the crop center
-        center_y: Y coordinate of the crop center
-        crop_size: Size of the crop (square)
-    
-    Returns:
-        bytes: JPEG image data
-    """
-    if sample_id not in SAMPLES:
-        raise ValueError(f"Sample {sample_id} not found")
-    
-    # Open the high-resolution image
-    image = Image.open(SAMPLES[sample_id]["image_tif_path"])
-    
-    # Calculate crop boundaries
-    half_size = crop_size // 2
-    left = max(0, int(center_x - half_size))
-    top = max(0, int(center_y - half_size))
-    right = min(image.width, int(center_x + half_size))
-    bottom = min(image.height, int(center_y + half_size))
-    
-    # Crop the image
-    cropped = image.crop((left, top, right, bottom))
-    
-    # Convert to RGB if needed (in case it's RGBA or other format)
-    if cropped.mode != 'RGB':
-        cropped = cropped.convert('RGB')
-    
-    # Save to bytes
-    img_byte_arr = io.BytesIO()
-    cropped.save(img_byte_arr, format='JPEG', quality=85)
-    img_byte_arr.seek(0)
-    
-    return img_byte_arr.getvalue()
-
-
 def get_coordinates(sample_ids):
     """
     Get cell coordinates for the given sample IDs.
