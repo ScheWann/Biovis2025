@@ -10,6 +10,9 @@ import gseapy as gp
 from scipy.sparse import issparse
 from sklearn.decomposition import NMF
 
+# Increase PIL image size limit to handle large TIFF files
+Image.MAX_IMAGE_PIXELS = None  # Disable the limit entirely
+
 
 JSON_PATH = "./samples_list.json"
 """
@@ -45,8 +48,13 @@ def get_hires_image_size(sample_ids):
 
     for sample_id in sample_ids:
         if sample_id in SAMPLES:
-            image = Image.open(SAMPLES[sample_id]["image_tif_path"])
-        tissue_image_size[sample_id] = image.size
+            try:
+                image = Image.open(SAMPLES[sample_id]["image_tif_path"])
+                tissue_image_size[sample_id] = image.size
+                image.close()  # Close the image to free memory
+            except Exception as e:
+                print(f"Error loading image for sample {sample_id}: {e}")
+                tissue_image_size[sample_id] = (0, 0)
 
     return tissue_image_size
 
