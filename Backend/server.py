@@ -124,6 +124,34 @@ def get_hires_crop_route():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/get_hires_image", methods=["POST"])
+def get_hires_image_route():
+    """
+    Return the full high-resolution image for the given sample_id as JPEG.
+    """
+    data = request.json
+    sample_id = data["sample_id"]
+    from process import SAMPLES
+    import PIL.Image
+    if sample_id not in SAMPLES:
+        return jsonify({"error": f"Sample {sample_id} not found"}), 404
+    image_path = SAMPLES[sample_id]["image_tif_path"]
+    try:
+        image = PIL.Image.open(image_path)
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format='JPEG', quality=85)
+        img_byte_arr.seek(0)
+        return send_file(
+            img_byte_arr,
+            mimetype='image/jpeg',
+            as_attachment=False
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/upload_spaceranger", methods=["POST"])
 def upload_spaceranger():
     """

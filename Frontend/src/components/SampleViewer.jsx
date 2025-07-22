@@ -58,6 +58,9 @@ export const SampleViewer = ({
     const [keyPressed, setKeyPressed] = useState(false);
     const magnifierRef = useRef(null);
 
+    // Add state for preloaded high-res images
+    const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
+
     const radioOptions = [
         {
             label: 'Cell Type',
@@ -268,40 +271,33 @@ export const SampleViewer = ({
         }
     }, [minimapVisible]);
 
-    // Fetch high-definition image for magnifier
-    const fetchMagnifierImage = useCallback(async (sampleId) => {
-        if (!sampleId || magnifierData?.sampleId === sampleId) return;
-
-        try {
-            const imageSize = imageSizes[sampleId];
-            if (!imageSize) return;
-
-            // Use the full high-resolution image
-            const response = await fetch('/api/get_hires_crop', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sample_id: sampleId,
-                    center_x: imageSize[0] / 2,
-                    center_y: imageSize[1] / 2,
-                    crop_size: Math.max(imageSize[0], imageSize[1]) // Get full image
+    // Preload high-res images for all selected samples (fixed infinite loop)
+    useEffect(() => {
+        let isMounted = true;
+        selectedSamples.forEach(sample => {
+            setHiresImages(prev => {
+                if (prev[sample.id]) return prev;
+                // Start fetching, but don't block here
+                fetch('/api/get_hires_image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sample_id: sample.id })
                 })
-            });
-
-            if (response.ok) {
-                const blob = await response.blob();
-                const imageUrl = URL.createObjectURL(blob);
-                
-                setMagnifierData({
-                    imageUrl,
-                    sampleId,
-                    imageSize
+                .then(response => response.ok ? response.blob() : null)
+                .then(blob => {
+                    if (blob && isMounted) {
+                        const imageUrl = URL.createObjectURL(blob);
+                        setHiresImages(prev2 => ({
+                            ...prev2,
+                            [sample.id]: imageUrl
+                        }));
+                    }
                 });
-            }
-        } catch (error) {
-            console.error('Failed to fetch magnifier image:', error);
-        }
-    }, [imageSizes, magnifierData]);
+                return prev;
+            });
+        });
+        return () => { isMounted = false; };
+    }, [selectedSamples]);
 
     // Update magnifier viewport based on mouse position
     const updateMagnifierViewport = useCallback((worldX, worldY, sampleId) => {
@@ -613,16 +609,14 @@ export const SampleViewer = ({
         ] : [255, 0, 0];
     };
 
-    // Determine which sample contains the given coordinate
+    // Memoize getSampleAtCoordinate to prevent infinite effect loops
     const getSampleAtCoordinate = useCallback((x, y) => {
         for (const sample of selectedSamples) {
             const offset = sampleOffsets[sample.id] || [0, 0];
             const imageSize = imageSizes[sample.id];
-
             if (imageSize) {
                 const [offsetX, offsetY] = offset;
                 const [width, height] = imageSize;
-
                 if (x >= offsetX && x <= offsetX + width &&
                     y >= offsetY && y <= offsetY + height) {
                     return sample.id;
@@ -680,16 +674,12 @@ export const SampleViewer = ({
                 const hoveredSample = getSampleAtCoordinate(worldX, worldY);
                 
                 if (hoveredSample) {
-                    // Fetch magnifier image if needed
-                    if (!magnifierData || magnifierData.sampleId !== hoveredSample) {
-                        fetchMagnifierImage(hoveredSample);
-                    }
                     // Update magnifier viewport
                     updateMagnifierViewport(worldX, worldY, hoveredSample);
                 }
             }
         }
-    }, [isDrawing, magnifierVisible, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate, magnifierData, fetchMagnifierImage, updateMagnifierViewport]);
+    }, [isDrawing, magnifierVisible, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate, updateMagnifierViewport]);
 
     // Create collapse items for each sample
     const collapseItems = selectedSamples.map((sample, index) => ({
@@ -740,7 +730,7 @@ export const SampleViewer = ({
 
             return new BitmapLayer({
                 id: `tissue-image-${sample.id}`,
-                image: `/${sample.id}_full.jpg`,
+                image: hiresImages[sample.id] || `/${sample.id}_full.jpg`, // Use preloaded image or fetch
                 bounds: [
                     offset[0],
                     offset[1] + imageSize[1],
@@ -751,7 +741,7 @@ export const SampleViewer = ({
                 parameters: { depthTest: false }
             });
         }).filter(Boolean);
-    }, [selectedSamples, imageSizes, sampleOffsets]);
+    }, [selectedSamples, imageSizes, sampleOffsets, hiresImages]);
 
     // Generate cell scatter layers
     const generateCellLayers = useCallback(() => {
@@ -1096,20 +1086,29 @@ export const SampleViewer = ({
     // Cleanup effect for magnifier
     useEffect(() => {
         return () => {
-            if (magnifierData?.imageUrl) {
-                URL.revokeObjectURL(magnifierData.imageUrl);
-            }
+            Object.values(hiresImages).forEach(url => {
+                try { URL.revokeObjectURL(url); } catch (e) {}
+            });
         };
-    }, [magnifierData]);
+    }, [hiresImages]);
 
-    // Cleanup effect for magnifier
+    // In handleMouseMove, update magnifier logic to use hiresImages
     useEffect(() => {
-        return () => {
-            if (magnifierData?.imageUrl) {
-                URL.revokeObjectURL(magnifierData.imageUrl);
-            }
-        };
-    }, [magnifierData]);
+        if (!magnifierVisible || isDrawing || isAreaTooltipVisible || isAreaEditPopupVisible) return;
+        if (!magnifierMousePos || !selectedSamples.length) return;
+        const { x: worldX, y: worldY } = magnifierMousePos;
+        const hoveredSample = getSampleAtCoordinate(worldX, worldY);
+        if (hoveredSample && hiresImages[hoveredSample] && imageSizes[hoveredSample]) {
+            setMagnifierData({
+                imageUrl: hiresImages[hoveredSample],
+                sampleId: hoveredSample,
+                imageSize: imageSizes[hoveredSample]
+            });
+        } else {
+            setMagnifierData(null);
+        }
+        // No cleanup function that calls setMagnifierData
+    }, [magnifierVisible, magnifierMousePos, selectedSamples, hiresImages, imageSizes, isDrawing, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate]);
 
     return (
         <div style={{ width: '100%', height: '100%' }}>
