@@ -13,7 +13,7 @@ const getScale = (values, range) => {
   return d3.scalePoint().domain(values).range(range).padding(0.5);
 };
 
-const LineChart = ({
+export const LineChart = ({
   data,
   xAccessor,
   yAccessor,
@@ -107,5 +107,3 @@ const LineChart = ({
 
   return <svg ref={ref}></svg>;
 };
-
-export default LineChart;

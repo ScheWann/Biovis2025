@@ -1,4 +1,4 @@
-import LineChart from "./LineChart";
+import { LineChart } from "./LineChart";
 
 export const GeneExpression = () => {
   return (

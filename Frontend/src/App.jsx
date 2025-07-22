@@ -21,6 +21,7 @@ import {
 } from "@ant-design/icons";
 import "@ant-design/v5-patch-for-react-19";
 import { GeneExpression } from "./components/GeneExpression";
+import { UmapComponent } from "./components/UmapComponent";
 
 // Custom theme configuration
 const customTheme = {
@@ -275,6 +276,7 @@ function App() {
                       style={{ borderBottom: "1px solid #e8e8e8" }}
                     >
                       UMAP
+                      <UmapComponent />
                     </Splitter.Panel>
                     <Splitter.Panel defaultSize="33%" min="20%" max="45%">
                       Glyphs
