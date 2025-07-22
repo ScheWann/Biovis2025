@@ -53,8 +53,9 @@ export const SampleViewer = ({
     // High-definition magnifying glass state
     const [magnifierVisible, setMagnifierVisible] = useState(false);
     const [magnifierData, setMagnifierData] = useState(null);
-    const [magnifierViewport, setMagnifierViewport] = useState({ x: 0, y: 0, size: 200 });
+    const [magnifierViewport, setMagnifierViewport] = useState({ x: 0.5, y: 0.5, size: 200 });
     const [magnifierMousePos, setMagnifierMousePos] = useState({ x: 0, y: 0 });
+    const [magnifierLoading, setMagnifierLoading] = useState(false);
     const [keyPressed, setKeyPressed] = useState(false);
     const magnifierRef = useRef(null);
 
@@ -301,7 +302,7 @@ export const SampleViewer = ({
 
     // Update magnifier viewport based on mouse position
     const updateMagnifierViewport = useCallback((worldX, worldY, sampleId) => {
-        if (!magnifierData || magnifierData.sampleId !== sampleId) return;
+        if (!sampleId) return;
 
         const offset = sampleOffsets[sampleId] || [0, 0];
         const imageSize = imageSizes[sampleId];
@@ -316,12 +317,15 @@ export const SampleViewer = ({
         const viewportX = imageX / imageSize[0];
         const viewportY = imageY / imageSize[1];
 
-        setMagnifierViewport({
+        const newViewport = {
             x: Math.max(0, Math.min(1, viewportX)),
             y: Math.max(0, Math.min(1, viewportY)),
             size: 200 // Fixed viewport size in magnifier pixels
-        });
-    }, [magnifierData, sampleOffsets, imageSizes]);
+        };
+
+        setMagnifierViewport(newViewport);
+        setMagnifierMousePos({ x: worldX, y: worldY });
+    }, [sampleOffsets, imageSizes]);
 
     // Hide magnifier and cleanup
     const hideMagnifier = useCallback(() => {
@@ -330,6 +334,7 @@ export const SampleViewer = ({
         }
         setMagnifierVisible(false);
         setMagnifierData(null);
+        setMagnifierLoading(false);
         setKeyPressed(false);
     }, [magnifierData]);
 
@@ -667,14 +672,11 @@ export const SampleViewer = ({
             if (info.coordinate && magnifierVisible && !isAreaTooltipVisible && !isAreaEditPopupVisible) {
                 const [worldX, worldY] = info.coordinate;
                 
-                // Store mouse position for magnifier
-                setMagnifierMousePos({ x: worldX, y: worldY });
-                
                 // Determine which sample the mouse is over
                 const hoveredSample = getSampleAtCoordinate(worldX, worldY);
                 
                 if (hoveredSample) {
-                    // Update magnifier viewport
+                    // Update magnifier viewport and mouse position
                     updateMagnifierViewport(worldX, worldY, hoveredSample);
                 }
             }
@@ -1083,6 +1085,24 @@ export const SampleViewer = ({
         };
     }, [handleKeyPress, keyPressed, isDrawing]);
 
+    // Initialize magnifier position when it becomes visible
+    useEffect(() => {
+        if (magnifierVisible && !isDrawing && mainViewState && selectedSamples.length > 0) {
+            // Initialize magnifier at the center of the first sample
+            const firstSample = selectedSamples[0];
+            const offset = sampleOffsets[firstSample.id] ?? [0, 0];
+            const size = imageSizes[firstSample.id] ?? [0, 0];
+            
+            if (size[0] > 0 && size[1] > 0) {
+                const centerX = offset[0] + size[0] / 2;
+                const centerY = offset[1] + size[1] / 2;
+                
+                // Update magnifier position
+                updateMagnifierViewport(centerX, centerY, firstSample.id);
+            }
+        }
+    }, [magnifierVisible, isDrawing, mainViewState, selectedSamples, sampleOffsets, imageSizes, updateMagnifierViewport]);
+
     // Cleanup effect for magnifier
     useEffect(() => {
         return () => {
@@ -1094,20 +1114,38 @@ export const SampleViewer = ({
 
     // In handleMouseMove, update magnifier logic to use hiresImages
     useEffect(() => {
-        if (!magnifierVisible || isDrawing || isAreaTooltipVisible || isAreaEditPopupVisible) return;
-        if (!magnifierMousePos || !selectedSamples.length) return;
+        if (!magnifierVisible || isDrawing || isAreaTooltipVisible || isAreaEditPopupVisible) {
+            setMagnifierData(null);
+            setMagnifierLoading(false);
+            return;
+        }
+
+        if (!magnifierMousePos || !selectedSamples.length) {
+            setMagnifierData(null);
+            setMagnifierLoading(false);
+            return;
+        }
+
         const { x: worldX, y: worldY } = magnifierMousePos;
         const hoveredSample = getSampleAtCoordinate(worldX, worldY);
-        if (hoveredSample && hiresImages[hoveredSample] && imageSizes[hoveredSample]) {
-            setMagnifierData({
-                imageUrl: hiresImages[hoveredSample],
-                sampleId: hoveredSample,
-                imageSize: imageSizes[hoveredSample]
-            });
+        
+        if (hoveredSample && imageSizes[hoveredSample]) {
+            // Set loading state if we don't have the image yet
+            if (!hiresImages[hoveredSample]) {
+                setMagnifierLoading(true);
+                setMagnifierData(null);
+            } else {
+                setMagnifierLoading(false);
+                setMagnifierData({
+                    imageUrl: hiresImages[hoveredSample],
+                    sampleId: hoveredSample,
+                    imageSize: imageSizes[hoveredSample]
+                });
+            }
         } else {
             setMagnifierData(null);
+            setMagnifierLoading(false);
         }
-        // No cleanup function that calls setMagnifierData
     }, [magnifierVisible, magnifierMousePos, selectedSamples, hiresImages, imageSizes, isDrawing, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate]);
 
     return (
@@ -1553,12 +1591,28 @@ export const SampleViewer = ({
                             justifyContent: 'center'
                         }}>
                             {(() => {
-                                const hoveredSample = magnifierData?.sampleId;
-                                const imageUrl = hoveredSample ? hiresImages[hoveredSample] : null;
-                                const imageSize = hoveredSample ? imageSizes[hoveredSample] : null;
-                                if (!imageUrl || !imageSize) {
-                                    return <Spin size="large" />;
+                                // Show loading state
+                                if (magnifierLoading || !magnifierData || !magnifierData.imageUrl || !magnifierData.imageSize) {
+                                    return (
+                                        <div style={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            gap: 12
+                                        }}>
+                                            <Spin size="large" />
+                                            <div style={{ 
+                                                fontSize: '12px', 
+                                                color: '#666',
+                                                textAlign: 'center'
+                                            }}>
+                                                {magnifierLoading ? 'Loading high-resolution image...' : 'Move mouse over sample area'}
+                                            </div>
+                                        </div>
+                                    );
                                 }
+
+                                const { imageUrl, imageSize } = magnifierData;
                                 return (
                                     <>
                                         {/* Full HD Image */}
@@ -1575,6 +1629,8 @@ export const SampleViewer = ({
                                                 transition: 'left 0.1s ease-out, top 0.1s ease-out'
                                             }}
                                             draggable={false}
+                                            onLoad={() => setMagnifierLoading(false)}
+                                            onError={() => setMagnifierLoading(false)}
                                         />
                                         {/* Crosshairs */}
                                         <div style={{
@@ -1625,7 +1681,7 @@ export const SampleViewer = ({
                                             borderRadius: 3,
                                             fontFamily: 'monospace'
                                         }}>
-                                            X: {Math.round(magnifierMousePos.x)} Y: {Math.round(magnifierMousePos.y)}
+                                            X: {Math.round(magnifierMousePos?.x || 0)} Y: {Math.round(magnifierMousePos?.y || 0)}
                                         </div>
                                     </>
                                 );
