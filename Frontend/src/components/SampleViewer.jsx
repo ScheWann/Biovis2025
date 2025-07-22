@@ -50,6 +50,14 @@ export const SampleViewer = ({
     const [minimapAnimating, setMinimapAnimating] = useState(false);
     const minimapRef = useRef(null);
 
+    // High-definition magnifying glass state
+    const [magnifierVisible, setMagnifierVisible] = useState(false);
+    const [magnifierData, setMagnifierData] = useState(null);
+    const [magnifierViewport, setMagnifierViewport] = useState({ x: 0, y: 0, size: 200 });
+    const [magnifierMousePos, setMagnifierMousePos] = useState({ x: 0, y: 0 });
+    const [keyPressed, setKeyPressed] = useState(false);
+    const magnifierRef = useRef(null);
+
     const radioOptions = [
         {
             label: 'Cell Type',
@@ -259,6 +267,75 @@ export const SampleViewer = ({
             }, 310);
         }
     }, [minimapVisible]);
+
+    // Fetch high-definition image for magnifier
+    const fetchMagnifierImage = useCallback(async (sampleId) => {
+        if (!sampleId || magnifierData?.sampleId === sampleId) return;
+
+        try {
+            const imageSize = imageSizes[sampleId];
+            if (!imageSize) return;
+
+            // Use the full high-resolution image
+            const response = await fetch('/api/get_hires_crop', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sample_id: sampleId,
+                    center_x: imageSize[0] / 2,
+                    center_y: imageSize[1] / 2,
+                    crop_size: Math.max(imageSize[0], imageSize[1]) // Get full image
+                })
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+                
+                setMagnifierData({
+                    imageUrl,
+                    sampleId,
+                    imageSize
+                });
+            }
+        } catch (error) {
+            console.error('Failed to fetch magnifier image:', error);
+        }
+    }, [imageSizes, magnifierData]);
+
+    // Update magnifier viewport based on mouse position
+    const updateMagnifierViewport = useCallback((worldX, worldY, sampleId) => {
+        if (!magnifierData || magnifierData.sampleId !== sampleId) return;
+
+        const offset = sampleOffsets[sampleId] || [0, 0];
+        const imageSize = imageSizes[sampleId];
+        
+        if (!imageSize) return;
+
+        // Convert world coordinates to image coordinates
+        const imageX = worldX - offset[0];
+        const imageY = worldY - offset[1];
+
+        // Calculate viewport position (as percentage of image)
+        const viewportX = imageX / imageSize[0];
+        const viewportY = imageY / imageSize[1];
+
+        setMagnifierViewport({
+            x: Math.max(0, Math.min(1, viewportX)),
+            y: Math.max(0, Math.min(1, viewportY)),
+            size: 200 // Fixed viewport size in magnifier pixels
+        });
+    }, [magnifierData, sampleOffsets, imageSizes]);
+
+    // Hide magnifier and cleanup
+    const hideMagnifier = useCallback(() => {
+        if (magnifierData?.imageUrl) {
+            URL.revokeObjectURL(magnifierData.imageUrl);
+        }
+        setMagnifierVisible(false);
+        setMagnifierData(null);
+        setKeyPressed(false);
+    }, [magnifierData]);
 
     // Toggle drawing mode
     const toggleDrawingMode = () => {
@@ -585,15 +662,34 @@ export const SampleViewer = ({
 
     // Track mouse movement for preview
     const handleMouseMove = useCallback((info) => {
-        if (!isDrawing) {
+        if (isDrawing) {
+            if (info.coordinate) {
+                setMousePosition(info.coordinate);
+            }
+        } else {
             setMousePosition(null);
-            return;
+            
+            // Handle magnifier when key is pressed
+            if (info.coordinate && magnifierVisible && !isAreaTooltipVisible && !isAreaEditPopupVisible) {
+                const [worldX, worldY] = info.coordinate;
+                
+                // Store mouse position for magnifier
+                setMagnifierMousePos({ x: worldX, y: worldY });
+                
+                // Determine which sample the mouse is over
+                const hoveredSample = getSampleAtCoordinate(worldX, worldY);
+                
+                if (hoveredSample) {
+                    // Fetch magnifier image if needed
+                    if (!magnifierData || magnifierData.sampleId !== hoveredSample) {
+                        fetchMagnifierImage(hoveredSample);
+                    }
+                    // Update magnifier viewport
+                    updateMagnifierViewport(worldX, worldY, hoveredSample);
+                }
+            }
         }
-
-        if (info.coordinate) {
-            setMousePosition(info.coordinate);
-        }
-    }, [isDrawing]);
+    }, [isDrawing, magnifierVisible, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate, magnifierData, fetchMagnifierImage, updateMagnifierViewport]);
 
     // Create collapse items for each sample
     const collapseItems = selectedSamples.map((sample, index) => ({
@@ -952,11 +1048,68 @@ export const SampleViewer = ({
         });
     }, [selectedSamples, imageSizes, sampleOffsets]);
 
-    // Add keyboard event listener
+    // Add keyboard event listener for both drawing and magnifier
     useEffect(() => {
-        document.addEventListener('keydown', handleKeyPress);
-        return () => document.removeEventListener('keydown', handleKeyPress);
-    }, [handleKeyPress]);
+        const handleKeyDown = (event) => {
+            // Skip if user is typing in an input field
+            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            // Handle drawing keys
+            handleKeyPress(event);
+            
+            // Handle magnifier keys
+            if ((event.code === 'Space' || event.code === 'KeyM') && !keyPressed && !isDrawing) {
+                console.log('Global magnifier key down:', event.code, 'keyPressed:', keyPressed, 'isDrawing:', isDrawing);
+                event.preventDefault();
+                event.stopPropagation();
+                setKeyPressed(true);
+                setMagnifierVisible(true);
+            }
+        };
+
+        const handleKeyUp = (event) => {
+            // Skip if user is typing in an input field
+            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            if ((event.code === 'Space' || event.code === 'KeyM') && keyPressed) {
+                console.log('Global magnifier key up:', event.code, 'keyPressed:', keyPressed);
+                event.preventDefault();
+                event.stopPropagation();
+                setKeyPressed(false);
+                setMagnifierVisible(false);
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown, true); // Use capture phase
+        document.addEventListener('keyup', handleKeyUp, true); // Use capture phase
+        
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown, true);
+            document.removeEventListener('keyup', handleKeyUp, true);
+        };
+    }, [handleKeyPress, keyPressed, isDrawing]);
+
+    // Cleanup effect for magnifier
+    useEffect(() => {
+        return () => {
+            if (magnifierData?.imageUrl) {
+                URL.revokeObjectURL(magnifierData.imageUrl);
+            }
+        };
+    }, [magnifierData]);
+
+    // Cleanup effect for magnifier
+    useEffect(() => {
+        return () => {
+            if (magnifierData?.imageUrl) {
+                URL.revokeObjectURL(magnifierData.imageUrl);
+            }
+        };
+    }, [magnifierData]);
 
     return (
         <div style={{ width: '100%', height: '100%' }}>
@@ -1068,7 +1221,7 @@ export const SampleViewer = ({
                         minWidth: '200px',
                         textAlign: 'left'
                     }}>
-                        <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Keyboard Shortcuts:</div>
+                        <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Drawing Shortcuts:</div>
                         <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                             <kbd style={{
                                 backgroundColor: 'rgba(0, 0, 0, 0.1)',
@@ -1095,6 +1248,43 @@ export const SampleViewer = ({
                                 fontSize: '11px'
                             }}>Backspace</kbd>
                             <span>Undo last point</span>
+                        </div>
+                    </div>
+
+                    {/* General Keyboard Shortcuts Panel */}
+                    <div style={{
+                        opacity: !isDrawing ? 1 : 0,
+                        visibility: !isDrawing ? 'visible' : 'hidden',
+                        transform: !isDrawing ? 'translateY(0)' : 'translateY(-10px)',
+                        transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out, transform 0.3s ease-in-out',
+                        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                        color: '#000000',
+                        padding: '8px 12px',
+                        borderRadius: 6,
+                        fontSize: '12px',
+                        lineHeight: '1.4',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                        minWidth: '200px',
+                        textAlign: 'left'
+                    }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Keyboard Shortcuts:</div>
+                        <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <kbd style={{
+                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                padding: '2px 4px',
+                                borderRadius: 3,
+                                fontSize: '11px',
+                            }}>Space</kbd>
+                            <span>Hold for magnifier</span>
+                        </div>
+                        <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <kbd style={{
+                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                padding: '2px 4px',
+                                borderRadius: 3,
+                                fontSize: '11px'
+                            }}>M</kbd>
+                            <span>Hold for magnifier</span>
                         </div>
                     </div>
                 </div>
@@ -1310,6 +1500,129 @@ export const SampleViewer = ({
                             onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.9)'}
                         >
                             <CloseOutlined style={{ fontSize: 8, color: '#666' }} />
+                        </div>
+                    </div>
+                )}
+
+                {/* Magnifying Glass */}
+                {magnifierVisible && magnifierData && (
+                    <div
+                        ref={magnifierRef}
+                        style={{
+                            position: 'absolute',
+                            bottom: 10,
+                            left: 10,
+                            width: 300,
+                            height: 300,
+                            zIndex: 15,
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            border: '2px solid #1890ff',
+                            borderRadius: 8,
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+                            overflow: 'hidden',
+                            opacity: magnifierVisible ? 1 : 0,
+                            transition: 'opacity 0.2s ease-in-out'
+                        }}
+                    >
+                        {/* Header */}
+                        <div style={{
+                            padding: '6px 12px',
+                            borderBottom: '1px solid #e8e8e8',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            color: '#262626',
+                            backgroundColor: '#f0f8ff',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <span>Magnifier - {magnifierData.sampleId}</span>
+                            <span style={{ fontSize: '9px', color: '#666' }}>
+                                Hold Space/M
+                            </span>
+                        </div>
+
+                        {/* Magnifier View */}
+                        <div style={{
+                            position: 'relative',
+                            width: '100%',
+                            height: 280,
+                            overflow: 'hidden',
+                            backgroundColor: '#f5f5f5'
+                        }}>
+                            {magnifierData.imageUrl && (
+                                <>
+                                    {/* Full HD Image */}
+                                    <img
+                                        src={magnifierData.imageUrl}
+                                        alt="HD Magnifier"
+                                        style={{
+                                            position: 'absolute',
+                                            width: magnifierData.imageSize[0] * 2, // 2x zoom
+                                            height: magnifierData.imageSize[1] * 2,
+                                            left: -(magnifierViewport.x * magnifierData.imageSize[0] * 2) + 150, // Center on viewport
+                                            top: -(magnifierViewport.y * magnifierData.imageSize[1] * 2) + 140,
+                                            imageRendering: 'crisp-edges',
+                                            transition: 'left 0.1s ease-out, top 0.1s ease-out'
+                                        }}
+                                        draggable={false}
+                                    />
+
+                                    {/* Crosshairs */}
+                                    <div style={{
+                                        position: 'absolute',
+                                        left: 150,
+                                        top: 0,
+                                        width: 1,
+                                        height: '100%',
+                                        backgroundColor: '#ff4d4f',
+                                        pointerEvents: 'none',
+                                        boxShadow: '0 0 2px rgba(0,0,0,0.5)',
+                                        zIndex: 2
+                                    }} />
+                                    <div style={{
+                                        position: 'absolute',
+                                        left: 0,
+                                        top: 140,
+                                        width: '100%',
+                                        height: 1,
+                                        backgroundColor: '#ff4d4f',
+                                        pointerEvents: 'none',
+                                        boxShadow: '0 0 2px rgba(0,0,0,0.5)',
+                                        zIndex: 2
+                                    }} />
+
+                                    {/* Center circle */}
+                                    <div style={{
+                                        position: 'absolute',
+                                        left: 147,
+                                        top: 137,
+                                        width: 6,
+                                        height: 6,
+                                        borderRadius: '50%',
+                                        backgroundColor: '#ff4d4f',
+                                        border: '1px solid white',
+                                        pointerEvents: 'none',
+                                        boxShadow: '0 0 4px rgba(0,0,0,0.5)',
+                                        zIndex: 3
+                                    }} />
+
+                                    {/* Viewport indicator */}
+                                    <div style={{
+                                        position: 'absolute',
+                                        bottom: 5,
+                                        right: 5,
+                                        padding: '2px 6px',
+                                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                        color: 'white',
+                                        fontSize: '9px',
+                                        borderRadius: 3,
+                                        fontFamily: 'monospace'
+                                    }}>
+                                        X: {Math.round(magnifierMousePos.x)} Y: {Math.round(magnifierMousePos.y)}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
