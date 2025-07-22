@@ -119,7 +119,7 @@ def get_hires_image_route():
         if image.mode != 'RGB':
             image = image.convert('RGB')
         img_byte_arr = io.BytesIO()
-        image.save(img_byte_arr, format='JPEG', quality=85)
+        image.save(img_byte_arr, format='JPEG', quality=100)
         img_byte_arr.seek(0)
         return send_file(
             img_byte_arr,

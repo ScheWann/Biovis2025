@@ -1052,7 +1052,7 @@ export const SampleViewer = ({
             handleKeyPress(event);
             
             // Handle magnifier keys
-            if ((event.code === 'Space' || event.code === 'KeyM') && !keyPressed && !isDrawing) {
+            if ((event.code === 'Space') && !keyPressed && !isDrawing) {
                 console.log('Global magnifier key down:', event.code, 'keyPressed:', keyPressed, 'isDrawing:', isDrawing);
                 event.preventDefault();
                 event.stopPropagation();
@@ -1067,7 +1067,7 @@ export const SampleViewer = ({
                 return;
             }
 
-            if ((event.code === 'Space' || event.code === 'KeyM') && keyPressed) {
+            if ((event.code === 'Space') && keyPressed) {
                 console.log('Global magnifier key up:', event.code, 'keyPressed:', keyPressed);
                 event.preventDefault();
                 event.stopPropagation();
@@ -1285,43 +1285,6 @@ export const SampleViewer = ({
                                 fontSize: '11px'
                             }}>Backspace</kbd>
                             <span>Undo last point</span>
-                        </div>
-                    </div>
-
-                    {/* General Keyboard Shortcuts Panel */}
-                    <div style={{
-                        opacity: !isDrawing ? 1 : 0,
-                        visibility: !isDrawing ? 'visible' : 'hidden',
-                        transform: !isDrawing ? 'translateY(0)' : 'translateY(-10px)',
-                        transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out, transform 0.3s ease-in-out',
-                        backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                        color: '#000000',
-                        padding: '8px 12px',
-                        borderRadius: 6,
-                        fontSize: '12px',
-                        lineHeight: '1.4',
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-                        minWidth: '200px',
-                        textAlign: 'left'
-                    }}>
-                        <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Keyboard Shortcuts:</div>
-                        <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <kbd style={{
-                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
-                                padding: '2px 4px',
-                                borderRadius: 3,
-                                fontSize: '11px',
-                            }}>Space</kbd>
-                            <span>Hold for magnifier</span>
-                        </div>
-                        <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <kbd style={{
-                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
-                                padding: '2px 4px',
-                                borderRadius: 3,
-                                fontSize: '11px'
-                            }}>M</kbd>
-                            <span>Hold for magnifier</span>
                         </div>
                     </div>
                 </div>
@@ -1575,7 +1538,7 @@ export const SampleViewer = ({
                         }}>
                             <span>Magnifier - {magnifierData?.sampleId || ''}</span>
                             <span style={{ fontSize: '9px', color: '#666' }}>
-                                Hold Space/M
+                                Hold Space
                             </span>
                         </div>
 
@@ -1672,7 +1635,7 @@ export const SampleViewer = ({
                                         {/* Viewport indicator */}
                                         <div style={{
                                             position: 'absolute',
-                                            bottom: 5,
+                                            bottom: 15,
                                             right: 5,
                                             padding: '2px 6px',
                                             backgroundColor: 'rgba(0, 0, 0, 0.7)',
