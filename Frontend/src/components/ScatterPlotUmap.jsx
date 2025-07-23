@@ -10,13 +10,13 @@ export const ScatterplotUmap = ({
   xAccessor = (d) => d.x,
   yAccessor = (d) => d.y,
   title = "UMAP",
-  margin = { top: 30, right: 30, bottom: 30, left: 30 },
+  margin = { top: 30, right: 10, bottom: 30, left: 30 },
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
 
-  // ResizeObserver to detect container size changes
+  // Detect container size changes
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -95,7 +95,7 @@ export const ScatterplotUmap = ({
         .append("g")
         .attr(
           "transform",
-          `translate(${width - margin.right - 40}, ${margin.top})`
+          `translate(${width - margin.right - 60}, ${margin.top})`
         );
       clusters.forEach((cl, i) => {
         legend
@@ -126,7 +126,7 @@ export const ScatterplotUmap = ({
   return (
     <div 
       ref={containerRef} 
-      style={{ width: '100%', height: '100%', minHeight: '150px' }}
+      style={{ width: '100%', height: '100%'}}
     >
       <svg ref={svgRef}></svg>
     </div>

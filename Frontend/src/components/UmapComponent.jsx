@@ -22,7 +22,7 @@ function generateDummyData(numPoints = 100, numClusters = 5) {
 export const UmapComponent = ({ umapData, umapLoading }) => {
   // const data = generateDummyData(100, 3);
   return (
-    <div>
+    <>
       {umapLoading ? (
         <Spin size="large" />
       ) : (
@@ -35,6 +35,6 @@ export const UmapComponent = ({ umapData, umapLoading }) => {
           pointSize={4}
         />
       )}
-    </div>
+    </>
   );
 };

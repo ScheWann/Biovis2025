@@ -265,6 +265,7 @@ function App() {
                     selectedSamples={selectedSamples}
                     coordinatesData={coordinatesData}
                     setUmapData={setUmapData}
+                    umapLoading={umapLoading}
                     setUmapLoading={setUmapLoading}
                   />
                 </Splitter.Panel>

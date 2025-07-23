@@ -11,6 +11,7 @@ export const SampleViewer = ({
     selectedSamples,
     coordinatesData,
     setUmapData,
+    umapLoading,
     setUmapLoading,
 }) => {
     const containerRef = useRef(null);
@@ -1939,8 +1940,9 @@ export const SampleViewer = ({
                                 color="pink" 
                                 variant="outlined"
                                 onClick={generateUmap}
+                                loading={umapLoading}
                             >
-                                Generate UMAP
+                                {umapLoading ? 'Generating...' : 'Generate UMAP'}
                             </Button>
                             <div style={{ display: 'flex', gap: 5, justifyContent: 'space-between' }}>
                                 <Button
