@@ -10,7 +10,7 @@ export const ScatterplotUmap = ({
   xAccessor = (d) => d.x,
   yAccessor = (d) => d.y,
   title = "UMAP",
-  margin = { top: 30, right: 10, bottom: 30, left: 30 },
+  margin = { top: 25, right: 10, bottom: 25, left: 25 },
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -84,14 +84,14 @@ export const ScatterplotUmap = ({
     svg
       .append("text")
       .attr("x", margin.left)
-      .attr("y", margin.top - 10)
-      .attr("font-size", 16)
+      .attr("y", margin.top - 5)
+      .attr("font-size", 12)
       .attr("font-weight", 600)
       .text(title);
 
-    // Legend
-    if (clusters.length > 1) {
-      const legend = svg
+    // Legend - compact version for small containers
+    if (clusters.length > 1 && clusters.length <= 5) {
+      const legend = g
         .append("g")
         .attr(
           "transform",
@@ -101,15 +101,15 @@ export const ScatterplotUmap = ({
         legend
           .append("circle")
           .attr("cx", 0)
-          .attr("cy", i * 20)
-          .attr("r", 6)
+          .attr("cy", i * 15)
+          .attr("r", 4)
           .attr("fill", color(cl));
         legend
           .append("text")
-          .attr("x", 12)
-          .attr("y", i * 20 + 4)
+          .attr("x", 8)
+          .attr("y", i * 15 + 3)
           .text(cl)
-          .attr("font-size", 12);
+          .attr("font-size", 9);
       });
     }
   }, [

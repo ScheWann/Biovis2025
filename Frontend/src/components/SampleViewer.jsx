@@ -10,7 +10,7 @@ import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl
 export const SampleViewer = ({
     selectedSamples,
     coordinatesData,
-    setUmapData,
+    setUmapDataSets,
     umapLoading,
     setUmapLoading,
 }) => {
@@ -779,6 +779,21 @@ export const SampleViewer = ({
     const generateUmap = () => {
         if (!selectedAreaForEdit) return;
         
+        // Generate a unique ID for this UMAP dataset
+        const umapId = `${selectedAreaForEdit.sampleId}_${selectedAreaForEdit.name}_${Date.now()}`;
+        const umapTitle = `${selectedAreaForEdit.name} (${selectedAreaForEdit.sampleId})`;
+        
+        // Add a new loading dataset entry
+        setUmapDataSets(prev => [
+            ...prev,
+            {
+                id: umapId,
+                title: umapTitle,
+                data: [],
+                loading: true
+            }
+        ]);
+        
         setUmapLoading(true);
         
         fetch('/api/get_umap_data', {
@@ -794,12 +809,21 @@ export const SampleViewer = ({
         })
         .then(res => res.json())
         .then(data => {
-            console.log('UMAP data received:', data);
-            setUmapData(data);
+            // Update the specific dataset with the received data
+            setUmapDataSets(prev => 
+                prev.map(dataset => 
+                    dataset.id === umapId 
+                        ? { ...dataset, data: data, loading: false }
+                        : dataset
+                )
+            );
             setUmapLoading(false);
         })
         .catch(error => {
             console.error('Error generating UMAP:', error);
+            
+            // Remove the failed dataset entry
+            setUmapDataSets(prev => prev.filter(dataset => dataset.id !== umapId));
             setUmapLoading(false);
         });
     }

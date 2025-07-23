@@ -1,24 +1,9 @@
 import { useEffect, useState } from "react";
-import {
-  Select,
-  Spin,
-  message,
-  Button,
-  Splitter,
-  Modal,
-  Form,
-  Input,
-  Upload,
-  ConfigProvider,
-} from "antd";
+import { Select, Spin, message, Button, Splitter, Modal, Form, Input, Upload, ConfigProvider, Empty } from "antd";
 import "./App.css";
 // import { MultiSampleViewer } from './components/MultiSampleViewer';
 import { SampleViewer } from "./components/SampleViewer";
-import {
-  PlusOutlined,
-  InboxOutlined,
-  PaperClipOutlined,
-} from "@ant-design/icons";
+import { PlusOutlined, InboxOutlined, PaperClipOutlined, CloseOutlined } from "@ant-design/icons";
 import "@ant-design/v5-patch-for-react-19";
 import { GeneExpression } from "./components/GeneExpression";
 import { UmapComponent } from "./components/UmapComponent";
@@ -46,7 +31,7 @@ function App() {
   const [uploadFormVisible, setUploadFormVisible] = useState(false); // Upload form visibility
 
   // UMAP data state
-  const [umapData, setUmapData] = useState([]);
+  const [umapDataSets, setUmapDataSets] = useState([]); // Array of {id, title, data, loading}
   const [umapLoading, setUmapLoading] = useState(false);
 
   useEffect(() => {
@@ -264,7 +249,7 @@ function App() {
                   <SampleViewer
                     selectedSamples={selectedSamples}
                     coordinatesData={coordinatesData}
-                    setUmapData={setUmapData}
+                    setUmapDataSets={setUmapDataSets}
                     umapLoading={umapLoading}
                     setUmapLoading={setUmapLoading}
                   />
@@ -287,10 +272,86 @@ function App() {
                       max="45%"
                       style={{ borderBottom: "1px solid #e8e8e8" }}
                     >
-                      <UmapComponent 
-                        umapData={umapData}
-                        umapLoading={umapLoading}
-                      />
+                      <div
+                        style={{
+                          height: "100%",
+                          display: "flex",
+                          flexDirection: "column",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: "bold",
+                            color: "#333",
+                          }}
+                        >
+                          UMAP
+                        </div>
+                        <div
+                          style={{
+                            flex: 1,
+                            display: "grid",
+                            gridTemplateColumns: "repeat(2, 1fr)",
+                            gap: "8px",
+                            maxHeight: "calc(100% - 27px)",
+                            padding: "0px 5px 5px 5px"
+                          }}
+                        >
+                          {umapDataSets.length === 0 ? (
+                            <Empty style={{ gridColumn: "1 / -1" }} description="No UMAP data available" />
+                          ) : (
+                            umapDataSets.map((dataset, index) => {
+                              // Calculate dimensions based on total count
+                              const totalCount = umapDataSets.length;
+                              let containerStyle = {
+                                border: "1px solid #e8e8e8",
+                                borderRadius: "4px",
+                                backgroundColor: "#fafafa",
+                                position: "relative",
+                                overflow: "hidden",
+                              };
+
+                              // Determine size based on count
+                              if (totalCount === 1) {
+                                containerStyle.gridColumn = "1 / -1";
+                              }
+
+                              return (
+                                <div key={dataset.id} style={containerStyle}>
+                                  {/* UMAP Component Close Button */}
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<CloseOutlined />}
+                                    onClick={() =>
+                                      setUmapDataSets((prev) =>
+                                        prev.filter((d) => d.id !== dataset.id)
+                                      )
+                                    }
+                                    style={{
+                                      position: "absolute",
+                                      top: "2px",
+                                      right: "2px",
+                                      zIndex: 10,
+                                      color: "#999",
+                                      width: "20px",
+                                      height: "20px",
+                                      minWidth: "20px",
+                                      padding: 0,
+                                    }}
+                                  />
+                                  <UmapComponent
+                                    umapData={dataset.data}
+                                    umapLoading={dataset.loading}
+                                    title={dataset.title}
+                                  />
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
                     </Splitter.Panel>
                     <Splitter.Panel defaultSize="33%" min="20%" max="45%">
                       Glyphs

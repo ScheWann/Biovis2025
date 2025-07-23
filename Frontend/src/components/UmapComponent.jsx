@@ -1,5 +1,5 @@
 import { ScatterplotUmap } from "./ScatterPlotUmap";
-import { Spin, Empty } from "antd";
+import { Spin } from "antd";
 
 function generateDummyData(numPoints = 100, numClusters = 5) {
   // Cluster centers
@@ -19,27 +19,35 @@ function generateDummyData(numPoints = 100, numClusters = 5) {
   });
 }
 
-export const UmapComponent = ({ umapData, umapLoading }) => {
-  // const data = generateDummyData(100, 3);
+export const UmapComponent = ({ umapData, umapLoading, title = "UMAP Scatter Plot" }) => {
   return (
-    <>
-      {umapData.length === 0 ? (
-        <Empty description="No data" />
-      ) :
-      (
-        umapLoading ? (
-          <Spin size="large" />
-        ) : (
-          <ScatterplotUmap
-            data={umapData}
-            xAccessor={(d) => d.x}
-            yAccessor={(d) => d.y}
-            clusterAccessor={(d) => d.cluster}
-            title="UMAP Scatter Plot"
-            pointSize={4}
-          />
-        )
-      )}
-    </>
+    <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+      {umapLoading ? (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px',
+          width: '100%',
+          height: '100%',
+          padding: 5
+        }}>
+          <Spin size="large"/>
+          <div style={{ fontSize: '12px', color: '#999' }}>
+            Generating {title}...
+          </div>
+        </div>
+      ) : umapData ? (
+        <ScatterplotUmap
+          data={umapData}
+          xAccessor={(d) => d.x}
+          yAccessor={(d) => d.y}
+          clusterAccessor={(d) => d.cluster}
+          title={title}
+          pointSize={4}
+        />
+      ) : null}
+    </div>
   );
 };
