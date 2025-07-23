@@ -1,12 +1,10 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
 
 const COLORS = d3.schemeCategory10;
 
 export const ScatterplotUmap = ({
   data, // [{x, y, cluster}]
-  width = 400,
-  height = 200,
   pointSize = 5,
   clusterAccessor = (d) => d.cluster,
   xAccessor = (d) => d.x,
@@ -14,11 +12,32 @@ export const ScatterplotUmap = ({
   title = "UMAP",
   margin = { top: 30, right: 30, bottom: 30, left: 30 },
 }) => {
-  const ref = useRef();
+  const containerRef = useRef();
+  const svgRef = useRef();
+  const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
+
+  // ResizeObserver to detect container size changes
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setDimensions({ width: Math.max(width, 200), height: Math.max(height, 150) });
+      }
+    });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   useEffect(() => {
-    d3.select(ref.current).selectAll("*").remove();
+    if (!data || data.length === 0) return;
+    
+    d3.select(svgRef.current).selectAll("*").remove();
 
+    const { width, height } = dimensions;
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
@@ -35,7 +54,7 @@ export const ScatterplotUmap = ({
 
     // SVG
     const svg = d3
-      .select(ref.current)
+      .select(svgRef.current)
       .attr("width", width)
       .attr("height", height);
 
@@ -95,8 +114,7 @@ export const ScatterplotUmap = ({
     }
   }, [
     data,
-    width,
-    height,
+    dimensions,
     pointSize,
     clusterAccessor,
     xAccessor,
@@ -105,5 +123,12 @@ export const ScatterplotUmap = ({
     margin,
   ]);
 
-  return <svg ref={ref}></svg>;
+  return (
+    <div 
+      ref={containerRef} 
+      style={{ width: '100%', height: '100%', minHeight: '150px' }}
+    >
+      <svg ref={svgRef}></svg>
+    </div>
+  );
 };

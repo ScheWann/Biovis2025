@@ -33,13 +33,19 @@ const customTheme = {
 };
 
 function App() {
-  const [coordinatesData, setCoordinatesData] = useState({}); // each sample's cell type directory(e.g. {"skin_TXK6Z4X_A1": [{"cell_type": "cd19+cd20+ b","cell_x": 3526, "cell_y": 3780, "id": "ID_1}, ...}])'
+  // Sample selector state
   const [selectOptions, setSelectOptions] = useState([]); // Available sample Option(e.g. [{value: 'skin_TXK6Z4X_A1', label: 'skin_TXK6Z4X_A1'}, ...])
   const [selectedSamples, setSelectedSamples] = useState([]); // Confirmed sample to be displayed(e.g. [{id: 'sample_id', name: 'sample_id'}, ...])
   const [tempSamples, setTempSamples] = useState([]); // The sample identified in the selector
   const [sampleDataLoading, setSampleDataLoading] = useState(false); // Sample Data Loading
+
+  // Cell coordinates data state
+  const [coordinatesData, setCoordinatesData] = useState({}); // each sample's cell type directory(e.g. {"skin_TXK6Z4X_A1": [{"cell_type": "cd19+cd20+ b","cell_x": 3526, "cell_y": 3780, "id": "ID_1}, ...}])'
+
+  // Data upload form state
   const [uploadFormVisible, setUploadFormVisible] = useState(false); // Upload form visibility
 
+  // UMAP data state
   const [umapData, setUmapData] = useState([]);
   const [umapLoading, setUmapLoading] = useState(false);
 
