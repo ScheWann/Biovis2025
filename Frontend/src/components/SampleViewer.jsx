@@ -63,6 +63,9 @@ export const SampleViewer = ({
 
     // Add state for preloaded high-res images
     const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
+    
+    // Add state for preloaded cell boundary images
+    const [cellBoundaryImages, setCellBoundaryImages] = useState({}); // { sampleId: imageUrl }
 
     const radioOptions = [
         {
@@ -323,6 +326,34 @@ export const SampleViewer = ({
                         if (blob && isMounted) {
                             const imageUrl = URL.createObjectURL(blob);
                             setHiresImages(prev2 => ({
+                                ...prev2,
+                                [sample.id]: imageUrl
+                            }));
+                        }
+                    });
+                return prev;
+            });
+        });
+        return () => { isMounted = false; };
+    }, [selectedSamples]);
+
+    // Preload cell boundary images for all selected samples
+    useEffect(() => {
+        let isMounted = true;
+        selectedSamples.forEach(sample => {
+            setCellBoundaryImages(prev => {
+                if (prev[sample.id]) return prev;
+                // Start fetching cell boundary image
+                fetch('/api/get_cell_boundary_image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sample_id: sample.id })
+                })
+                    .then(response => response.ok ? response.blob() : null)
+                    .then(blob => {
+                        if (blob && isMounted) {
+                            const imageUrl = URL.createObjectURL(blob);
+                            setCellBoundaryImages(prev2 => ({
                                 ...prev2,
                                 [sample.id]: imageUrl
                             }));
@@ -796,6 +827,30 @@ export const SampleViewer = ({
         }).filter(Boolean);
     }, [selectedSamples, imageSizes, sampleOffsets, hiresImages]);
 
+    // Generate cell boundary image layers
+    const generateCellBoundaryLayers = useCallback(() => {
+        return selectedSamples.map(sample => {
+            const imageSize = imageSizes[sample.id];
+            const offset = sampleOffsets[sample.id] || [0, 0];
+            const cellBoundaryImage = cellBoundaryImages[sample.id];
+
+            if (!imageSize || !cellBoundaryImage) return null;
+
+            return new BitmapLayer({
+                id: `cell-boundary-${sample.id}`,
+                image: cellBoundaryImage,
+                bounds: [
+                    offset[0],
+                    offset[1] + imageSize[1],
+                    offset[0] + imageSize[0],
+                    offset[1]
+                ],
+                opacity: 0.6,
+                parameters: { depthTest: false }
+            });
+        }).filter(Boolean);
+    }, [selectedSamples, imageSizes, sampleOffsets, cellBoundaryImages]);
+
     // Generate cell scatter layers
     const generateCellLayers = useCallback(() => {
         return selectedSamples.map(sample => {
@@ -1020,9 +1075,10 @@ export const SampleViewer = ({
     // Combine all layers
     const layers = useMemo(() => [
         ...generateImageLayers(),
+        ...generateCellBoundaryLayers(),
         ...generateCellLayers(),
         ...generateCustomAreaLayers()
-    ], [generateImageLayers, generateCellLayers, generateCustomAreaLayers]);
+    ], [generateImageLayers, generateCellBoundaryLayers, generateCellLayers, generateCustomAreaLayers]);
 
     // Set container size
     useEffect(() => {
@@ -1154,14 +1210,17 @@ export const SampleViewer = ({
         }
     }, [magnifierVisible, isDrawing, mainViewState, selectedSamples, sampleOffsets, imageSizes, updateMagnifierViewport]);
 
-    // Cleanup effect for magnifier
+    // Cleanup effect for magnifier and images
     useEffect(() => {
         return () => {
             Object.values(hiresImages).forEach(url => {
                 try { URL.revokeObjectURL(url); } catch (e) { }
             });
+            Object.values(cellBoundaryImages).forEach(url => {
+                try { URL.revokeObjectURL(url); } catch (e) { }
+            });
         };
-    }, [hiresImages]);
+    }, [hiresImages, cellBoundaryImages]);
 
     // In handleMouseMove, update magnifier logic to use hiresImages
     useEffect(() => {

@@ -150,6 +150,83 @@ def get_hires_image_route():
     )
 
 
+@app.route("/api/get_cell_boundary_image", methods=["POST"])
+def get_cell_boundary_image_route():
+    """
+    Return the cell boundary image for the given sample_id as PNG.
+    If the cell boundary image doesn't exist, create a placeholder transparent image.
+    """
+    sample_id = request.json["sample_id"]
+
+    if sample_id not in SAMPLES:
+        return jsonify({"error": f"Sample {sample_id} not found"}), 404
+    
+    cell_boundary_path = SAMPLES[sample_id]["cell_boundary_path"]
+    
+    # Check if the file exists
+    if os.path.exists(cell_boundary_path):
+        return send_file(
+            cell_boundary_path,
+            mimetype='image/png',
+            as_attachment=False
+        )
+    else:
+        # Create a placeholder transparent PNG
+        # Get the size from the corresponding tissue image to match dimensions
+        try:
+            tissue_image_path = SAMPLES[sample_id]["image_jpeg_path"]
+            if os.path.exists(tissue_image_path):
+                with PIL.Image.open(tissue_image_path) as img:
+                    width, height = img.size
+            else:
+                # Default size if tissue image doesn't exist
+                width, height = 1000, 1000
+            
+            # Create a transparent image with some placeholder cell boundaries
+            placeholder_img = PIL.Image.new('RGBA', (width, height), (0, 0, 0, 0))
+            
+            # Draw some simple placeholder cell boundaries for testing
+            from PIL import ImageDraw
+            import random
+            
+            draw = ImageDraw.Draw(placeholder_img)
+            
+            # Create a grid of hexagonal-like cell boundaries
+            cell_size = 80  # Approximate cell size
+            for y in range(0, height, cell_size):
+                for x in range(0, width, cell_size):
+                    # Add some randomness to make it look more natural
+                    offset_x = random.randint(-10, 10)
+                    offset_y = random.randint(-10, 10)
+                    center_x = x + cell_size // 2 + offset_x
+                    center_y = y + cell_size // 2 + offset_y
+                    
+                    # Draw a rough circular cell boundary
+                    radius = cell_size // 2 + random.randint(-15, 15)
+                    left = center_x - radius
+                    top = center_y - radius
+                    right = center_x + radius
+                    bottom = center_y + radius
+                    
+                    # Only draw if within image bounds
+                    if left >= 0 and top >= 0 and right < width and bottom < height:
+                        # Draw cell boundary in semi-transparent cyan
+                        draw.ellipse([left, top, right, bottom], 
+                                   outline=(0, 255, 255, 120), width=2)
+            
+            img_io = io.BytesIO()
+            placeholder_img.save(img_io, 'PNG')
+            img_io.seek(0)
+            
+            return send_file(
+                img_io,
+                mimetype='image/png',
+                as_attachment=False
+            )
+        except Exception as e:
+            return jsonify({"error": f"Could not create placeholder image: {str(e)}"}), 500
+
+
 @app.route("/api/upload_spaceranger", methods=["POST"])
 def upload_spaceranger():
     """
