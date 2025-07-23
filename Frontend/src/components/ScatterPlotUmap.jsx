@@ -62,6 +62,33 @@ export const ScatterplotUmap = ({
       .append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
+    // Group data by cluster and compute hulls
+    const clusterGroups = d3.group(data, clusterAccessor);
+    clusterGroups.forEach((points, cluster) => {
+      if (points.length < 3) return;
+
+      const coords = points.map(d => [xScale(xAccessor(d)), yScale(yAccessor(d))]);
+
+      const hull = d3.polygonHull(coords);
+      
+      if (hull && hull.length >= 3) {
+        // Create path for the hull with smoother curves
+        const line = d3.line()
+          .curve(d3.curveCardinalClosed.tension(0))
+          .x(d => d[0])
+          .y(d => d[1]);
+        
+        g.append("path")
+          .datum(hull)
+          .attr("d", line)
+          .attr("fill", color(cluster))
+          .attr("fill-opacity", 0.2)
+          .attr("stroke", color(cluster))
+          .attr("stroke-width", 2.5)
+          .attr("stroke-opacity", 0.6);
+      }
+    });
+
     // Points
     g.selectAll("circle")
       .data(data)
@@ -71,7 +98,7 @@ export const ScatterplotUmap = ({
       .attr("cy", (d) => yScale(yAccessor(d)))
       .attr("r", pointSize)
       .attr("fill", (d) => color(clusterAccessor(d)))
-      .attr("opacity", 0.8);
+      .attr("opacity", 0.15);
 
     // Axes
     g.append("g")
