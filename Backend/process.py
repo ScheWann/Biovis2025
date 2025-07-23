@@ -10,8 +10,8 @@ import gseapy as gp
 from scipy.sparse import issparse
 from sklearn.decomposition import NMF
 
-# Increase PIL image size limit to handle large TIFF files
-Image.MAX_IMAGE_PIXELS = None  # Disable the limit entirely
+# Disable the PIL image limit entirely
+Image.MAX_IMAGE_PIXELS = None
 
 
 JSON_PATH = "./samples_list.json"
