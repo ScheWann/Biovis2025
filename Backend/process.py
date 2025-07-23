@@ -272,17 +272,6 @@ def get_selected_region_data(sample_id, cell_ids):
 def get_umap_data(sample_id, n_neighbors=15, min_dist=0.1, n_components=2, n_clusters=5, random_state=42):
     """
     Generate UMAP data from gene expression data.
-    
-    Args:
-        sample_id: Sample identifier
-        n_neighbors: Number of neighbors for UMAP
-        min_dist: Minimum distance for UMAP
-        n_components: Number of UMAP components (default 2 for 2D plot)
-        n_clusters: Number of clusters for clustering
-        random_state: Random state for reproducibility
-    
-    Returns:
-        List of dictionaries with structure [{id, x, y, cluster}]
     """
     if sample_id not in SAMPLES:
         raise ValueError(f"Sample {sample_id} not found")
@@ -348,3 +337,81 @@ def get_umap_data(sample_id, n_neighbors=15, min_dist=0.1, n_components=2, n_clu
         })
     
     return results
+
+
+def perform_go_analysis(sample_id, cell_ids, top_n=5):
+    """
+    Perform GO analysis on the selected cluster cells and return top GO terms.
+    """
+    if sample_id not in SAMPLES:
+        raise ValueError(f"Sample {sample_id} not found")
+    
+    try:
+        gene_expression_path = SAMPLES[sample_id]["gene_expression_path"]
+        df = pd.read_parquet(gene_expression_path)
+
+        cluster_df = df[df['id'].isin(cell_ids)]
+        
+        if cluster_df.empty:
+            return []
+        
+        # Calculate mean expression for each gene in the cluster
+        gene_cols = [col for col in cluster_df.columns if col != 'id']
+        mean_expression = cluster_df[gene_cols].mean()
+        
+        # Filter for significantly expressed genes (above threshold)
+        expression_threshold = mean_expression.quantile(0.7)  # Top 30% of genes
+        significant_genes = mean_expression[mean_expression > expression_threshold].index.tolist()
+        
+        if len(significant_genes) < 5:
+            # If too few genes, use top 20 expressed genes
+            significant_genes = mean_expression.nlargest(20).index.tolist()
+        
+        # Perform GO enrichment analysis using gseapy
+        try:
+            enr = gp.enrichr(
+                gene_list=significant_genes,
+                gene_sets=['GO_Biological_Process_2023'],
+                organism='human',
+                description='cluster_go_analysis',
+                cutoff=0.05,
+                no_plot=True
+            )
+
+            results = enr.results
+            
+            if results.empty:
+                # If no significant results, try with less stringent criteria
+                enr = gp.enrichr(
+                    gene_list=significant_genes,
+                    gene_sets=['GO_Biological_Process_2023'],
+                    organism='human',
+                    description='cluster_go_analysis',
+                    cutoff=0.5,
+                    no_plot=True
+                )
+                results = enr.results
+            
+            # Format and return top results
+            go_results = []
+            for i, (_, row) in enumerate(results.head(top_n).iterrows()):
+                go_results.append({
+                    'rank': i + 1,
+                    'term': row['Term'],
+                    'description': row['Term'].split('(')[0].strip(),
+                    'p_value': float(row['P-value']),
+                    'adjusted_p_value': float(row['Adjusted P-value']),
+                    'odds_ratio': float(row['Odds Ratio']) if 'Odds Ratio' in row else 0,
+                    'combined_score': float(row['Combined Score']) if 'Combined Score' in row else 0,
+                    'genes': row['Genes'].split(';') if 'Genes' in row else []
+                })
+            
+            return go_results
+            
+        except Exception as e:
+            print(f"GO analysis error: {e}")
+            return []
+    
+    except Exception as e:
+        print(f"Error in GO analysis: {e}")
+        return []

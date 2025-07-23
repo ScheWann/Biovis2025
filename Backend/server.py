@@ -13,6 +13,7 @@ from process import (
     get_kosara_data,
     get_selected_region_data,
     get_umap_data,
+    perform_go_analysis,
 )
 
 
@@ -103,6 +104,24 @@ def get_umap_data_route():
             random_state=random_state,
         )
         return jsonify(umap_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/get_go_analysis", methods=["POST"])
+def get_go_analysis_route():
+    """
+    Perform GO analysis on selected cluster cells
+    """
+    sample_id = request.json["sample_id"]
+    cell_ids = request.json["cell_ids"]
+
+    try:
+        go_results = perform_go_analysis(
+            sample_id=sample_id,
+            cell_ids=cell_ids,
+        )
+        return jsonify(go_results)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
