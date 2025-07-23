@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
-import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Spin } from "antd";
+import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete } from "antd";
 import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
@@ -10,6 +10,8 @@ import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl
 export const SampleViewer = ({
     selectedSamples,
     coordinatesData,
+    setUmapData,
+    setUmapLoading,
 }) => {
     const containerRef = useRef(null);
     const [mainViewState, setMainViewState] = useState(null);
@@ -315,16 +317,16 @@ export const SampleViewer = ({
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sample_id: sample.id })
                 })
-                .then(response => response.ok ? response.blob() : null)
-                .then(blob => {
-                    if (blob && isMounted) {
-                        const imageUrl = URL.createObjectURL(blob);
-                        setHiresImages(prev2 => ({
-                            ...prev2,
-                            [sample.id]: imageUrl
-                        }));
-                    }
-                });
+                    .then(response => response.ok ? response.blob() : null)
+                    .then(blob => {
+                        if (blob && isMounted) {
+                            const imageUrl = URL.createObjectURL(blob);
+                            setHiresImages(prev2 => ({
+                                ...prev2,
+                                [sample.id]: imageUrl
+                            }));
+                        }
+                    });
                 return prev;
             });
         });
@@ -337,7 +339,7 @@ export const SampleViewer = ({
 
         const offset = sampleOffsets[sampleId] || [0, 0];
         const imageSize = imageSizes[sampleId];
-        
+
         if (!imageSize) return;
 
         // Convert world coordinates to image coordinates
@@ -687,14 +689,14 @@ export const SampleViewer = ({
             }
         } else {
             setMousePosition(null);
-            
+
             // Handle magnifier when key is pressed
             if (info.coordinate && magnifierVisible && !isAreaTooltipVisible && !isAreaEditPopupVisible) {
                 const [worldX, worldY] = info.coordinate;
-                
+
                 // Determine which sample the mouse is over
                 const hoveredSample = getSampleAtCoordinate(worldX, worldY);
-                
+
                 if (hoveredSample) {
                     // Update magnifier viewport and mouse position
                     updateMagnifierViewport(worldX, worldY, hoveredSample);
@@ -741,6 +743,34 @@ export const SampleViewer = ({
             setMainViewState(viewState);
         }
     }, []);
+
+    const generateUmap = () => {
+        if (!selectedAreaForEdit) return;
+        
+        setUmapLoading(true);
+        
+        fetch('/api/get_umap_data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                sample_id: selectedAreaForEdit.sampleId,
+                area_coordinates: selectedAreaForEdit.points,
+                neighbors: editNeighbors,
+                n_pcas: editNPcas,
+                resolution: editResolution
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            console.log('UMAP data received:', data);
+            setUmapData(data);
+            setUmapLoading(false);
+        })
+        .catch(error => {
+            console.error('Error generating UMAP:', error);
+            setUmapLoading(false);
+        });
+    }
 
     // Generate tissue image layers
     const generateImageLayers = useCallback(() => {
@@ -1070,7 +1100,7 @@ export const SampleViewer = ({
 
             // Handle drawing keys
             handleKeyPress(event);
-            
+
             // Handle magnifier keys
             if ((event.code === 'Space') && !keyPressed && !isDrawing) {
                 console.log('Global magnifier key down:', event.code, 'keyPressed:', keyPressed, 'isDrawing:', isDrawing);
@@ -1098,7 +1128,7 @@ export const SampleViewer = ({
 
         document.addEventListener('keydown', handleKeyDown, true); // Use capture phase
         document.addEventListener('keyup', handleKeyUp, true); // Use capture phase
-        
+
         return () => {
             document.removeEventListener('keydown', handleKeyDown, true);
             document.removeEventListener('keyup', handleKeyUp, true);
@@ -1112,11 +1142,11 @@ export const SampleViewer = ({
             const firstSample = selectedSamples[0];
             const offset = sampleOffsets[firstSample.id] ?? [0, 0];
             const size = imageSizes[firstSample.id] ?? [0, 0];
-            
+
             if (size[0] > 0 && size[1] > 0) {
                 const centerX = offset[0] + size[0] / 2;
                 const centerY = offset[1] + size[1] / 2;
-                
+
                 // Update magnifier position
                 updateMagnifierViewport(centerX, centerY, firstSample.id);
             }
@@ -1127,7 +1157,7 @@ export const SampleViewer = ({
     useEffect(() => {
         return () => {
             Object.values(hiresImages).forEach(url => {
-                try { URL.revokeObjectURL(url); } catch (e) {}
+                try { URL.revokeObjectURL(url); } catch (e) { }
             });
         };
     }, [hiresImages]);
@@ -1449,9 +1479,9 @@ export const SampleViewer = ({
                         onClick={handleMinimapClick}
                     >
                         {/* Minimap background - composite view for multiple samples */}
-                        <div style={{ 
-                            width: '100%', 
-                            height: '100%', 
+                        <div style={{
+                            width: '100%',
+                            height: '100%',
                             position: 'relative',
                             backgroundColor: '#f0f0f0'
                         }}>
@@ -1482,7 +1512,7 @@ export const SampleViewer = ({
                                 return selectedSamples.map(sample => {
                                     const imageSize = imageSizes[sample.id];
                                     const offset = sampleOffsets[sample.id] || [0, 0];
-                                    
+
                                     if (!imageSize) return null;
 
                                     // Calculate relative position and size within the total bounds
@@ -1869,7 +1899,7 @@ export const SampleViewer = ({
                             </div>
 
                             {/* Resolution Input */}
-                            <div style={{ marginBottom: 8 }}>
+                            <div style={{ marginBottom: 5 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <label style={{
                                         fontSize: 12,
@@ -1903,6 +1933,15 @@ export const SampleViewer = ({
                             </div>
 
                             {/* Action Buttons */}
+                            <Button 
+                                size="small" 
+                                style={{ marginBottom: 5, width: '100%' }} 
+                                color="pink" 
+                                variant="outlined"
+                                onClick={generateUmap}
+                            >
+                                Generate UMAP
+                            </Button>
                             <div style={{ display: 'flex', gap: 5, justifyContent: 'space-between' }}>
                                 <Button
                                     size="small"

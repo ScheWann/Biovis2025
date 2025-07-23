@@ -40,6 +40,9 @@ function App() {
   const [sampleDataLoading, setSampleDataLoading] = useState(false); // Sample Data Loading
   const [uploadFormVisible, setUploadFormVisible] = useState(false); // Upload form visibility
 
+  const [umapData, setUmapData] = useState([]);
+  const [umapLoading, setUmapLoading] = useState(false);
+
   useEffect(() => {
     fetchSamplesOption();
   }, []);
@@ -255,6 +258,8 @@ function App() {
                   <SampleViewer
                     selectedSamples={selectedSamples}
                     coordinatesData={coordinatesData}
+                    setUmapData={setUmapData}
+                    setUmapLoading={setUmapLoading}
                   />
                 </Splitter.Panel>
                 <Splitter.Panel defaultSize="30%" min="20%" max="50%">
@@ -275,8 +280,10 @@ function App() {
                       max="45%"
                       style={{ borderBottom: "1px solid #e8e8e8" }}
                     >
-                      UMAP
-                      <UmapComponent />
+                      <UmapComponent 
+                        umapData={umapData}
+                        umapLoading={umapLoading}
+                      />
                     </Splitter.Panel>
                     <Splitter.Panel defaultSize="33%" min="20%" max="45%">
                       Glyphs

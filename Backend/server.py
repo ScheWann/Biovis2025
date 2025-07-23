@@ -12,6 +12,7 @@ from process import (
     get_gene_list,
     get_kosara_data,
     get_selected_region_data,
+    get_umap_data,
 )
 
 
@@ -76,6 +77,34 @@ def get_selected_region_data_route():
     sample_id = request.json["sample_id"]
     cell_list = request.json["cell_list"]
     return jsonify(get_selected_region_data(sample_id, cell_list))
+
+
+@app.route("/api/get_umap_data", methods=["POST"])
+def get_umap_data_route():
+    """
+    Generate UMAP data from gene expression data
+    """
+    sample_id = request.json["sample_id"]
+    
+    # Optional parameters with defaults
+    n_neighbors = request.json.get("n_neighbors", 15)
+    min_dist = request.json.get("min_dist", 0.1)
+    n_components = request.json.get("n_components", 2)
+    n_clusters = request.json.get("n_clusters", 5)
+    random_state = request.json.get("random_state", 42)
+    
+    try:
+        umap_data = get_umap_data(
+            sample_id=sample_id,
+            n_neighbors=n_neighbors,
+            min_dist=min_dist,
+            n_components=n_components,
+            n_clusters=n_clusters,
+            random_state=random_state
+        )
+        return jsonify(umap_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/get_gene_name_search", methods=["POST"])

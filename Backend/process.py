@@ -9,6 +9,8 @@ from PIL import Image
 import gseapy as gp
 from scipy.sparse import issparse
 from sklearn.decomposition import NMF
+from sklearn.cluster import KMeans
+import umap
 
 # Disable the PIL image limit entirely
 Image.MAX_IMAGE_PIXELS = None
@@ -265,3 +267,84 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
 # get selected region's gene expression data
 def get_selected_region_data(sample_id, cell_ids):
     return "not finished yet"
+
+
+def get_umap_data(sample_id, n_neighbors=15, min_dist=0.1, n_components=2, n_clusters=5, random_state=42):
+    """
+    Generate UMAP data from gene expression data.
+    
+    Args:
+        sample_id: Sample identifier
+        n_neighbors: Number of neighbors for UMAP
+        min_dist: Minimum distance for UMAP
+        n_components: Number of UMAP components (default 2 for 2D plot)
+        n_clusters: Number of clusters for clustering
+        random_state: Random state for reproducibility
+    
+    Returns:
+        List of dictionaries with structure [{id, x, y, cluster}]
+    """
+    if sample_id not in SAMPLES:
+        raise ValueError(f"Sample {sample_id} not found")
+    
+    # Load gene expression data
+    gene_expression_path = SAMPLES[sample_id]["gene_expression_path"]
+    df = pd.read_parquet(gene_expression_path)
+    
+    # Separate ID column from gene expression data
+    cell_ids = df['id'].values
+    gene_data = df.drop('id', axis=1).values
+    
+    # Filter out cells/genes with all zeros to improve UMAP performance
+    # Remove cells with no expression
+    cell_mask = gene_data.sum(axis=1) > 0
+    gene_data_filtered = gene_data[cell_mask]
+    cell_ids_filtered = cell_ids[cell_mask]
+    
+    # Remove genes with no expression across all cells
+    gene_mask = gene_data_filtered.sum(axis=0) > 0
+    gene_data_filtered = gene_data_filtered[:, gene_mask]
+    
+    if gene_data_filtered.shape[0] == 0:
+        return []
+    
+    # Apply log transformation for better UMAP results
+    # Add small constant to avoid log(0)
+    gene_data_log = np.log1p(gene_data_filtered)
+    
+    # Add small random noise to help with spectral initialization
+    noise_factor = 1e-6
+    gene_data_log += np.random.normal(0, noise_factor, gene_data_log.shape)
+    
+    # Adjust n_neighbors if we have fewer cells than requested
+    actual_n_neighbors = min(n_neighbors, gene_data_filtered.shape[0] - 1)
+    
+    # Perform UMAP dimensionality reduction
+    reducer = umap.UMAP(
+        n_neighbors=actual_n_neighbors,
+        min_dist=min_dist,
+        n_components=n_components,
+        random_state=random_state,
+        init='random'  # Use random initialization to avoid spectral warnings
+    )
+    
+    embedding = reducer.fit_transform(gene_data_log)
+    
+    # Adjust n_clusters if we have fewer cells than requested clusters
+    actual_n_clusters = min(n_clusters, gene_data_filtered.shape[0])
+    
+    # Perform clustering on the UMAP embedding
+    kmeans = KMeans(n_clusters=actual_n_clusters, random_state=random_state, n_init=10)
+    cluster_labels = kmeans.fit_predict(embedding)
+    
+    # Format results according to UMAP component structure
+    results = []
+    for i in range(len(cell_ids_filtered)):
+        results.append({
+            'id': cell_ids_filtered[i],
+            'x': float(embedding[i, 0]),
+            'y': float(embedding[i, 1]),
+            'cluster': f'Cluster {cluster_labels[i] + 1}'
+        })
+    
+    return results
