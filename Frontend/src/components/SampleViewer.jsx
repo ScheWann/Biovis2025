@@ -193,12 +193,6 @@ export const SampleViewer = ({
     const getMinimapViewportBounds = useCallback(() => {
         if (!mainViewState || !containerSize.width || !selectedSamples.length) return null;
 
-        const firstSample = selectedSamples[0];
-        const imageSize = imageSizes[firstSample.id];
-        const offset = sampleOffsets[firstSample.id] || [0, 0];
-
-        if (!imageSize) return null;
-
         // Calculate the world bounds of the current viewport
         const scale = Math.pow(2, mainViewState.zoom);
         const halfWidth = containerSize.width / (2 * scale);
@@ -211,12 +205,34 @@ export const SampleViewer = ({
             bottom: mainViewState.target[1] + halfHeight
         };
 
-        // Convert to relative coordinates within the first sample's image
+        // Calculate total world bounds for all samples
+        let totalLeft = Infinity;
+        let totalRight = -Infinity;
+        let totalTop = Infinity;
+        let totalBottom = -Infinity;
+
+        selectedSamples.forEach(sample => {
+            const imageSize = imageSizes[sample.id];
+            const offset = sampleOffsets[sample.id] || [0, 0];
+            if (imageSize) {
+                totalLeft = Math.min(totalLeft, offset[0]);
+                totalRight = Math.max(totalRight, offset[0] + imageSize[0]);
+                totalTop = Math.min(totalTop, offset[1]);
+                totalBottom = Math.max(totalBottom, offset[1] + imageSize[1]);
+            }
+        });
+
+        if (totalLeft === Infinity) return null;
+
+        const totalWidth = totalRight - totalLeft;
+        const totalHeight = totalBottom - totalTop;
+
+        // Convert to relative coordinates within the total combined area
         const relativeBounds = {
-            left: Math.max(0, (viewportBounds.left - offset[0]) / imageSize[0]),
-            right: Math.min(1, (viewportBounds.right - offset[0]) / imageSize[0]),
-            top: Math.max(0, (viewportBounds.top - offset[1]) / imageSize[1]),
-            bottom: Math.min(1, (viewportBounds.bottom - offset[1]) / imageSize[1])
+            left: Math.max(0, (viewportBounds.left - totalLeft) / totalWidth),
+            right: Math.min(1, (viewportBounds.right - totalLeft) / totalWidth),
+            top: Math.max(0, (viewportBounds.top - totalTop) / totalHeight),
+            bottom: Math.min(1, (viewportBounds.bottom - totalTop) / totalHeight)
         };
 
         return relativeBounds;
@@ -226,19 +242,35 @@ export const SampleViewer = ({
     const handleMinimapClick = useCallback((event) => {
         if (!minimapRef.current || !selectedSamples.length) return;
 
-        const firstSample = selectedSamples[0];
-        const imageSize = imageSizes[firstSample.id];
-        const offset = sampleOffsets[firstSample.id] || [0, 0];
+        // Calculate total world bounds for all samples
+        let totalLeft = Infinity;
+        let totalRight = -Infinity;
+        let totalTop = Infinity;
+        let totalBottom = -Infinity;
 
-        if (!imageSize) return;
+        selectedSamples.forEach(sample => {
+            const imageSize = imageSizes[sample.id];
+            const offset = sampleOffsets[sample.id] || [0, 0];
+            if (imageSize) {
+                totalLeft = Math.min(totalLeft, offset[0]);
+                totalRight = Math.max(totalRight, offset[0] + imageSize[0]);
+                totalTop = Math.min(totalTop, offset[1]);
+                totalBottom = Math.max(totalBottom, offset[1] + imageSize[1]);
+            }
+        });
+
+        if (totalLeft === Infinity) return;
+
+        const totalWidth = totalRight - totalLeft;
+        const totalHeight = totalBottom - totalTop;
 
         const rect = minimapRef.current.getBoundingClientRect();
         const x = (event.clientX - rect.left) / rect.width;
         const y = (event.clientY - rect.top) / rect.height;
 
         // Convert relative coordinates to world coordinates
-        const worldX = offset[0] + x * imageSize[0];
-        const worldY = offset[1] + y * imageSize[1];
+        const worldX = totalLeft + x * totalWidth;
+        const worldY = totalTop + y * totalHeight;
 
         // Update main view to center on clicked position
         setMainViewState(prev => ({
@@ -1393,7 +1425,7 @@ export const SampleViewer = ({
                 )}
 
                 {/* Minimap */}
-                {(minimapVisible || minimapAnimating) && selectedSamples.length > 0 && imageSizes[selectedSamples[0]?.id] && (
+                {(minimapVisible || minimapAnimating) && selectedSamples.length > 0 && (
                     <div
                         style={{
                             position: 'absolute',
@@ -1416,18 +1448,69 @@ export const SampleViewer = ({
                         ref={minimapRef}
                         onClick={handleMinimapClick}
                     >
-                        {/* Minimap background image */}
-                        <img
-                            src={`/${selectedSamples[0].id}_full.jpg`}
-                            alt="Minimap"
-                            style={{
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover',
-                                display: 'block'
-                            }}
-                            draggable={false}
-                        />
+                        {/* Minimap background - composite view for multiple samples */}
+                        <div style={{ 
+                            width: '100%', 
+                            height: '100%', 
+                            position: 'relative',
+                            backgroundColor: '#f0f0f0'
+                        }}>
+                            {(() => {
+                                // Calculate total world bounds for positioning
+                                let totalLeft = Infinity;
+                                let totalRight = -Infinity;
+                                let totalTop = Infinity;
+                                let totalBottom = -Infinity;
+
+                                selectedSamples.forEach(sample => {
+                                    const imageSize = imageSizes[sample.id];
+                                    const offset = sampleOffsets[sample.id] || [0, 0];
+                                    if (imageSize) {
+                                        totalLeft = Math.min(totalLeft, offset[0]);
+                                        totalRight = Math.max(totalRight, offset[0] + imageSize[0]);
+                                        totalTop = Math.min(totalTop, offset[1]);
+                                        totalBottom = Math.max(totalBottom, offset[1] + imageSize[1]);
+                                    }
+                                });
+
+                                if (totalLeft === Infinity) return null;
+
+                                const totalWidth = totalRight - totalLeft;
+                                const totalHeight = totalBottom - totalTop;
+
+                                // Render each sample image positioned within the composite minimap
+                                return selectedSamples.map(sample => {
+                                    const imageSize = imageSizes[sample.id];
+                                    const offset = sampleOffsets[sample.id] || [0, 0];
+                                    
+                                    if (!imageSize) return null;
+
+                                    // Calculate relative position and size within the total bounds
+                                    const relativeLeft = ((offset[0] - totalLeft) / totalWidth) * 100;
+                                    const relativeTop = ((offset[1] - totalTop) / totalHeight) * 100;
+                                    const relativeWidth = (imageSize[0] / totalWidth) * 100;
+                                    const relativeHeight = (imageSize[1] / totalHeight) * 100;
+
+                                    return (
+                                        <img
+                                            key={sample.id}
+                                            src={`/${sample.id}_full.jpg`}
+                                            alt={`Minimap ${sample.name}`}
+                                            style={{
+                                                position: 'absolute',
+                                                left: `${relativeLeft}%`,
+                                                top: `${relativeTop}%`,
+                                                width: `${relativeWidth}%`,
+                                                height: `${relativeHeight}%`,
+                                                objectFit: 'cover',
+                                                display: 'block'
+                                            }}
+                                            draggable={false}
+                                        />
+                                    );
+                                });
+                            })()}
+                        </div>
 
                         {/* Viewport indicator */}
                         {(() => {
@@ -1546,7 +1629,6 @@ export const SampleViewer = ({
                                             src={imageUrl}
                                             alt="HD Magnifier"
                                             style={{
-                                                backgroundColor: 'green',
                                                 position: 'absolute',
                                                 width: imageSize[0] * 2, // 2x zoom
                                                 height: imageSize[1] * 2,
