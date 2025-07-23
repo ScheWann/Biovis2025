@@ -1,5 +1,5 @@
 import { ScatterplotUmap } from "./ScatterPlotUmap";
-import { Spin } from "antd";
+import { Spin, Empty } from "antd";
 
 function generateDummyData(numPoints = 100, numClusters = 5) {
   // Cluster centers
@@ -23,17 +23,22 @@ export const UmapComponent = ({ umapData, umapLoading }) => {
   // const data = generateDummyData(100, 3);
   return (
     <>
-      {umapLoading ? (
-        <Spin size="large" />
-      ) : (
-        <ScatterplotUmap
-          data={umapData}
-          xAccessor={(d) => d.x}
-          yAccessor={(d) => d.y}
-          clusterAccessor={(d) => d.cluster}
-          title="UMAP Scatter Plot"
-          pointSize={4}
-        />
+      {umapData.length === 0 ? (
+        <Empty description="No data" />
+      ) :
+      (
+        umapLoading ? (
+          <Spin size="large" />
+        ) : (
+          <ScatterplotUmap
+            data={umapData}
+            xAccessor={(d) => d.x}
+            yAccessor={(d) => d.y}
+            clusterAccessor={(d) => d.cluster}
+            title="UMAP Scatter Plot"
+            pointSize={4}
+          />
+        )
       )}
     </>
   );
