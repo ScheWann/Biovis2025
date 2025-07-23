@@ -67,25 +67,8 @@ def get_coordinates(sample_ids):
 
     for sample_id in sample_ids:
         if sample_id in SAMPLES:
-            cells_df = pd.read_csv(SAMPLES[sample_id]["cells_path"], index_col=0)
-            cells_df = cells_df.rename(columns={'geometry': 'cell_geometry'})
             nuclei_df = pd.read_csv(SAMPLES[sample_id]["nuclei_path"], index_col=0)
-            nuclei_df = nuclei_df.rename(columns={'geometry': 'nucleus_geometry'})
-            nuclei_geometry_df = nuclei_df[["id", "nucleus_geometry"]]
-            cell_nuclei_merged_df = cells_df.merge(
-                nuclei_geometry_df, on="id", how="left"
-            )
-            cell_nuclei_merged_df.drop(columns=["centroid"], inplace=True)
-
-            # filter out empty geometries
-            cell_nuclei_merged_df = cell_nuclei_merged_df[
-                cell_nuclei_merged_df["cell_geometry"].apply(
-                    lambda x: isinstance(x, str) and x.strip() != ""
-                )
-                & cell_nuclei_merged_df["nucleus_geometry"].apply(
-                    lambda x: isinstance(x, str) and x.strip() != ""
-                )
-            ].copy()
+            cell_nuclei_merged_df = nuclei_df[["id", "cell_x", "cell_y"]]
 
             cell_coordinate_result[sample_id] = cell_nuclei_merged_df.to_dict(
                 orient="records"
