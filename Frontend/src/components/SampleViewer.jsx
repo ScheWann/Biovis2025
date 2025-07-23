@@ -55,7 +55,7 @@ export const SampleViewer = ({
     const [magnifierData, setMagnifierData] = useState(null);
     const [magnifierViewport, setMagnifierViewport] = useState({ x: 0.5, y: 0.5, size: 200 });
     const [magnifierMousePos, setMagnifierMousePos] = useState({ x: 0, y: 0 });
-    const [magnifierLoading, setMagnifierLoading] = useState(false);
+    // const [magnifierLoading, setMagnifierLoading] = useState(false);
     const [keyPressed, setKeyPressed] = useState(false);
     const magnifierRef = useRef(null);
 
@@ -328,15 +328,15 @@ export const SampleViewer = ({
     }, [sampleOffsets, imageSizes]);
 
     // Hide magnifier and cleanup
-    const hideMagnifier = useCallback(() => {
-        if (magnifierData?.imageUrl) {
-            URL.revokeObjectURL(magnifierData.imageUrl);
-        }
-        setMagnifierVisible(false);
-        setMagnifierData(null);
-        setMagnifierLoading(false);
-        setKeyPressed(false);
-    }, [magnifierData]);
+    // const hideMagnifier = useCallback(() => {
+    //     if (magnifierData?.imageUrl) {
+    //         URL.revokeObjectURL(magnifierData.imageUrl);
+    //     }
+    //     setMagnifierVisible(false);
+    //     setMagnifierData(null);
+    //     setMagnifierLoading(false);
+    //     setKeyPressed(false);
+    // }, [magnifierData]);
 
     // Toggle drawing mode
     const toggleDrawingMode = () => {
@@ -1116,26 +1116,27 @@ export const SampleViewer = ({
     useEffect(() => {
         if (!magnifierVisible || isDrawing || isAreaTooltipVisible || isAreaEditPopupVisible) {
             setMagnifierData(null);
-            setMagnifierLoading(false);
+            // setMagnifierLoading(false);
             return;
         }
 
         if (!magnifierMousePos || !selectedSamples.length) {
             setMagnifierData(null);
-            setMagnifierLoading(false);
+            // setMagnifierLoading(false);
             return;
         }
 
         const { x: worldX, y: worldY } = magnifierMousePos;
         const hoveredSample = getSampleAtCoordinate(worldX, worldY);
         
+        console.log('Hovered sample:', hoveredSample, 'at position:', magnifierMousePos, imageSizes[hoveredSample]);
         if (hoveredSample && imageSizes[hoveredSample]) {
             // Set loading state if we don't have the image yet
             if (!hiresImages[hoveredSample]) {
-                setMagnifierLoading(true);
+                // setMagnifierLoading(true);
                 setMagnifierData(null);
             } else {
-                setMagnifierLoading(false);
+                // setMagnifierLoading(false);
                 setMagnifierData({
                     imageUrl: hiresImages[hoveredSample],
                     sampleId: hoveredSample,
@@ -1144,7 +1145,7 @@ export const SampleViewer = ({
             }
         } else {
             setMagnifierData(null);
-            setMagnifierLoading(false);
+            // setMagnifierLoading(false);
         }
     }, [magnifierVisible, magnifierMousePos, selectedSamples, hiresImages, imageSizes, isDrawing, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate]);
 
@@ -1555,27 +1556,30 @@ export const SampleViewer = ({
                         }}>
                             {(() => {
                                 // Show loading state
-                                if (magnifierLoading || !magnifierData || !magnifierData.imageUrl || !magnifierData.imageSize) {
+                                if (!magnifierData || !magnifierData.imageUrl || !magnifierData.imageSize) {
+                                    console.log('loading magnifier data:', magnifierData);
                                     return (
-                                        <div style={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            gap: 12
-                                        }}>
-                                            <Spin size="large" />
-                                            <div style={{ 
-                                                fontSize: '12px', 
-                                                color: '#666',
-                                                textAlign: 'center'
-                                            }}>
-                                                {magnifierLoading ? 'Loading high-resolution image...' : 'Move mouse over sample area'}
-                                            </div>
-                                        </div>
+                                        // <div style={{
+                                        //     display: 'flex',
+                                        //     flexDirection: 'column',
+                                        //     alignItems: 'center',
+                                        //     gap: 12
+                                        // }}>
+                                        //     <Spin size="large" />
+                                        //     <div style={{ 
+                                        //         fontSize: '12px', 
+                                        //         color: '#666',
+                                        //         textAlign: 'center'
+                                        //     }}>
+                                        //         {magnifierLoading ? 'Loading high-resolution image...' : 'Move mouse over sample area'}
+                                        //     </div>
+                                        // </div>
+                                        <Spin size="large" />
                                     );
                                 }
 
                                 const { imageUrl, imageSize } = magnifierData;
+                                console.log('magnifier data:', magnifierData);
                                 return (
                                     <>
                                         {/* Full HD Image */}
@@ -1583,6 +1587,7 @@ export const SampleViewer = ({
                                             src={imageUrl}
                                             alt="HD Magnifier"
                                             style={{
+                                                backgroundColor: 'green',
                                                 position: 'absolute',
                                                 width: imageSize[0] * 2, // 2x zoom
                                                 height: imageSize[1] * 2,
@@ -1592,7 +1597,7 @@ export const SampleViewer = ({
                                                 transition: 'left 0.1s ease-out, top 0.1s ease-out'
                                             }}
                                             draggable={false}
-                                            onLoad={() => setMagnifierLoading(false)}
+                                            onLoad={() => console.log("Magnifier image loaded.")}
                                             onError={() => setMagnifierLoading(false)}
                                         />
                                         {/* Crosshairs */}
