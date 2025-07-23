@@ -89,29 +89,27 @@ export const ScatterplotUmap = ({
       .attr("font-weight", 600)
       .text(title);
 
-    // Legend - compact version for small containers
-    if (clusters.length > 1 && clusters.length <= 5) {
-      const legend = g
-        .append("g")
-        .attr(
-          "transform",
-          `translate(${width - margin.right - 70}, ${margin.top - 20})`
-        );
-      clusters.forEach((cl, i) => {
-        legend
-          .append("circle")
-          .attr("cx", 0)
-          .attr("cy", i * 15)
-          .attr("r", 4)
-          .attr("fill", color(cl));
-        legend
-          .append("text")
-          .attr("x", 8)
-          .attr("y", i * 15 + 3)
-          .text(cl)
-          .attr("font-size", 9);
-      });
-    }
+    // Legend
+    const legend = g
+      .append("g")
+      .attr(
+        "transform",
+        `translate(${width - margin.right - 70}, ${margin.top - 20})`
+      );
+    clusters.forEach((cl, i) => {
+      legend
+        .append("circle")
+        .attr("cx", 0)
+        .attr("cy", i * 15)
+        .attr("r", 4)
+        .attr("fill", color(cl));
+      legend
+        .append("text")
+        .attr("x", 8)
+        .attr("y", i * 15 + 3)
+        .text(cl)
+        .attr("font-size", 9);
+    });
   }, [
     data,
     dimensions,
