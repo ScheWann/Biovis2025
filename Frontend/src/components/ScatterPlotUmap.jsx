@@ -11,6 +11,10 @@ export const ScatterplotUmap = ({
   yAccessor = (d) => d.y,
   title = "UMAP",
   margin = { top: 25, right: 10, bottom: 25, left: 25 },
+  hoveredCluster,
+  setHoveredCluster,
+  umapId,
+  sampleId,
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -78,14 +82,48 @@ export const ScatterplotUmap = ({
           .x(d => d[0])
           .y(d => d[1]);
         
-        g.append("path")
+        const hullPath = g.append("path")
           .datum(hull)
           .attr("d", line)
           .attr("fill", color(cluster))
-          .attr("fill-opacity", 0.2)
+          .attr("fill-opacity", hoveredCluster?.cluster === cluster ? 0.4 : 0.2)
           .attr("stroke", color(cluster))
-          .attr("stroke-width", 2.5)
-          .attr("stroke-opacity", 0.6);
+          .attr("stroke-width", hoveredCluster?.cluster === cluster ? 3.5 : 2.5)
+          .attr("stroke-opacity", hoveredCluster?.cluster === cluster ? 0.8 : 0.6)
+          .style("cursor", "pointer")
+          .on("mouseenter", function() {
+            // Highlight this cluster
+            d3.select(this)
+              .attr("fill-opacity", 0.4)
+              .attr("stroke-width", 3.5)
+              .attr("stroke-opacity", 0.8);
+            
+            // Get cell IDs for this cluster
+            const cellIds = points.map(d => d.id || d.cell_id).filter(Boolean);
+            
+            if (setHoveredCluster) {
+              setHoveredCluster({
+                cluster: cluster,
+                cellIds: cellIds,
+                points: points,
+                umapId: umapId,
+                sampleId: sampleId
+              });
+            }
+          })
+          .on("mouseleave", function() {
+            // Reset to normal state only if this cluster is not the currently hovered one
+            if (!hoveredCluster || hoveredCluster.cluster !== cluster) {
+              d3.select(this)
+                .attr("fill-opacity", 0.2)
+                .attr("stroke-width", 2.5)
+                .attr("stroke-opacity", 0.6);
+            }
+            
+            if (setHoveredCluster) {
+              setHoveredCluster(null);
+            }
+          });
       }
     });
 
@@ -98,7 +136,40 @@ export const ScatterplotUmap = ({
       .attr("cy", (d) => yScale(yAccessor(d)))
       .attr("r", pointSize)
       .attr("fill", (d) => color(clusterAccessor(d)))
-      .attr("opacity", 0.15);
+      .attr("opacity", (d) => {
+        if (!hoveredCluster) return 0.5;
+        return hoveredCluster.cluster === clusterAccessor(d) ? 0.8 : 0.05;
+      })
+      .attr("stroke", (d) => {
+        if (!hoveredCluster) return "none";
+        return hoveredCluster.cluster === clusterAccessor(d) ? "#fff" : "none";
+      })
+      .attr("stroke-width", (d) => {
+        if (!hoveredCluster) return 0;
+        return hoveredCluster.cluster === clusterAccessor(d) ? 1 : 0;
+      })
+      .style("cursor", "pointer")
+      .on("mouseenter", (event, d) => {
+        // Highlight points of the same cluster
+        const cluster = clusterAccessor(d);
+        const clusterPoints = data.filter(point => clusterAccessor(point) === cluster);
+        const cellIds = clusterPoints.map(p => p.id || p.cell_id).filter(Boolean);
+        
+        if (setHoveredCluster) {
+          setHoveredCluster({
+            cluster: cluster,
+            cellIds: cellIds,
+            points: clusterPoints,
+            umapId: umapId,
+            sampleId: sampleId
+          });
+        }
+      })
+      .on("mouseleave", () => {
+        if (setHoveredCluster) {
+          setHoveredCluster(null);
+        }
+      });
 
     // Axes
     g.append("g")
@@ -129,13 +200,15 @@ export const ScatterplotUmap = ({
         .attr("cx", 0)
         .attr("cy", i * 15)
         .attr("r", 4)
-        .attr("fill", color(cl));
+        .attr("fill", color(cl))
+        .attr("opacity", (!hoveredCluster || hoveredCluster.cluster === cl) ? 1 : 0.3);
       legend
         .append("text")
         .attr("x", 8)
         .attr("y", i * 15 + 3)
         .text(cl)
-        .attr("font-size", 9);
+        .attr("font-size", 9)
+        .attr("opacity", (!hoveredCluster || hoveredCluster.cluster === cl) ? 1 : 0.3);
     });
   }, [
     data,
@@ -146,6 +219,8 @@ export const ScatterplotUmap = ({
     yAccessor,
     title,
     margin,
+    hoveredCluster,
+    setHoveredCluster,
   ]);
 
   return (

@@ -33,6 +33,7 @@ function App() {
   // UMAP data state
   const [umapDataSets, setUmapDataSets] = useState([]); // Array of {id, title, data, loading}
   const [umapLoading, setUmapLoading] = useState(false);
+  const [hoveredCluster, setHoveredCluster] = useState(null); // {cluster: string, umapId: string, cellIds: array}
 
   useEffect(() => {
     fetchSamplesOption();
@@ -252,6 +253,8 @@ function App() {
                     setUmapDataSets={setUmapDataSets}
                     umapLoading={umapLoading}
                     setUmapLoading={setUmapLoading}
+                    hoveredCluster={hoveredCluster}
+                    setHoveredCluster={setHoveredCluster}
                   />
                 </Splitter.Panel>
                 <Splitter.Panel defaultSize="30%" min="20%" max="50%">
@@ -345,6 +348,10 @@ function App() {
                                     umapData={dataset.data}
                                     umapLoading={dataset.loading}
                                     title={dataset.title}
+                                    hoveredCluster={hoveredCluster}
+                                    setHoveredCluster={setHoveredCluster}
+                                    umapId={dataset.id}
+                                    sampleId={dataset.sampleId}
                                   />
                                 </div>
                               );

@@ -13,6 +13,8 @@ export const SampleViewer = ({
     setUmapDataSets,
     umapLoading,
     setUmapLoading,
+    hoveredCluster,
+    setHoveredCluster,
 }) => {
     const containerRef = useRef(null);
     const [mainViewState, setMainViewState] = useState(null);
@@ -790,7 +792,9 @@ export const SampleViewer = ({
                 id: umapId,
                 title: umapTitle,
                 data: [],
-                loading: true
+                loading: true,
+                sampleId: selectedAreaForEdit.sampleId,
+                areaPoints: selectedAreaForEdit.points
             }
         ]);
         
@@ -801,19 +805,38 @@ export const SampleViewer = ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 sample_id: selectedAreaForEdit.sampleId,
-                area_coordinates: selectedAreaForEdit.points,
-                neighbors: editNeighbors,
-                n_pcas: editNPcas,
-                resolution: editResolution
+                n_neighbors: editNeighbors,
+                n_clusters: 5,
+                min_dist: 0.1,
+                n_components: 2,
+                random_state: 42
             })
         })
         .then(res => res.json())
         .then(data => {
-            // Update the specific dataset with the received data
+            // Get cells that are within the selected area
+            const sampleCells = coordinatesData[selectedAreaForEdit.sampleId] || [];
+            const offset = sampleOffsets[selectedAreaForEdit.sampleId] || [0, 0];
+            
+            // Filter cells that are within the drawn polygon
+            const cellsInArea = sampleCells.filter(cell => {
+                const localX = cell.cell_x;
+                const localY = cell.cell_y;
+                
+                // Simple point-in-polygon check
+                return isPointInPolygon([localX, localY], selectedAreaForEdit.points.map(p => [p[0] - offset[0], p[1] - offset[1]]));
+            });
+            
+            const cellIdsInArea = new Set(cellsInArea.map(cell => cell.id));
+            
+            // Filter UMAP data to only include cells from the selected area
+            const filteredUmapData = data.filter(umapPoint => cellIdsInArea.has(umapPoint.id));
+            
+            // Update the specific dataset with the filtered data
             setUmapDataSets(prev => 
                 prev.map(dataset => 
                     dataset.id === umapId 
-                        ? { ...dataset, data: data, loading: false }
+                        ? { ...dataset, data: filteredUmapData, loading: false }
                         : dataset
                 )
             );
@@ -827,6 +850,23 @@ export const SampleViewer = ({
             setUmapLoading(false);
         });
     }
+
+    // Helper function for point-in-polygon check
+    const isPointInPolygon = (point, polygon) => {
+        const [x, y] = point;
+        let inside = false;
+        
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const [xi, yi] = polygon[i];
+            const [xj, yj] = polygon[j];
+            
+            if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+                inside = !inside;
+            }
+        }
+        
+        return inside;
+    };
 
     // Generate tissue image layers
     const generateImageLayers = useCallback(() => {
@@ -892,18 +932,50 @@ export const SampleViewer = ({
                 id: `cells-${sample.id}`,
                 data: cellData,
                 getPosition: d => [d.x, d.y],
-                getRadius: dynamicRadius,
-                getFillColor: [0, 0, 0, 0],
-                getLineColor: [150, 150, 150, 255], // Outline color
-                getLineWidth: 1,
+                getRadius: d => {
+                    if (hoveredCluster && hoveredCluster.sampleId === sample.id && hoveredCluster.cellIds.includes(d.id)) {
+                        return dynamicRadius * 1.5;
+                    }
+                    return dynamicRadius;
+                },
+                getFillColor: d => {
+                    if (hoveredCluster && hoveredCluster.sampleId === sample.id && hoveredCluster.cellIds.includes(d.id)) {
+                        return [255, 215, 0, 200];
+                    }
+                    if (hoveredCluster && hoveredCluster.sampleId === sample.id) {
+                        return [150, 150, 150, 50];
+                    }
+                    return [0, 0, 0, 0];
+                },
+                getLineColor: d => {
+                    if (hoveredCluster && hoveredCluster.sampleId === sample.id && hoveredCluster.cellIds.includes(d.id)) {
+                        return [255, 140, 0, 255];
+                    }
+                    if (hoveredCluster && hoveredCluster.sampleId === sample.id) {
+                        return [150, 150, 150, 100];
+                    }
+                    return [150, 150, 150, 255];
+                },
+                getLineWidth: d => {
+                    if (hoveredCluster && hoveredCluster.sampleId === sample.id && hoveredCluster.cellIds.includes(d.id)) {
+                        return 2;
+                    }
+                    return 1;
+                },
                 lineWidthUnits: 'pixels',
                 pickable: true,
                 radiusUnits: 'pixels',
                 stroked: true,
-                filled: false,
+                filled: hoveredCluster && hoveredCluster.sampleId === sample.id ? true : false, // Only fill when hovering on same sample
+                updateTriggers: {
+                    getFillColor: [hoveredCluster],
+                    getLineColor: [hoveredCluster],
+                    getRadius: [hoveredCluster, mainViewState?.zoom],
+                    getLineWidth: [hoveredCluster],
+                }
             });
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, mainViewState]);
+    }, [selectedSamples, filteredCellData, mainViewState, hoveredCluster]);
 
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {
