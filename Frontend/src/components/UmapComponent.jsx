@@ -45,7 +45,7 @@ export const UmapComponent = ({ umapData, umapLoading, title = "UMAP Scatter Plo
           yAccessor={(d) => d.y}
           clusterAccessor={(d) => d.cluster}
           title={title}
-          pointSize={4}
+          pointSize={3}
         />
       ) : null}
     </div>

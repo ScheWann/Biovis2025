@@ -95,7 +95,7 @@ export const ScatterplotUmap = ({
         .append("g")
         .attr(
           "transform",
-          `translate(${width - margin.right - 60}, ${margin.top})`
+          `translate(${width - margin.right - 70}, ${margin.top - 20})`
         );
       clusters.forEach((cl, i) => {
         legend
