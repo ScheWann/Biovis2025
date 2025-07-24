@@ -105,7 +105,7 @@ export const ScatterplotUmap = ({
           .on("click", function () {
             console.log("CLICKED!");
           })
-          .on("mouseover", (event) => {
+          .on("mouseenter", (event) => {
             d3.select(event.currentTarget)
               .attr("fill-opacity", 0.4)
               .attr("stroke-width", 3.5)
@@ -115,21 +115,25 @@ export const ScatterplotUmap = ({
               .map((d) => d.id || d.cell_id)
               .filter(Boolean);
 
-            setHoveredCluster({
-              cluster: cluster,
-              cellIds: cellIds,
-              points: points,
-              umapId: umapId,
-              sampleId: sampleId,
-            });
+            if (!hoveredCluster || hoveredCluster.cluster !== cluster) {
+              setHoveredCluster({
+                cluster: cluster,
+                cellIds: cellIds,
+                points: points,
+                umapId: umapId,
+                sampleId: sampleId,
+              });
+            }
           })
-          .on("mouseout", (event) => {
+          .on("mouseleave", (event) => {
               d3.select(event.currentTarget)
                 .attr("fill-opacity", 0.2)
                 .attr("stroke-width", 2.5)
                 .attr("stroke-opacity", 0.6);
 
+              if (hoveredCluster && hoveredCluster.cluster === cluster) {
                 setHoveredCluster(null);
+              }
           });
       }
     });
@@ -166,6 +170,7 @@ export const ScatterplotUmap = ({
           .map((p) => p.id || p.cell_id)
           .filter(Boolean);
 
+        if (!hoveredCluster || hoveredCluster.cluster !== cluster) {
           setHoveredCluster({
             cluster: cluster,
             cellIds: cellIds,
@@ -173,9 +178,13 @@ export const ScatterplotUmap = ({
             umapId: umapId,
             sampleId: sampleId,
           });
+        }
       })
-      .on("mouseleave", () => {
+      .on("mouseleave", (event, d) => {
+        const cluster = clusterAccessor(d);
+        if (hoveredCluster && hoveredCluster.cluster === cluster) {
           setHoveredCluster(null);
+        }
       });
 
     // Axes
