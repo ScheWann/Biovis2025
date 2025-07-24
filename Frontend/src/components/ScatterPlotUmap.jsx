@@ -18,28 +18,7 @@ export const ScatterplotUmap = ({
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
-  const hoveredClusterRef = useRef(null);
-  const lastInteractionType = useRef(null); // "hover" or "click"
-  const hoverTimeoutRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
-
-
-
-  function debounceHoverUpdate() {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    hoverTimeoutRef.current = setTimeout(() => {
-      if (lastInteractionType.current === "hover" && setHoveredCluster) {
-        setHoveredCluster(hoveredClusterRef.current);
-      }
-    }, 100);
-  }
-  
-  function cancelHoverUpdate() {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-  }
 
   // Detect container size changes
   useEffect(() => {
@@ -125,12 +104,9 @@ export const ScatterplotUmap = ({
           .style("pointer-events", "visibleFill")
           .on("click", function () {
             console.log("CLICKED!");
-            lastInteractionType.current = "click";
           })
-          .on("mouseenter", function () {
-            lastInteractionType.current = "hover";
-
-            d3.select(this)
+          .on("mouseover", (event) => {
+            d3.select(event.currentTarget)
               .attr("fill-opacity", 0.4)
               .attr("stroke-width", 3.5)
               .attr("stroke-opacity", 0.8);
@@ -139,28 +115,21 @@ export const ScatterplotUmap = ({
               .map((d) => d.id || d.cell_id)
               .filter(Boolean);
 
-            hoveredClusterRef.current = {
+            setHoveredCluster({
               cluster: cluster,
               cellIds: cellIds,
               points: points,
               umapId: umapId,
               sampleId: sampleId,
-            };
-
-            debounceHoverUpdate();
+            });
           })
-          .on("mouseleave", function () {
-            cancelHoverUpdate();
-            if (lastInteractionType.current === "hover") {
-              d3.select(this)
+          .on("mouseout", (event) => {
+              d3.select(event.currentTarget)
                 .attr("fill-opacity", 0.2)
                 .attr("stroke-width", 2.5)
                 .attr("stroke-opacity", 0.6);
-          
-              if (setHoveredCluster) {
+
                 setHoveredCluster(null);
-              }
-            }
           });
       }
     });
@@ -197,7 +166,6 @@ export const ScatterplotUmap = ({
           .map((p) => p.id || p.cell_id)
           .filter(Boolean);
 
-        if (setHoveredCluster) {
           setHoveredCluster({
             cluster: cluster,
             cellIds: cellIds,
@@ -205,12 +173,9 @@ export const ScatterplotUmap = ({
             umapId: umapId,
             sampleId: sampleId,
           });
-        }
       })
       .on("mouseleave", () => {
-        if (setHoveredCluster) {
           setHoveredCluster(null);
-        }
       });
 
     // Axes
@@ -268,7 +233,6 @@ export const ScatterplotUmap = ({
     title,
     margin,
     hoveredCluster,
-    setHoveredCluster,
   ]);
 
   return (

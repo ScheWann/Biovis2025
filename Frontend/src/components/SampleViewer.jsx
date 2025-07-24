@@ -14,7 +14,6 @@ export const SampleViewer = ({
     umapLoading,
     setUmapLoading,
     hoveredCluster,
-    setHoveredCluster,
 }) => {
     const containerRef = useRef(null);
     const [mainViewState, setMainViewState] = useState(null);

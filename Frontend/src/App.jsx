@@ -254,7 +254,6 @@ function App() {
                     umapLoading={umapLoading}
                     setUmapLoading={setUmapLoading}
                     hoveredCluster={hoveredCluster}
-                    setHoveredCluster={setHoveredCluster}
                   />
                 </Splitter.Panel>
                 <Splitter.Panel defaultSize="30%" min="20%" max="50%">
