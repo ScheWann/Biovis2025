@@ -373,7 +373,6 @@ def perform_go_analysis(sample_id, cell_ids, top_n=5):
                 gene_list=significant_genes,
                 gene_sets=['GO_Biological_Process_2023'],
                 organism='human',
-                description='cluster_go_analysis',
                 cutoff=0.05,
                 no_plot=True
             )
