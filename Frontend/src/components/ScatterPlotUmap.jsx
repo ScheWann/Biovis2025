@@ -30,6 +30,7 @@ export const ScatterplotUmap = ({
     })
       .then((res) => res.json())
       .then((data) => {
+        console.log("GO Analysis Data: ", data);
         setGOAnalysisData(data);
       })
       .catch((err) => {
