@@ -15,10 +15,27 @@ export const ScatterplotUmap = ({
   setHoveredCluster,
   umapId,
   sampleId,
+  GOAnalysisData,
+  setGOAnalysisData
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
+
+  const fetchGOAnalysisData = (sampleId, cellIds) => {
+    fetch("/api/get_go_analysis", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sample_id: sampleId, cell_ids: cellIds }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setGOAnalysisData(data);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch GO analysis data", err);
+      });
+  };
 
   // Detect container size changes
   useEffect(() => {
@@ -103,7 +120,10 @@ export const ScatterplotUmap = ({
           .style("cursor", "pointer")
           .style("pointer-events", "visibleFill")
           .on("click", function () {
-            console.log("CLICKED!");
+            const cellIds = points
+              .map((d) => d.id || d.cell_id)
+              .filter(Boolean);
+            fetchGOAnalysisData(sampleId, cellIds);
           })
           .on("mouseenter", (event) => {
             d3.select(event.currentTarget)

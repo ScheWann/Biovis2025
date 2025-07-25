@@ -35,6 +35,8 @@ function App() {
   const [umapLoading, setUmapLoading] = useState(false);
   const [hoveredCluster, setHoveredCluster] = useState(null); // {cluster: string, umapId: string, cellIds: array}
 
+  const [GOAnalysisData, setGOAnalysisData] = useState(null);
+
   useEffect(() => {
     fetchSamplesOption();
   }, []);
@@ -351,6 +353,8 @@ function App() {
                                     setHoveredCluster={setHoveredCluster}
                                     umapId={dataset.id}
                                     sampleId={dataset.sampleId}
+                                    GOAnalysisData={GOAnalysisData}
+                                    setGOAnalysisData={setGOAnalysisData}
                                   />
                                 </div>
                               );
