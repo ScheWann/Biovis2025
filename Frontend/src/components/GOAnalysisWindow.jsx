@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { Spin, Empty } from "antd";
+import { Spin, Empty, Input, Button } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
 import * as d3 from "d3";
 
@@ -14,6 +14,12 @@ export const GOAnalysisWindow = ({
     const tooltipRef = useRef();
     const svgRef = useRef();
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+    const [inputValue, setInputValue] = useState("");
+
+    const handleConfirm = () => {
+        console.log("Confirmed with value:", inputValue);
+        // Add your confirm logic here
+    };
 
     // Calculate tooltip position with boundary detection
     useEffect(() => {
@@ -21,7 +27,7 @@ export const GOAnalysisWindow = ({
 
         const tooltip = tooltipRef.current;
         const tooltipWidth = 500;
-        const tooltipHeight = 400;
+        const tooltipHeight = 500;
         const padding = 20;
 
         // Get viewport dimensions
@@ -57,26 +63,27 @@ export const GOAnalysisWindow = ({
         // Clear previous chart
         d3.select(svgRef.current).selectAll("*").remove();
 
-        const margin = { top: 20, right: 20, bottom: 20, left: 100 };
-        const width = 420 - margin.left - margin.right;
-        const height = 300 - margin.top - margin.bottom;
+        const margin = { top: 10, right: 10, bottom: 10, left: 50 };
+        const width = 500 - margin.left - margin.right;
+        const height = 200 - margin.top - margin.bottom;
 
-        // Sort data by combined_score in descending order and take top 10
-        const sortedData = [...data]
-            .sort((a, b) => b.combined_score - a.combined_score)
-            .slice(0, 10);
+        if (data.length === 0) return;
 
-        if (sortedData.length === 0) return;
+        // Add activity labels to data
+        const dataWithActivityLabels = data.map((d, index) => ({
+            ...d,
+            activityLabel: `Activity${index + 1}`
+        }));
 
         // Scales
         const xScale = d3
             .scaleLinear()
-            .domain([0, d3.max(sortedData, (d) => d.combined_score)])
+            .domain([0, d3.max(dataWithActivityLabels, (d) => d.combined_score)])
             .range([0, width]);
 
         const yScale = d3
             .scaleBand()
-            .domain(sortedData.map((d) => d.description))
+            .domain(dataWithActivityLabels.map((d) => d.activityLabel))
             .range([0, height])
             .padding(0.1);
 
@@ -91,12 +98,12 @@ export const GOAnalysisWindow = ({
 
         // Create bars
         g.selectAll(".bar")
-            .data(sortedData)
+            .data(dataWithActivityLabels)
             .enter()
             .append("rect")
             .attr("class", "bar")
             .attr("x", 0)
-            .attr("y", (d) => yScale(d.description))
+            .attr("y", (d) => yScale(d.activityLabel))
             .attr("width", (d) => xScale(d.combined_score))
             .attr("height", yScale.bandwidth())
             .attr("fill", "#1890ff")
@@ -145,44 +152,7 @@ export const GOAnalysisWindow = ({
         g.append("g")
             .call(d3.axisLeft(yScale))
             .selectAll("text")
-            .style("font-size", "9px")
-            .call(wrap, margin.left - 10);
-
-        // Function to wrap text
-        function wrap(text, width) {
-            text.each(function () {
-                const text = d3.select(this);
-                const words = text.text().split(/\s+/).reverse();
-                let word;
-                let line = [];
-                let lineNumber = 0;
-                const lineHeight = 1;
-                const y = text.attr("y");
-                const dy = parseFloat(text.attr("dy")) || 0;
-                let tspan = text
-                    .text(null)
-                    .append("tspan")
-                    .attr("x", -5)
-                    .attr("y", y)
-                    .attr("dy", dy + "em");
-
-                while ((word = words.pop())) {
-                    line.push(word);
-                    tspan.text(line.join(" "));
-                    if (tspan.node().getComputedTextLength() > width) {
-                        line.pop();
-                        tspan.text(line.join(" "));
-                        line = [word];
-                        tspan = text
-                            .append("tspan")
-                            .attr("x", -5)
-                            .attr("y", y)
-                            .attr("dy", ++lineNumber * lineHeight + dy + "em")
-                            .text(word);
-                    }
-                }
-            });
-        }
+            .style("font-size", "10px")
     }, [data, loading, visible]);
 
     if (!visible) return null;
@@ -207,7 +177,7 @@ export const GOAnalysisWindow = ({
             {/* Header */}
             <div
                 style={{
-                    padding: "5px 5px 5px 10px",
+                    padding: "5px 10px 5px 10px",
                     borderBottom: "1px solid #f0f0f0",
                     background: "#fafafa",
                     display: "flex",
@@ -225,34 +195,61 @@ export const GOAnalysisWindow = ({
             </div>
 
             {/* Content */}
-            <div
-                style={{
-                    padding: "16px",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    minHeight: "300px",
-                }}
-            >
-                {loading ? (
-                    <div
-                        style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            gap: "12px",
-                        }}
+            <div style={{ padding: "16px" }}>
+                {/* Input and Button Row */}
+                <div style={{ 
+                    display: "flex", 
+                    gap: "8px", 
+                    marginBottom: "9px", 
+                    alignItems: "center" 
+                }}>
+                    <Input
+                        size="small"
+                        placeholder="Enter Cell Name"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onPressEnter={handleConfirm}
+                        style={{ flex: 1 }}
+                    />
+                    <Button 
+                        size="small"
+                        type="primary" 
+                        onClick={handleConfirm}
+                        disabled={!inputValue.trim()}
                     >
-                        <Spin size="large" />
-                        <div style={{ fontSize: "13px", color: "#666" }}>
-                            Loading GO Analysis...
+                        Confirm
+                    </Button>
+                </div>
+
+                {/* Chart Area */}
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        minHeight: "200px",
+                    }}
+                >
+                    {loading ? (
+                        <div
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: "12px",
+                            }}
+                        >
+                            <Spin size="large" />
+                            <div style={{ fontSize: "13px", color: "#666" }}>
+                                Loading GO Analysis...
+                            </div>
                         </div>
-                    </div>
-                ) : data && data.length > 0 ? (
-                    <svg ref={svgRef}></svg>
-                ) : (
-                    <Empty description="No GO analysis data available" />
-                )}
+                    ) : data && data.length > 0 ? (
+                        <svg ref={svgRef}></svg>
+                    ) : (
+                        <Empty description="No GO analysis data available" />
+                    )}
+                </div>
             </div>
         </div>
     );
