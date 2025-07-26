@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
 import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Checkbox } from "antd";
-import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-design/icons';
+import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined, DeleteOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
 
@@ -15,6 +15,7 @@ export const SampleViewer = ({
     setUmapLoading,
     hoveredCluster,
     cellName,
+    setCellName
 }) => {
     const containerRef = useRef(null);
     const [mainViewState, setMainViewState] = useState(null);
@@ -65,7 +66,7 @@ export const SampleViewer = ({
 
     // Add state for preloaded high-res images
     const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
-    
+
     // Add state for preloaded cell boundary images
     const [cellBoundaryImages, setCellBoundaryImages] = useState({}); // { sampleId: imageUrl }
 
@@ -760,65 +761,100 @@ export const SampleViewer = ({
                 />
 
                 {radioCellGeneModes[sample.id] === 'cellTypes' ? (
-                    <div style={{ padding: '0px 0' }}>
+                    <>
                         {cellName && Object.keys(cellName).length > 0 ? (
-                            <div>
+                            <>
                                 {/* Get unique cell names from cellName object */}
                                 {Array.from(new Set(Object.values(cellName))).map(name => (
-                                    <div key={name} style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        marginBottom: '6px',
-                                        paddingBottom: '4px',
+                                    <div key={name} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        paddingBottom: '5px',
                                         borderBottom: '1px solid #e8e8e8',
                                     }}>
-                                        <Checkbox
-                                            checked={selectedCellNames.has(name)}
-                                            onChange={(e) => {
-                                                const newSelected = new Set(selectedCellNames);
-                                                if (e.target.checked) {
-                                                    newSelected.add(name);
-                                                    // Set default color if not exists
-                                                    if (!cellNameColors[name]) {
-                                                        setCellNameColors(prev => ({
-                                                            ...prev,
-                                                            [name]: '#f03b20'
-                                                        }));
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Checkbox
+                                                checked={selectedCellNames.has(name)}
+                                                onChange={(e) => {
+                                                    const newSelected = new Set(selectedCellNames);
+                                                    if (e.target.checked) {
+                                                        newSelected.add(name);
+                                                        // Set default color if not exists
+                                                        if (!cellNameColors[name]) {
+                                                            setCellNameColors(prev => ({
+                                                                ...prev,
+                                                                [name]: '#f03b20'
+                                                            }));
+                                                        }
+                                                    } else {
+                                                        newSelected.delete(name);
                                                     }
-                                                } else {
-                                                    newSelected.delete(name);
-                                                }
-                                                setSelectedCellNames(newSelected);
-                                            }}
-                                            style={{ marginRight: '8px' }}
-                                        />
-                                        <span style={{ 
-                                            flex: 1, 
-                                            fontSize: '12px',
-                                            fontWeight: selectedCellNames.has(name) ? 'bold' : 'normal'
-                                        }}>
-                                            {name}
-                                        </span>
-                                        <ColorPicker
+                                                    setSelectedCellNames(newSelected);
+                                                }}
+                                                style={{ marginRight: '8px' }}
+                                            />
+                                            <span style={{
+                                                flex: 1,
+                                                fontSize: '12px',
+                                                fontWeight: selectedCellNames.has(name) ? 'bold' : 'normal'
+                                            }}>
+                                                {name}
+                                            </span>
+                                            <ColorPicker
+                                                size="small"
+                                                value={cellNameColors[name] || '#f03b20'}
+                                                onChange={(color) => {
+                                                    setCellNameColors(prev => ({
+                                                        ...prev,
+                                                        [name]: color.toHexString()
+                                                    }));
+                                                }}
+                                                style={{ marginLeft: '8px' }}
+                                            />
+                                        </div>
+                                        <Button
+                                            type="text"
                                             size="small"
-                                            value={cellNameColors[name] || '#f03b20'}
-                                            onChange={(color) => {
-                                                setCellNameColors(prev => ({
-                                                    ...prev,
-                                                    [name]: color.toHexString()
-                                                }));
+                                            icon={<DeleteOutlined />}
+                                            onClick={() => {
+                                                // Remove all cellIds with this name from cellName
+                                                const updatedCellName = { ...cellName };
+                                                Object.keys(updatedCellName).forEach(cellId => {
+                                                    if (updatedCellName[cellId] === name) {
+                                                        delete updatedCellName[cellId];
+                                                    }
+                                                });
+                                                setCellName(updatedCellName);
+
+                                                // Remove from selected cell names
+                                                const newSelected = new Set(selectedCellNames);
+                                                newSelected.delete(name);
+                                                setSelectedCellNames(newSelected);
+
+                                                // Remove color mapping
+                                                const newColors = { ...cellNameColors };
+                                                delete newColors[name];
+                                                setCellNameColors(newColors);
                                             }}
-                                            style={{ marginLeft: '8px' }}
+                                            style={{
+                                                marginLeft: '8px',
+                                                color: '#666666',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                padding: '0 4px'
+                                            }}
+                                            title={`Remove cell name "${name}"`}
                                         />
                                     </div>
                                 ))}
-                            </div>
+                            </>
                         ) : (
                             <div style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>
                                 No cell names available. Click on clusters in UMAP to assign names.
                             </div>
                         )}
-                    </div>
+                    </>
                 ) : (
                     <GeneSettings
                         sampleId={sample.id}
@@ -840,11 +876,11 @@ export const SampleViewer = ({
 
     const generateUmap = () => {
         if (!selectedAreaForEdit) return;
-        
+
         // Generate a unique ID for this UMAP dataset
         const umapId = `${selectedAreaForEdit.sampleId}_${selectedAreaForEdit.name}_${Date.now()}`;
         const umapTitle = `${selectedAreaForEdit.name} (${selectedAreaForEdit.sampleId})`;
-        
+
         // Add a new loading dataset entry
         setUmapDataSets(prev => [
             ...prev,
@@ -857,13 +893,13 @@ export const SampleViewer = ({
                 areaPoints: selectedAreaForEdit.points
             }
         ]);
-        
+
         setUmapLoading(true);
-        
+
         fetch('/api/get_umap_data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 sample_id: selectedAreaForEdit.sampleId,
                 n_neighbors: editNeighbors,
                 n_clusters: 5,
@@ -872,59 +908,59 @@ export const SampleViewer = ({
                 random_state: 42
             })
         })
-        .then(res => res.json())
-        .then(data => {
-            // Get cells that are within the selected area
-            const sampleCells = coordinatesData[selectedAreaForEdit.sampleId] || [];
-            const offset = sampleOffsets[selectedAreaForEdit.sampleId] || [0, 0];
-            
-            // Filter cells that are within the drawn polygon
-            const cellsInArea = sampleCells.filter(cell => {
-                const localX = cell.cell_x;
-                const localY = cell.cell_y;
-                
-                // Simple point-in-polygon check
-                return isPointInPolygon([localX, localY], selectedAreaForEdit.points.map(p => [p[0] - offset[0], p[1] - offset[1]]));
+            .then(res => res.json())
+            .then(data => {
+                // Get cells that are within the selected area
+                const sampleCells = coordinatesData[selectedAreaForEdit.sampleId] || [];
+                const offset = sampleOffsets[selectedAreaForEdit.sampleId] || [0, 0];
+
+                // Filter cells that are within the drawn polygon
+                const cellsInArea = sampleCells.filter(cell => {
+                    const localX = cell.cell_x;
+                    const localY = cell.cell_y;
+
+                    // Simple point-in-polygon check
+                    return isPointInPolygon([localX, localY], selectedAreaForEdit.points.map(p => [p[0] - offset[0], p[1] - offset[1]]));
+                });
+
+                const cellIdsInArea = new Set(cellsInArea.map(cell => cell.id));
+
+                // Filter UMAP data to only include cells from the selected area
+                const filteredUmapData = data.filter(umapPoint => cellIdsInArea.has(umapPoint.id));
+
+                // Update the specific dataset with the filtered data
+                setUmapDataSets(prev =>
+                    prev.map(dataset =>
+                        dataset.id === umapId
+                            ? { ...dataset, data: filteredUmapData, loading: false }
+                            : dataset
+                    )
+                );
+                setUmapLoading(false);
+            })
+            .catch(error => {
+                console.error('Error generating UMAP:', error);
+
+                // Remove the failed dataset entry
+                setUmapDataSets(prev => prev.filter(dataset => dataset.id !== umapId));
+                setUmapLoading(false);
             });
-            
-            const cellIdsInArea = new Set(cellsInArea.map(cell => cell.id));
-            
-            // Filter UMAP data to only include cells from the selected area
-            const filteredUmapData = data.filter(umapPoint => cellIdsInArea.has(umapPoint.id));
-            
-            // Update the specific dataset with the filtered data
-            setUmapDataSets(prev => 
-                prev.map(dataset => 
-                    dataset.id === umapId 
-                        ? { ...dataset, data: filteredUmapData, loading: false }
-                        : dataset
-                )
-            );
-            setUmapLoading(false);
-        })
-        .catch(error => {
-            console.error('Error generating UMAP:', error);
-            
-            // Remove the failed dataset entry
-            setUmapDataSets(prev => prev.filter(dataset => dataset.id !== umapId));
-            setUmapLoading(false);
-        });
     }
 
     // Helper function for point-in-polygon check
     const isPointInPolygon = (point, polygon) => {
         const [x, y] = point;
         let inside = false;
-        
+
         for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
             const [xi, yi] = polygon[i];
             const [xj, yj] = polygon[j];
-            
+
             if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
                 inside = !inside;
             }
         }
-        
+
         return inside;
     };
 
@@ -1009,7 +1045,7 @@ export const SampleViewer = ({
                             return [...rgb, 200]; // Add alpha
                         }
                     }
-                    
+
                     // Hover effects (keep existing logic)
                     if (hoveredCluster && hoveredCluster.sampleId === sample.id && hoveredCluster.cellIds.includes(d.id)) {
                         return [255, 215, 0, 200];
@@ -1017,7 +1053,7 @@ export const SampleViewer = ({
                     if (hoveredCluster && hoveredCluster.sampleId === sample.id) {
                         return [150, 150, 150, 50];
                     }
-                    
+
                     // Default: transparent if no cell name or not selected
                     return [0, 0, 0, 0];
                 },
@@ -2161,10 +2197,10 @@ export const SampleViewer = ({
                             </div>
 
                             {/* Action Buttons */}
-                            <Button 
-                                size="small" 
-                                style={{ marginBottom: 5, width: '100%' }} 
-                                color="pink" 
+                            <Button
+                                size="small"
+                                style={{ marginBottom: 5, width: '100%' }}
+                                color="pink"
                                 variant="outlined"
                                 onClick={generateUmap}
                                 loading={umapLoading}
