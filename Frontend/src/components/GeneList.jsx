@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Checkbox, AutoComplete } from "antd";
+import { CloseOutlined } from "@ant-design/icons";
 
 export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes }) => {
     const [searchText, setSearchText] = useState('');
@@ -139,14 +140,7 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
                                     <span style={{ fontSize: 12, color: selectedGenes.includes(gene) ? '#000' : '#999' }}>
                                         {gene}
                                     </span>
-                                    <Button
-                                        type="text"
-                                        size="small"
-                                        onClick={() => removeGene(gene)}
-                                        style={{ padding: '0 4px', fontSize: 10, color: '#333333' }}
-                                    >
-                                        ×
-                                    </Button>
+                                    <Button type="text" size="small" onClick={() => removeGene(gene)} style={{ padding: '0 4px', fontSize: 10, color: '#333333' }} icon={<CloseOutlined />} />
                                 </div>
                             </div>
                         ))

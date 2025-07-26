@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { Spin } from "antd";
+import { Spin, Empty } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
 import * as d3 from "d3";
 
@@ -57,7 +57,7 @@ export const GOAnalysisWindow = ({
         // Clear previous chart
         d3.select(svgRef.current).selectAll("*").remove();
 
-        const margin = { top: 20, right: 20, bottom: 60, left: 120 };
+        const margin = { top: 20, right: 20, bottom: 20, left: 100 };
         const width = 420 - margin.left - margin.right;
         const height = 300 - margin.top - margin.bottom;
 
@@ -68,7 +68,7 @@ export const GOAnalysisWindow = ({
 
         if (sortedData.length === 0) return;
 
-        // Create scales
+        // Scales
         const xScale = d3
             .scaleLinear()
             .domain([0, d3.max(sortedData, (d) => d.combined_score)])
@@ -76,11 +76,10 @@ export const GOAnalysisWindow = ({
 
         const yScale = d3
             .scaleBand()
-            .domain(sortedData.map((d) => d.name || d.term))
+            .domain(sortedData.map((d) => d.description))
             .range([0, height])
             .padding(0.1);
 
-        // Create SVG
         const svg = d3
             .select(svgRef.current)
             .attr("width", width + margin.left + margin.right)
@@ -97,13 +96,14 @@ export const GOAnalysisWindow = ({
             .append("rect")
             .attr("class", "bar")
             .attr("x", 0)
-            .attr("y", (d) => yScale(d.name || d.term))
+            .attr("y", (d) => yScale(d.description))
             .attr("width", (d) => xScale(d.combined_score))
             .attr("height", yScale.bandwidth())
             .attr("fill", "#1890ff")
             .attr("opacity", 0.8)
-            .on("mouseover", function (event, d) {
-                d3.select(this).attr("opacity", 1);
+            .attr("cursor", "pointer")
+            .on("mouseover", (event, d) => {
+                d3.select(event.currentTarget).attr("opacity", 1);
 
                 // Create mini tooltip
                 const miniTooltip = d3
@@ -111,48 +111,35 @@ export const GOAnalysisWindow = ({
                     .append("div")
                     .attr("class", "mini-tooltip")
                     .style("position", "absolute")
-                    .style("background", "rgba(0, 0, 0, 0.9)")
-                    .style("color", "white")
-                    .style("padding", "6px 8px")
-                    .style("border-radius", "4px")
-                    .style("font-size", "11px")
+                    .style("background", "rgba(255, 255, 255, 0.9)")
+                    .style("box-shadow", "0 4px 12px rgba(0, 0, 0, 0.15)")
+                    .style("color", "black")
+                    .style("padding", "8px 12px")
+                    .style("border-radius", "6px")
+                    .style("font-size", "12px")
                     .style("pointer-events", "none")
-                    .style("z-index", 10001);
+                    .style("z-index", 1001)
+                    .style("max-width", "300px")
+                    .style("word-wrap", "break-word")
+                    .style("line-height", "1.4");
 
                 miniTooltip
                     .html(
                         `
-                        <strong>${d.name || d.term}</strong><br/>
-                        Score: ${d.combined_score.toFixed(3)}
+                        <strong>${d.term}</strong><br/><br/>
+                        <strong>Combined Score:</strong> ${d.combined_score ? d.combined_score.toFixed(3) : 'N/A'}<br/>
+                        <strong>Adjusted P-value:</strong> ${d.adjusted_p_value ? d.adjusted_p_value.toFixed(6) : 'N/A'}<br/>
+                        <strong>Odds Ratio:</strong> ${d.odds_ratio ? d.odds_ratio.toFixed(3) : 'N/A'}<br/>
+                        <strong>Genes:</strong> ${d.genes || 'N/A'}
                         `
                     )
                     .style("left", event.pageX + 10 + "px")
                     .style("top", event.pageY - 10 + "px");
             })
-            .on("mouseout", function () {
-                d3.select(this).attr("opacity", 0.8);
+            .on("mouseout", (event) => {
+                d3.select(event.currentTarget).attr("opacity", 1);
                 d3.selectAll(".mini-tooltip").remove();
             });
-
-        // Add value labels on bars
-        g.selectAll(".label")
-            .data(sortedData)
-            .enter()
-            .append("text")
-            .attr("class", "label")
-            .attr("x", (d) => xScale(d.combined_score) + 3)
-            .attr("y", (d) => yScale(d.name || d.term) + yScale.bandwidth() / 2)
-            .attr("dy", "0.35em")
-            .style("font-size", "9px")
-            .style("fill", "#333")
-            .text((d) => d.combined_score.toFixed(2));
-
-        // Add X axis
-        g.append("g")
-            .attr("transform", `translate(0,${height})`)
-            .call(d3.axisBottom(xScale).ticks(4))
-            .selectAll("text")
-            .style("font-size", "10px");
 
         // Add Y axis
         g.append("g")
@@ -160,17 +147,6 @@ export const GOAnalysisWindow = ({
             .selectAll("text")
             .style("font-size", "9px")
             .call(wrap, margin.left - 10);
-
-        // Add X axis label
-        g.append("text")
-            .attr(
-                "transform",
-                `translate(${width / 2}, ${height + margin.bottom - 10})`
-            )
-            .style("text-anchor", "middle")
-            .style("font-size", "11px")
-            .style("font-weight", "bold")
-            .text("Combined Score");
 
         // Function to wrap text
         function wrap(text, width) {
@@ -180,7 +156,7 @@ export const GOAnalysisWindow = ({
                 let word;
                 let line = [];
                 let lineNumber = 0;
-                const lineHeight = 1.1;
+                const lineHeight = 1;
                 const y = text.attr("y");
                 const dy = parseFloat(text.attr("dy")) || 0;
                 let tspan = text
@@ -224,7 +200,7 @@ export const GOAnalysisWindow = ({
                 border: "1px solid #d9d9d9",
                 borderRadius: "8px",
                 boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-                zIndex: 100000,
+                zIndex: 1000,
                 overflow: "hidden",
             }}
         >
@@ -275,9 +251,7 @@ export const GOAnalysisWindow = ({
                 ) : data && data.length > 0 ? (
                     <svg ref={svgRef}></svg>
                 ) : (
-                    <div style={{ fontSize: "13px", color: "#999" }}>
-                        No GO analysis data available
-                    </div>
+                    <Empty description="No GO analysis data available" />
                 )}
             </div>
         </div>
