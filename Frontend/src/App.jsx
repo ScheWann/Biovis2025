@@ -39,6 +39,9 @@ function App() {
   const [GOAnalysisLoading, setGOAnalysisLoading] = useState(false);
   const [GOAnalysisVisible, setGOAnalysisVisible] = useState(false);
 
+  // Cell Name state
+  const [cellName, setCellName] = useState(null);
+
   useEffect(() => {
     fetchSamplesOption();
   }, []);
@@ -258,6 +261,7 @@ function App() {
                     umapLoading={umapLoading}
                     setUmapLoading={setUmapLoading}
                     hoveredCluster={hoveredCluster}
+                    cellName={cellName}
                   />
                 </Splitter.Panel>
                 <Splitter.Panel defaultSize="30%" min="20%" max="50%">
@@ -361,6 +365,7 @@ function App() {
                                     setGOAnalysisVisible={setGOAnalysisVisible}
                                     GOAnalysisLoading={GOAnalysisLoading}
                                     setGOAnalysisLoading={setGOAnalysisLoading}
+                                    setCellName={setCellName}
                                   />
                                 </div>
                               );

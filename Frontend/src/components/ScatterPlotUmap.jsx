@@ -22,21 +22,19 @@ export const ScatterplotUmap = ({
   setGOAnalysisVisible,
   GOAnalysisLoading,
   setGOAnalysisLoading,
+  setCellName,
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
   const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
+  const [currentCellIds, setCurrentCellIds] = useState([]);
 
   const fetchGOAnalysisData = (sampleId, cellIds) => {
+    setCurrentCellIds(cellIds); // Store current cellIds
     setGOAnalysisLoading(true);
     setGOAnalysisVisible(true);
     setGOAnalysisData(null); // Clear previous data
-    
-    // Check state after a brief delay
-    setTimeout(() => {
-      console.log("After timeout - GOAnalysisVisible should be true");
-    }, 50);
     
     fetch("/api/get_go_analysis", {
       method: "POST",
@@ -294,6 +292,8 @@ export const ScatterplotUmap = ({
         data={GOAnalysisData}
         position={clickPosition}
         title="Gene Ontology Analysis"
+        setCellName={setCellName}
+        cellIds={currentCellIds}
       />
     </div>
   );

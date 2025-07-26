@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
-import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete } from "antd";
+import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Checkbox } from "antd";
 import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
@@ -14,6 +14,7 @@ export const SampleViewer = ({
     umapLoading,
     setUmapLoading,
     hoveredCluster,
+    cellName,
 }) => {
     const containerRef = useRef(null);
     const [mainViewState, setMainViewState] = useState(null);
@@ -67,6 +68,10 @@ export const SampleViewer = ({
     
     // Add state for preloaded cell boundary images
     const [cellBoundaryImages, setCellBoundaryImages] = useState({}); // { sampleId: imageUrl }
+
+    // Cell name selection and coloring state
+    const [selectedCellNames, setSelectedCellNames] = useState(new Set()); // Set of selected cell names
+    const [cellNameColors, setCellNameColors] = useState({}); // { cellName: color }
 
     const radioOptions = [
         {
@@ -755,8 +760,64 @@ export const SampleViewer = ({
                 />
 
                 {radioCellGeneModes[sample.id] === 'cellTypes' ? (
-                    <div style={{ padding: '10px 0' }}>
-                        <div>Cell Type view selected</div>
+                    <div style={{ padding: '0px 0' }}>
+                        {cellName && Object.keys(cellName).length > 0 ? (
+                            <div>
+                                {/* Get unique cell names from cellName object */}
+                                {Array.from(new Set(Object.values(cellName))).map(name => (
+                                    <div key={name} style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        marginBottom: '6px',
+                                        paddingBottom: '4px',
+                                        borderBottom: '1px solid #e8e8e8',
+                                    }}>
+                                        <Checkbox
+                                            checked={selectedCellNames.has(name)}
+                                            onChange={(e) => {
+                                                const newSelected = new Set(selectedCellNames);
+                                                if (e.target.checked) {
+                                                    newSelected.add(name);
+                                                    // Set default color if not exists
+                                                    if (!cellNameColors[name]) {
+                                                        setCellNameColors(prev => ({
+                                                            ...prev,
+                                                            [name]: '#f03b20'
+                                                        }));
+                                                    }
+                                                } else {
+                                                    newSelected.delete(name);
+                                                }
+                                                setSelectedCellNames(newSelected);
+                                            }}
+                                            style={{ marginRight: '8px' }}
+                                        />
+                                        <span style={{ 
+                                            flex: 1, 
+                                            fontSize: '12px',
+                                            fontWeight: selectedCellNames.has(name) ? 'bold' : 'normal'
+                                        }}>
+                                            {name}
+                                        </span>
+                                        <ColorPicker
+                                            size="small"
+                                            value={cellNameColors[name] || '#f03b20'}
+                                            onChange={(color) => {
+                                                setCellNameColors(prev => ({
+                                                    ...prev,
+                                                    [name]: color.toHexString()
+                                                }));
+                                            }}
+                                            style={{ marginLeft: '8px' }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>
+                                No cell names available. Click on clusters in UMAP to assign names.
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <GeneSettings
@@ -938,12 +999,26 @@ export const SampleViewer = ({
                     return dynamicRadius;
                 },
                 getFillColor: d => {
+                    // Check if this cell has a named cell type that is selected
+                    const cellNameForThisCell = cellName && cellName[d.id];
+                    if (cellNameForThisCell && selectedCellNames.has(cellNameForThisCell)) {
+                        const color = cellNameColors[cellNameForThisCell];
+                        if (color) {
+                            // Convert hex color to RGB array
+                            const rgb = color.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [100, 100, 100];
+                            return [...rgb, 200]; // Add alpha
+                        }
+                    }
+                    
+                    // Hover effects (keep existing logic)
                     if (hoveredCluster && hoveredCluster.sampleId === sample.id && hoveredCluster.cellIds.includes(d.id)) {
                         return [255, 215, 0, 200];
                     }
                     if (hoveredCluster && hoveredCluster.sampleId === sample.id) {
                         return [150, 150, 150, 50];
                     }
+                    
+                    // Default: transparent if no cell name or not selected
                     return [0, 0, 0, 0];
                 },
                 getLineColor: d => {
@@ -965,16 +1040,16 @@ export const SampleViewer = ({
                 pickable: true,
                 radiusUnits: 'pixels',
                 stroked: true,
-                filled: hoveredCluster && hoveredCluster.sampleId === sample.id ? true : false, // Only fill when hovering on same sample
+                filled: (hoveredCluster && hoveredCluster.sampleId === sample.id) || selectedCellNames.size > 0, // Fill when hovering or when cell names are selected
                 updateTriggers: {
-                    getFillColor: [hoveredCluster],
+                    getFillColor: [hoveredCluster, cellName, selectedCellNames, cellNameColors],
                     getLineColor: [hoveredCluster],
                     getRadius: [hoveredCluster, mainViewState?.zoom],
                     getLineWidth: [hoveredCluster],
                 }
             });
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, mainViewState, hoveredCluster]);
+    }, [selectedSamples, filteredCellData, mainViewState, hoveredCluster, cellName, selectedCellNames, cellNameColors]);
 
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {
@@ -1255,7 +1330,6 @@ export const SampleViewer = ({
 
             // Handle magnifier keys
             if ((event.code === 'Space') && !keyPressed && !isDrawing) {
-                console.log('Global magnifier key down:', event.code, 'keyPressed:', keyPressed, 'isDrawing:', isDrawing);
                 event.preventDefault();
                 event.stopPropagation();
                 setKeyPressed(true);
@@ -1270,7 +1344,6 @@ export const SampleViewer = ({
             }
 
             if ((event.code === 'Space') && keyPressed) {
-                console.log('Global magnifier key up:', event.code, 'keyPressed:', keyPressed);
                 event.preventDefault();
                 event.stopPropagation();
                 setKeyPressed(false);

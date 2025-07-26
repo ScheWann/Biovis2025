@@ -10,15 +10,31 @@ export const GOAnalysisWindow = ({
     data,
     position, // {x, y} - position where the cluster was clicked
     title = "GO Analysis Results",
+    setCellName,
+    cellIds = []
 }) => {
     const tooltipRef = useRef();
     const svgRef = useRef();
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-    const [inputValue, setInputValue] = useState("");
+    const [inputCellName, setInputCellName] = useState("");
 
-    const handleConfirm = () => {
-        console.log("Confirmed with value:", inputValue);
-        // Add your confirm logic here
+    const confirmCellName = () => {
+        if (inputCellName.trim() && cellIds.length > 0) {
+            // Create object mapping each cellId to the inputCellName
+            const newCellNames = {};
+            cellIds.forEach(cellId => {
+                newCellNames[cellId] = inputCellName.trim();
+            });
+            
+            // Update setCellName with the new mappings
+            setCellName(prevCellNames => ({
+                ...prevCellNames,
+                ...newCellNames
+            }));
+
+            // Clear the input and close the window
+            setInputCellName("");
+        }
     };
 
     // Calculate tooltip position with boundary detection
@@ -67,10 +83,12 @@ export const GOAnalysisWindow = ({
         const width = 500 - margin.left - margin.right;
         const height = 200 - margin.top - margin.bottom;
 
-        if (data.length === 0) return;
+        const sortedData = data.sort((a, b) => b.combined_score - a.combined_score);
+
+        if (sortedData.length === 0) return;
 
         // Add activity labels to data
-        const dataWithActivityLabels = data.map((d, index) => ({
+        const dataWithActivityLabels = sortedData.map((d, index) => ({
             ...d,
             activityLabel: `Activity${index + 1}`
         }));
@@ -206,16 +224,16 @@ export const GOAnalysisWindow = ({
                     <Input
                         size="small"
                         placeholder="Enter Cell Name"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onPressEnter={handleConfirm}
+                        value={inputCellName}
+                        onChange={(e) => setInputCellName(e.target.value)}
+                        onPressEnter={confirmCellName}
                         style={{ flex: 1 }}
                     />
                     <Button 
                         size="small"
                         type="primary" 
-                        onClick={handleConfirm}
-                        disabled={!inputValue.trim()}
+                        onClick={confirmCellName}
+                        disabled={!inputCellName.trim()}
                     >
                         Confirm
                     </Button>
