@@ -19,7 +19,7 @@ function generateDummyData(numPoints = 100, numClusters = 5) {
   });
 }
 
-export const UmapComponent = ({ umapData, umapLoading, title = "UMAP Scatter Plot", hoveredCluster, setHoveredCluster, umapId, sampleId, GOAnalysisData, setGOAnalysisData }) => {
+export const UmapComponent = ({ umapData, umapLoading, title = "UMAP Scatter Plot", hoveredCluster, setHoveredCluster, umapId, sampleId, GOAnalysisData, setGOAnalysisData, GOAnalysisVisible, setGOAnalysisVisible, GOAnalysisLoading, setGOAnalysisLoading }) => {
   return (
     <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
       {umapLoading ? (
@@ -52,6 +52,10 @@ export const UmapComponent = ({ umapData, umapLoading, title = "UMAP Scatter Plo
           sampleId={sampleId}
           GOAnalysisData={GOAnalysisData}
           setGOAnalysisData={setGOAnalysisData}
+          GOAnalysisVisible={GOAnalysisVisible}
+          setGOAnalysisVisible={setGOAnalysisVisible}
+          GOAnalysisLoading={GOAnalysisLoading}
+          setGOAnalysisLoading={setGOAnalysisLoading}
         />
       ) : null}
     </div>

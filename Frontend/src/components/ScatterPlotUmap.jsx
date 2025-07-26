@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
+import { GOAnalysisWindow } from "./GOAnalysisWindow";
 
 const COLORS = d3.schemeCategory10;
 
@@ -16,13 +17,27 @@ export const ScatterplotUmap = ({
   umapId,
   sampleId,
   GOAnalysisData,
-  setGOAnalysisData
+  setGOAnalysisData,
+  GOAnalysisVisible,
+  setGOAnalysisVisible,
+  GOAnalysisLoading,
+  setGOAnalysisLoading,
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
+  const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
 
   const fetchGOAnalysisData = (sampleId, cellIds) => {
+    setGOAnalysisLoading(true);
+    setGOAnalysisVisible(true);
+    setGOAnalysisData(null); // Clear previous data
+    
+    // Check state after a brief delay
+    setTimeout(() => {
+      console.log("After timeout - GOAnalysisVisible should be true");
+    }, 50);
+    
     fetch("/api/get_go_analysis", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -30,11 +45,13 @@ export const ScatterplotUmap = ({
     })
       .then((res) => res.json())
       .then((data) => {
-        console.log("GO Analysis Data: ", data);
         setGOAnalysisData(data);
+        setGOAnalysisLoading(false);
       })
       .catch((err) => {
         console.error("Failed to fetch GO analysis data", err);
+        setGOAnalysisLoading(false);
+        setGOAnalysisData(null);
       });
   };
 
@@ -120,7 +137,9 @@ export const ScatterplotUmap = ({
           )
           .style("cursor", "pointer")
           .style("pointer-events", "visibleFill")
-          .on("click", function () {
+          .on("click", function (event) {
+            // Capture click position relative to viewport
+            setClickPosition({ x: event.clientX, y: event.clientY });
             const cellIds = points
               .map((d) => d.id || d.cell_id)
               .filter(Boolean);
@@ -268,6 +287,14 @@ export const ScatterplotUmap = ({
   return (
     <div ref={containerRef} style={{ width: "100%", height: "100%" }}>
       <svg ref={svgRef}></svg>
+      <GOAnalysisWindow
+        visible={GOAnalysisVisible}
+        setVisible={setGOAnalysisVisible}
+        loading={GOAnalysisLoading}
+        data={GOAnalysisData}
+        position={clickPosition}
+        title="Gene Ontology Analysis"
+      />
     </div>
   );
 };
