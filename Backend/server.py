@@ -91,6 +91,7 @@ def get_umap_data_route():
     sample_id = request.json["sample_id"]
 
     # Optional parameters with defaults
+    cell_ids = request.json.get("cell_ids", None)  # New parameter for specific cells
     n_neighbors = request.json.get("n_neighbors", 15)
     min_dist = request.json.get("min_dist", 0.1)
     n_components = request.json.get("n_components", 2)
@@ -100,6 +101,7 @@ def get_umap_data_route():
     try:
         umap_data = get_umap_data(
             sample_id=sample_id,
+            cell_ids=cell_ids,  # Pass cell_ids to the backend function
             n_neighbors=n_neighbors,
             min_dist=min_dist,
             n_components=n_components,
@@ -267,6 +269,7 @@ def get_pseudotime_data_route():
     sample_id = request.json["sample_id"]
     
     # Optional parameters with defaults
+    cell_ids = request.json.get("cell_ids", None)  # New parameter for specific cells
     root_cell_id = request.json.get("root_cell_id", None)
     n_neighbors = request.json.get("n_neighbors", 15)
     n_pcs = request.json.get("n_pcs", 50)
@@ -275,6 +278,7 @@ def get_pseudotime_data_route():
     try:
         pseudotime_data = get_pseudotime_data(
             sample_id=sample_id,
+            cell_ids=cell_ids,
             root_cell_id=root_cell_id,
             n_neighbors=n_neighbors,
             n_pcs=n_pcs,

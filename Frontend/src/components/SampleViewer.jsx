@@ -877,6 +877,27 @@ export const SampleViewer = ({
     const generateUmap = () => {
         if (!selectedAreaForEdit) return;
 
+        // Get cells that are within the selected area BEFORE making the API call
+        const sampleCells = coordinatesData[selectedAreaForEdit.sampleId] || [];
+        const offset = sampleOffsets[selectedAreaForEdit.sampleId] || [0, 0];
+
+        // Filter cells that are within the drawn polygon
+        const cellsInArea = sampleCells.filter(cell => {
+            const localX = cell.cell_x;
+            const localY = cell.cell_y;
+
+            // Simple point-in-polygon check
+            return isPointInPolygon([localX, localY], selectedAreaForEdit.points.map(p => [p[0] - offset[0], p[1] - offset[1]]));
+        });
+
+        const cellIdsInArea = cellsInArea.map(cell => cell.id);
+
+        // Check if we have any cells in the selected area
+        if (cellIdsInArea.length === 0) {
+            alert('No cells found in the selected area');
+            return;
+        }
+
         // Generate a unique ID for this UMAP dataset
         const umapId = `${selectedAreaForEdit.sampleId}_${selectedAreaForEdit.name}_${Date.now()}`;
         const umapTitle = `${selectedAreaForEdit.name} (${selectedAreaForEdit.sampleId})`;
@@ -901,6 +922,7 @@ export const SampleViewer = ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 sample_id: selectedAreaForEdit.sampleId,
+                cell_ids: cellIdsInArea,  // Pass the cell IDs to the backend
                 n_neighbors: editNeighbors,
                 n_clusters: 5,
                 min_dist: 0.1,
@@ -910,29 +932,11 @@ export const SampleViewer = ({
         })
             .then(res => res.json())
             .then(data => {
-                // Get cells that are within the selected area
-                const sampleCells = coordinatesData[selectedAreaForEdit.sampleId] || [];
-                const offset = sampleOffsets[selectedAreaForEdit.sampleId] || [0, 0];
-
-                // Filter cells that are within the drawn polygon
-                const cellsInArea = sampleCells.filter(cell => {
-                    const localX = cell.cell_x;
-                    const localY = cell.cell_y;
-
-                    // Simple point-in-polygon check
-                    return isPointInPolygon([localX, localY], selectedAreaForEdit.points.map(p => [p[0] - offset[0], p[1] - offset[1]]));
-                });
-
-                const cellIdsInArea = new Set(cellsInArea.map(cell => cell.id));
-
-                // Filter UMAP data to only include cells from the selected area
-                const filteredUmapData = data.filter(umapPoint => cellIdsInArea.has(umapPoint.id));
-
-                // Update the specific dataset with the filtered data
+                // No need to filter data since backend only returns data for specified cells
                 setUmapDataSets(prev =>
                     prev.map(dataset =>
                         dataset.id === umapId
-                            ? { ...dataset, data: filteredUmapData, loading: false }
+                            ? { ...dataset, data: data, loading: false }
                             : dataset
                     )
                 );

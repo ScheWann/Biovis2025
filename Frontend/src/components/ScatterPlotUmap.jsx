@@ -53,17 +53,24 @@ export const ScatterplotUmap = ({
       });
   };
 
-  const fetchPseudotimeData = ( sampleId ) => {
+  const fetchPseudotimeData = ( sampleId, cellIds = null ) => {
     fetch("/api/get_pseudotime_data", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sample_id: sampleId }),
+      body: JSON.stringify({ 
+        sample_id: sampleId, 
+        cell_ids: cellIds 
+      }),
     })
       .then((res) => res.json())
       .then((data) => {
         console.log(data, "pseudotime data");
+      })
+      .catch((err) => {
+        console.error("Failed to fetch pseudotime data", err);
       });
   }
+
   // Detect container size changes
   useEffect(() => {
     const container = containerRef.current;
@@ -251,8 +258,15 @@ export const ScatterplotUmap = ({
       .attr("font-size", 12)
       .attr("font-weight", 600)
       .text(title)
+      .style("cursor", "pointer")
       .on("click", () => {
-        fetchPseudotimeData(sampleId);
+        // Pseudotime analysis for current cells
+        // If no specific cluster selected, use all cells
+        const cellIds = currentCellIds.length > 0 
+          ? currentCellIds 
+          : data.map(d => d.id || d.cell_id).filter(Boolean);
+        console.log(cellIds, "cellIds for pseudotime analysis");
+        fetchPseudotimeData(sampleId, cellIds);
       });
 
     // Legend

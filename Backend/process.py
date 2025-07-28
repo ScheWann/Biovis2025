@@ -269,9 +269,21 @@ def get_selected_region_data(sample_id, cell_ids):
     return "not finished yet"
 
 
-def get_umap_data(sample_id, n_neighbors=15, min_dist=0.1, n_components=2, n_clusters=5, random_state=42):
+def get_umap_data(sample_id, cell_ids=None, n_neighbors=15, min_dist=0.1, n_components=2, n_clusters=5, random_state=42):
     """
     Generate UMAP data from gene expression data.
+    
+    Args:
+        sample_id: Sample identifier
+        cell_ids: List of specific cell IDs to analyze (if None, analyze all cells)
+        n_neighbors: Number of neighbors for UMAP
+        min_dist: Minimum distance for UMAP
+        n_components: Number of components for UMAP embedding
+        n_clusters: Number of clusters for KMeans clustering
+        random_state: Random seed for reproducibility
+    
+    Returns:
+        List of dictionaries containing UMAP coordinates and cluster assignments
     """
     if sample_id not in SAMPLES:
         raise ValueError(f"Sample {sample_id} not found")
@@ -281,14 +293,30 @@ def get_umap_data(sample_id, n_neighbors=15, min_dist=0.1, n_components=2, n_clu
     df = pd.read_parquet(gene_expression_path)
     
     # Separate ID column from gene expression data
-    cell_ids = df['id'].values
+    cell_ids_all = df['id'].values
     gene_data = df.drop('id', axis=1).values
+    
+    # If specific cell_ids are provided, filter to only those cells
+    if cell_ids is not None:
+        # Convert cell_ids to string for consistent comparison
+        cell_ids_str = [str(cid) for cid in cell_ids]
+        cell_ids_all_str = [str(cid) for cid in cell_ids_all]
+        
+        # Find indices of requested cells
+        cell_indices = [i for i, cid in enumerate(cell_ids_all_str) if cid in cell_ids_str]
+        
+        if len(cell_indices) == 0:
+            raise ValueError("None of the specified cell IDs were found in the data")
+        
+        # Filter data to only requested cells
+        cell_ids_all = cell_ids_all[cell_indices]
+        gene_data = gene_data[cell_indices]
     
     # Filter out cells/genes with all zeros to improve UMAP performance
     # Remove cells with no expression
     cell_mask = gene_data.sum(axis=1) > 0
     gene_data_filtered = gene_data[cell_mask]
-    cell_ids_filtered = cell_ids[cell_mask]
+    cell_ids_filtered = cell_ids_all[cell_mask]
     
     # Remove genes with no expression across all cells
     gene_mask = gene_data_filtered.sum(axis=0) > 0
@@ -337,148 +365,6 @@ def get_umap_data(sample_id, n_neighbors=15, min_dist=0.1, n_components=2, n_clu
         })
     
     return results
-
-
-def get_pseudotime_data(sample_id, root_cell_id=None, n_neighbors=15, n_pcs=50, random_state=42):
-    """
-    Generate pseudo-time analysis data using diffusion pseudotime (DPT).
-    
-    Args:
-        sample_id: Sample identifier
-        root_cell_id: ID of the root/source cell (if None, will be auto-detected)
-        n_neighbors: Number of neighbors for neighbor graph construction
-        n_pcs: Number of principal components to use
-        random_state: Random seed for reproducibility
-    
-    Returns:
-        Dictionary containing pseudo-time results and UMAP coordinates
-    """
-    if sample_id not in SAMPLES:
-        raise ValueError(f"Sample {sample_id} not found")
-    
-    try:
-        # Load gene expression data
-        gene_expression_path = SAMPLES[sample_id]["gene_expression_path"]
-        df = pd.read_parquet(gene_expression_path)
-        
-        # Separate ID column from gene expression data
-        cell_ids = df['id'].values
-        gene_data = df.drop('id', axis=1).values
-        gene_names = df.drop('id', axis=1).columns.tolist()
-        
-        # Filter out cells/genes with all zeros
-        cell_mask = gene_data.sum(axis=1) > 0
-        gene_data_filtered = gene_data[cell_mask]
-        cell_ids_filtered = cell_ids[cell_mask]
-        
-        # Remove genes with no expression across all cells
-        gene_mask = gene_data_filtered.sum(axis=0) > 0
-        gene_data_filtered = gene_data_filtered[:, gene_mask]
-        gene_names_filtered = [gene_names[i] for i in range(len(gene_names)) if gene_mask[i]]
-        
-        if gene_data_filtered.shape[0] == 0:
-            return []
-        
-        # Create AnnData object for scanpy
-        adata = sc.AnnData(X=gene_data_filtered)
-        adata.obs_names = [str(cell_id) for cell_id in cell_ids_filtered]
-        adata.var_names = gene_names_filtered
-        
-        # Preprocessing for pseudo-time analysis
-        # Log transformation
-        sc.pp.log1p(adata)
-        
-        # Highly variable genes
-        sc.pp.highly_variable_genes(adata, min_mean=0.0125, max_mean=3, min_disp=0.5)
-        adata.raw = adata
-        
-        # Check if we have enough highly variable genes
-        if 'highly_variable' not in adata.var.columns:
-            raise ValueError("No highly variable genes found")
-        
-        n_hvg = adata.var.highly_variable.sum()
-        if n_hvg < 10:
-            # If too few highly variable genes, use top variance genes instead
-            sc.pp.highly_variable_genes(adata, n_top_genes=min(500, adata.shape[1]))
-        
-        adata = adata[:, adata.var.highly_variable]
-        
-        # Scale data
-        sc.pp.scale(adata, max_value=10)
-        
-        # Principal component analysis
-        actual_n_pcs = min(n_pcs, min(adata.shape) - 1)
-        sc.tl.pca(adata, svd_solver='arpack', n_comps=actual_n_pcs, random_state=random_state)
-        
-        # Compute neighbor graph
-        actual_n_neighbors = min(n_neighbors, adata.shape[0] - 1)
-        sc.pp.neighbors(adata, n_neighbors=actual_n_neighbors, n_pcs=actual_n_pcs, random_state=random_state)
-        
-        # Compute UMAP embedding
-        sc.tl.umap(adata, random_state=random_state)
-        
-        # Compute diffusion map
-        # Adjust number of components based on data size
-        n_diffmap_comps = min(15, adata.shape[0] - 1, adata.shape[1] - 1)
-        if n_diffmap_comps < 2:
-            raise ValueError("Not enough data for diffusion map computation")
-        sc.tl.diffmap(adata, n_comps=n_diffmap_comps)
-        
-        # Set root cell for pseudo-time calculation
-        if root_cell_id is not None and str(root_cell_id) in adata.obs_names:
-            # Use specified root cell
-            root_idx = adata.obs_names.get_loc(str(root_cell_id))
-            adata.uns['iroot'] = root_idx
-        else:
-            # Auto-detect root cell (cell with highest total expression or most "stem-like")
-            # Use the cell with highest expression as a simple heuristic
-            total_expr = np.array(adata.X.sum(axis=1)).flatten()
-            root_idx = np.argmax(total_expr)
-            adata.uns['iroot'] = root_idx
-            root_cell_id = adata.obs_names[root_idx]
-        
-        # Compute diffusion pseudotime
-        sc.tl.dpt(adata)
-        
-        # Extract results
-        results = []
-        for i, cell_id in enumerate(adata.obs_names):
-            # Get UMAP coordinates
-            umap_x = float(adata.obsm['X_umap'][i, 0])
-            umap_y = float(adata.obsm['X_umap'][i, 1])
-            
-            # Get pseudo-time value
-            pseudotime = float(adata.obs['dpt_pseudotime'][i])
-            
-            # Check if this is the root cell
-            is_root = (i == adata.uns['iroot'])
-            
-            # Safely get diffusion map coordinates
-            diffmap_1 = float(adata.obsm['X_diffmap'][i, 0]) if adata.obsm['X_diffmap'].shape[1] > 0 else 0.0
-            diffmap_2 = float(adata.obsm['X_diffmap'][i, 1]) if adata.obsm['X_diffmap'].shape[1] > 1 else 0.0
-            
-            results.append({
-                'id': cell_id,
-                'x': umap_x,
-                'y': umap_y,
-                'pseudotime': pseudotime,
-                'is_root': is_root,
-                'diffmap_1': diffmap_1,
-                'diffmap_2': diffmap_2
-            })
-        
-        return {
-            'cells': results,
-            'root_cell_id': str(root_cell_id),
-            'pseudotime_range': {
-                'min': float(adata.obs['dpt_pseudotime'].min()),
-                'max': float(adata.obs['dpt_pseudotime'].max())
-            }
-        }
-        
-    except Exception as e:
-        print(f"Error in pseudo-time analysis for sample {sample_id}: {e}")
-        raise ValueError(f"Error in pseudo-time analysis: {str(e)}")
 
 
 def perform_go_analysis(sample_id, cell_ids, top_n=5):
