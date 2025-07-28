@@ -5,7 +5,6 @@ import "./App.css";
 import { SampleViewer } from "./components/SampleViewer";
 import { PlusOutlined, InboxOutlined, PaperClipOutlined, CloseOutlined } from "@ant-design/icons";
 import "@ant-design/v5-patch-for-react-19";
-import { GeneExpression } from "./components/GeneExpression";
 import { UmapComponent } from "./components/UmapComponent";
 import { TrajectoryViewer } from "./components/TrajectoryViewer";
 
@@ -283,7 +282,6 @@ function App() {
                       >
                         Gene Expression
                       </div>
-                      {/* <GeneExpression /> */}
                       <div style={{ height: "calc(100% - 22px)", overflow: "auto" }}>
                         {selectedSamples.length > 0 ? (
                           <TrajectoryViewer sampleId={selectedSamples[0].id} />
