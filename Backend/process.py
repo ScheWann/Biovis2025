@@ -414,3 +414,45 @@ def perform_go_analysis(sample_id, cell_ids, top_n=5):
     except Exception as e:
         print(f"Error in GO analysis: {e}")
         return []
+
+
+def get_trajectory_data(sample_id):
+    """
+    Get trajectory gene expression data for the given sample ID.
+    Returns data formatted for line charts with error bands.
+    """
+    if sample_id not in SAMPLES:
+        raise ValueError(f"Sample {sample_id} not found")
+    
+    # Check if sample has trajectory data
+    if "horizontal_non_random_gene_trajectory_expression_path" not in SAMPLES[sample_id]:
+        raise ValueError(f"No trajectory data available for sample {sample_id}")
+    
+    try:
+        trajectory_path = SAMPLES[sample_id]["horizontal_non_random_gene_trajectory_expression_path"]
+        df = pd.read_csv(trajectory_path, index_col=0)
+        
+        # Clean the data as shown in SPATA.ipynb
+        columns_to_drop = ["colour", "PANEL", "group", "fill", "linewidth", "linetype", "weight", "alpha", "flipped_aes"]
+        df = df.drop(columns=[col for col in columns_to_drop if col in df.columns], errors='ignore')
+        
+        # Ensure variables column is string type
+        df["variables"] = df["variables"].astype(str)
+        
+        # Group data by gene (variables)
+        trajectory_data = {}
+        
+        for gene in df["variables"].unique():
+            gene_data = df[df["variables"] == gene].copy()
+            gene_data = gene_data.sort_values("x")  # Sort by x for proper line plotting
+            
+            trajectory_data[gene] = {
+                "gene": gene,
+                "data": gene_data[["x", "y", "ymin", "ymax", "se"]].to_dict(orient="records")
+            }
+        
+        return trajectory_data
+        
+    except Exception as e:
+        print(f"Error loading trajectory data for sample {sample_id}: {e}")
+        raise ValueError(f"Error loading trajectory data: {str(e)}")

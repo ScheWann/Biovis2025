@@ -9,7 +9,8 @@
         "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-A1_2um/H1-TXK6Z4X-A1_2um_lite.jpeg",
         "gene_list_path": "../Example_Data/H1-TXK6Z4X-A1_2um/chunks/weighted_by_area/bin_to_cell_assign/patch_0_2.csv",
         "cells_path": "../Example_Data/H1-TXK6Z4X-A1_2um/cells_df.csv",
-        "nuclei_path": "../Example_Data/H1-TXK6Z4X-A1_2um/nuclei_df.csv"
+        "nuclei_path": "../Example_Data/H1-TXK6Z4X-A1_2um/nuclei_df.csv",
+        "horizontal_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-A1_2um/skin_TXK6Z4X_A1_16um_horizontal_non_random.csv"
     },
     "skin_TXK6Z4X_D1": {
         "id": "skin_TXK6Z4X_D1",

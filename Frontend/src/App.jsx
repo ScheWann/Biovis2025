@@ -7,6 +7,7 @@ import { PlusOutlined, InboxOutlined, PaperClipOutlined, CloseOutlined } from "@
 import "@ant-design/v5-patch-for-react-19";
 import { GeneExpression } from "./components/GeneExpression";
 import { UmapComponent } from "./components/UmapComponent";
+import { TrajectoryViewer } from "./components/TrajectoryViewer";
 
 // Custom theme configuration
 const customTheme = {
@@ -274,7 +275,22 @@ function App() {
                       style={{ borderBottom: "1px solid #e8e8e8" }}
                     >
                       Gene Expression
-                      <GeneExpression />
+                      {/* <GeneExpression /> */}
+                      <div style={{ height: "100%", overflow: "auto" }}>
+                        {selectedSamples.length > 0 ? (
+                          <TrajectoryViewer sampleId={selectedSamples[0].id} />
+                        ) : (
+                          <div style={{ 
+                            display: "flex", 
+                            justifyContent: "center", 
+                            alignItems: "center", 
+                            height: "100%",
+                            color: "#999"
+                          }}>
+                            Select a sample to view trajectory data
+                          </div>
+                        )}
+                      </div>
                     </Splitter.Panel>
 
                     <Splitter.Panel
