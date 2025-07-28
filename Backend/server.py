@@ -16,6 +16,7 @@ from process import (
     perform_go_analysis,
     get_trajectory_data,
     get_trajectory_gene_list,
+    get_pseudotime_data,
 )
 
 
@@ -256,6 +257,32 @@ def upload_spaceranger():
             file.save(save_path)
 
     return jsonify({"status": "success"})
+
+
+@app.route("/api/get_pseudotime_data", methods=["POST"])
+def get_pseudotime_data_route():
+    """
+    Generate pseudotime analysis data using diffusion pseudotime (DPT)
+    """
+    sample_id = request.json["sample_id"]
+    
+    # Optional parameters with defaults
+    root_cell_id = request.json.get("root_cell_id", None)
+    n_neighbors = request.json.get("n_neighbors", 15)
+    n_pcs = request.json.get("n_pcs", 50)
+    random_state = request.json.get("random_state", 42)
+    
+    try:
+        pseudotime_data = get_pseudotime_data(
+            sample_id=sample_id,
+            root_cell_id=root_cell_id,
+            n_neighbors=n_neighbors,
+            n_pcs=n_pcs,
+            random_state=random_state
+        )
+        return jsonify(pseudotime_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

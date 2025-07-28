@@ -53,6 +53,17 @@ export const ScatterplotUmap = ({
       });
   };
 
+  const fetchPseudotimeData = ( sampleId ) => {
+    fetch("/api/get_pseudotime_data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sample_id: sampleId }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        console.log(data, "pseudotime data");
+      });
+  }
   // Detect container size changes
   useEffect(() => {
     const container = containerRef.current;
@@ -239,7 +250,10 @@ export const ScatterplotUmap = ({
       .attr("y", margin.top - 5)
       .attr("font-size", 12)
       .attr("font-weight", 600)
-      .text(title);
+      .text(title)
+      .on("click", () => {
+        fetchPseudotimeData(sampleId);
+      });
 
     // Legend
     const legend = g
