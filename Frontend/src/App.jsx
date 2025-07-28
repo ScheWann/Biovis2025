@@ -274,16 +274,24 @@ function App() {
                       max="45%"
                       style={{ borderBottom: "1px solid #e8e8e8" }}
                     >
-                      Gene Expression
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: "bold",
+                          color: "#333",
+                        }}
+                      >
+                        Gene Expression
+                      </div>
                       {/* <GeneExpression /> */}
                       <div style={{ height: "100%", overflow: "auto" }}>
                         {selectedSamples.length > 0 ? (
                           <TrajectoryViewer sampleId={selectedSamples[0].id} />
                         ) : (
-                          <div style={{ 
-                            display: "flex", 
-                            justifyContent: "center", 
-                            alignItems: "center", 
+                          <div style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
                             height: "100%",
                             color: "#999"
                           }}>
