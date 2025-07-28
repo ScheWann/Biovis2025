@@ -15,6 +15,7 @@ from process import (
     get_umap_data,
     perform_go_analysis,
     get_trajectory_data,
+    get_trajectory_gene_list,
 )
 
 
@@ -127,15 +128,30 @@ def get_go_analysis_route():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/get_trajectory_gene_list", methods=["POST"])
+def get_trajectory_gene_list_route():
+    """
+    Get list of available genes from trajectory data
+    """
+    sample_id = request.json["sample_id"]
+
+    try:
+        gene_list = get_trajectory_gene_list(sample_id=sample_id)
+        return jsonify(gene_list)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/get_trajectory_data", methods=["POST"])
 def get_trajectory_data_route():
     """
     Get trajectory gene expression data for line chart visualization
     """
     sample_id = request.json["sample_id"]
+    selected_genes = request.json.get("selected_genes", None)
 
     try:
-        trajectory_data = get_trajectory_data(sample_id=sample_id)
+        trajectory_data = get_trajectory_data(sample_id=sample_id, selected_genes=selected_genes)
         return jsonify(trajectory_data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

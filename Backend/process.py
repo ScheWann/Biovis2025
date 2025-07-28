@@ -416,10 +416,9 @@ def perform_go_analysis(sample_id, cell_ids, top_n=5):
         return []
 
 
-def get_trajectory_data(sample_id):
+def get_trajectory_gene_list(sample_id):
     """
-    Get trajectory gene expression data for the given sample ID.
-    Returns data formatted for line charts with error bands.
+    Get list of available genes from trajectory data for the given sample ID.
     """
     if sample_id not in SAMPLES:
         raise ValueError(f"Sample {sample_id} not found")
@@ -432,12 +431,40 @@ def get_trajectory_data(sample_id):
         trajectory_path = SAMPLES[sample_id]["horizontal_non_random_gene_trajectory_expression_path"]
         df = pd.read_csv(trajectory_path, index_col=0)
         
-        # Clean the data as shown in SPATA.ipynb
-        columns_to_drop = ["colour", "PANEL", "group", "fill", "linewidth", "linetype", "weight", "alpha", "flipped_aes"]
-        df = df.drop(columns=[col for col in columns_to_drop if col in df.columns], errors='ignore')
-        
         # Ensure variables column is string type
         df["variables"] = df["variables"].astype(str)
+        
+        # Return unique gene names
+        gene_list = df["variables"].unique().tolist()
+        return sorted(gene_list)  # Sort alphabetically for better UX
+        
+    except Exception as e:
+        print(f"Error loading trajectory gene list for sample {sample_id}: {e}")
+        raise ValueError(f"Error loading trajectory gene list: {str(e)}")
+
+
+def get_trajectory_data(sample_id, selected_genes=None):
+    """
+    Get trajectory gene expression data for the given sample ID.
+    """
+    if sample_id not in SAMPLES:
+        raise ValueError(f"Sample {sample_id} not found")
+    
+    # Check if sample has trajectory data
+    if "horizontal_non_random_gene_trajectory_expression_path" not in SAMPLES[sample_id]:
+        raise ValueError(f"No trajectory data available for sample {sample_id}")
+    
+    try:
+        trajectory_path = SAMPLES[sample_id]["horizontal_non_random_gene_trajectory_expression_path"]
+        df = pd.read_csv(trajectory_path, index_col=0)
+        
+        columns_to_drop = ["colour", "PANEL", "group", "fill", "linewidth", "linetype", "weight", "alpha", "flipped_aes"]
+        df = df.drop(columns=[col for col in columns_to_drop if col in df.columns], errors='ignore')
+
+        df["variables"] = df["variables"].astype(str)
+
+        if selected_genes:
+            df = df[df["variables"].isin(selected_genes)]
         
         # Group data by gene (variables)
         trajectory_data = {}

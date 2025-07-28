@@ -284,7 +284,7 @@ function App() {
                         Gene Expression
                       </div>
                       {/* <GeneExpression /> */}
-                      <div style={{ height: "100%", overflow: "auto" }}>
+                      <div style={{ height: "calc(100% - 22px)", overflow: "auto" }}>
                         {selectedSamples.length > 0 ? (
                           <TrajectoryViewer sampleId={selectedSamples[0].id} />
                         ) : (
