@@ -332,7 +332,7 @@ function App() {
                           }}
                         >
                           {umapDataSets.length === 0 ? (
-                            <Empty style={{ gridColumn: "1 / -1" }} description="No UMAP data available" />
+                            <Empty style={{ gridColumn: "1 / -1" }} description="No UMAP data available"  image={Empty.PRESENTED_IMAGE_SIMPLE} />
                           ) : (
                             umapDataSets.map((dataset, index) => {
                               // Calculate dimensions based on total count

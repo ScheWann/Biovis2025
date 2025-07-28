@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { Select, Button, Row, Col, message, Spin } from "antd";
+import { Select, Button, Row, Col, message, Spin, Empty } from "antd";
 import { LineChart } from "./LineChart";
 
 const { Option } = Select;
@@ -201,19 +201,45 @@ export const TrajectoryViewer = ({ sampleId }) => {
                 style={{
                     flex: 1,
                     overflow: enableScrolling ? "auto" : "hidden",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                 }}
             >
                 {loading && (
                     <Spin size="large" />
                 )}
 
-                {!loading && confirmedGenes.length > 0 && (
+                {!loading && !selectedSample && (
+                    <Empty
+                        description="Please select a sample to view trajectory data"
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
+                )}
+
+                {!loading && selectedSample && confirmedGenes.length === 0 && (
+                    <Empty
+                        description="Select genes and click OK to view trajectory analysis"
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
+                )}
+
+                {!loading && confirmedGenes.length > 0 && Object.keys(trajectoryData).length === 0 && (
+                    <Empty
+                        description="No trajectory data available for selected genes"
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
+                )}
+
+                {!loading && confirmedGenes.length > 0 && Object.keys(trajectoryData).length > 0 && (
                     <div
                         style={{
                             display: enableScrolling ? "block" : "flex",
                             flexDirection: enableScrolling ? "column" : "row",
                             gap: enableScrolling ? "20px" : "0",
                             height: enableScrolling ? "auto" : "100%",
+                            width: "100%",
+                            overflow: enableScrolling ? "auto" : "hidden",
                         }}
                     >
                         {confirmedGenes.map((gene) => (

@@ -265,7 +265,10 @@ export const GOAnalysisWindow = ({
                     ) : data && data.length > 0 ? (
                         <svg ref={svgRef}></svg>
                     ) : (
-                        <Empty description="No GO analysis data available" />
+                        <Empty 
+                            description="No GO analysis data available"
+                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        />
                     )}
                 </div>
             </div>
