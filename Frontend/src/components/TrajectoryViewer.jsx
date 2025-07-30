@@ -128,7 +128,8 @@ export const TrajectoryViewer = ({ sampleId }) => {
     // Calculate chart height based on number of confirmed genes
     const getChartHeight = () => {
         if (confirmedGenes.length === 0) return containerHeight;
-        if (confirmedGenes.length >= 1) return containerHeight - 32; // Account for controls
+        // Use the same height calculation for both single and multiple charts
+        return containerHeight - 32; // Account for controls
     };
 
     const chartHeight = getChartHeight();
@@ -200,9 +201,10 @@ export const TrajectoryViewer = ({ sampleId }) => {
             <div
                 style={{
                     flex: 1,
-                    overflow: enableScrolling ? "auto" : "hidden",
+                    overflowY: enableScrolling ? "auto" : "hidden",
+                    overflowX: "hidden",
                     display: "flex",
-                    alignItems: "center",
+                    alignItems: enableScrolling ? "flex-start" : "center",
                     justifyContent: "center",
                 }}
             >
@@ -239,7 +241,6 @@ export const TrajectoryViewer = ({ sampleId }) => {
                             gap: enableScrolling ? "20px" : "0",
                             height: enableScrolling ? "auto" : "100%",
                             width: "100%",
-                            overflow: enableScrolling ? "auto" : "hidden",
                         }}
                     >
                         {confirmedGenes.map((gene) => (
@@ -252,8 +253,9 @@ export const TrajectoryViewer = ({ sampleId }) => {
                                         display: "flex",
                                         flexDirection: "column",
                                         width: "100%",
-                                        marginBottom: enableScrolling ? "0" : "0",
+                                        marginBottom: enableScrolling ? "10px" : "0",
                                         flex: enableScrolling ? "none" : "1",
+                                        borderRadius: "8px",
                                     }}
                                 >
                                     <LineChart
