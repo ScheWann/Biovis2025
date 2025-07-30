@@ -1,10 +1,8 @@
 from flask import Flask, request, jsonify, send_file
 from process import SAMPLES
-import PIL.Image
 from flask_cors import CORS
 import re
 import os
-import io
 from process import (
     get_samples_option,
     get_hires_image_size,
@@ -16,7 +14,7 @@ from process import (
     perform_go_analysis,
     get_trajectory_data,
     get_trajectory_gene_list,
-    get_pseudotime_data,
+    # get_pseudotime_data,
 )
 
 
@@ -89,24 +87,19 @@ def get_umap_data_route():
     Generate UMAP data from gene expression data
     """
     sample_id = request.json["sample_id"]
-
-    # Optional parameters with defaults
     cell_ids = request.json.get("cell_ids", None)  # New parameter for specific cells
-    n_neighbors = request.json.get("n_neighbors", 15)
-    min_dist = request.json.get("min_dist", 0.1)
-    n_components = request.json.get("n_components", 2)
-    n_clusters = request.json.get("n_clusters", 5)
-    random_state = request.json.get("random_state", 42)
-
+    n_neighbors = request.json.get("n_neighbors", 10)
+    n_pcas = request.json.get("n_pcas", 30)
+    resolutions = request.json.get("resolutions", 1)
+    adata_umap_title = request.json.get("adata_umap_title", None)
     try:
         umap_data = get_umap_data(
             sample_id=sample_id,
             cell_ids=cell_ids,  # Pass cell_ids to the backend function
             n_neighbors=n_neighbors,
-            min_dist=min_dist,
-            n_components=n_components,
-            n_clusters=n_clusters,
-            random_state=random_state,
+            n_pcas=n_pcas,
+            resolutions=resolutions,
+            adata_umap_title=adata_umap_title
         )
         return jsonify(umap_data)
     except Exception as e:

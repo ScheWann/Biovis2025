@@ -69,12 +69,33 @@ def get_coordinates(sample_ids):
 
     for sample_id in sample_ids:
         if sample_id in SAMPLES:
-            nuclei_df = pd.read_csv(SAMPLES[sample_id]["nuclei_path"], index_col=0)
-            cell_nuclei_merged_df = nuclei_df[["id", "cell_x", "cell_y"]]
-
-            cell_coordinate_result[sample_id] = cell_nuclei_merged_df.to_dict(
-                orient="records"
-            )
+            sample_info = SAMPLES[sample_id]
+            
+            # Check if we have adata_path (new format)
+            if "adata_path" in sample_info:
+                try:
+                    adata = sc.read_h5ad(sample_info["adata_path"])
+                    scalef = adata.uns['spatial']['skin_TXK6Z4X_A1']['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
+                    # Use array_row and array_col from obs metadata
+                    if 'array_row' in adata.obs and 'array_col' in adata.obs:
+                        coords_df = pd.DataFrame({
+                            'cell_x': adata.obsm['spatial_cropped_150_buffer'][:, 0] * scalef,
+                            'cell_y': adata.obsm['spatial_cropped_150_buffer'][:, 1] * scalef
+                        }, index=adata.obs_names)
+                    else:
+                        print(f"Warning: No spatial coordinates found for sample {sample_id}")
+                        coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'])
+                    
+                    # Add ID column and reset index
+                    coords_df = coords_df.reset_index().rename(columns={'index': 'id'})
+                    cell_coordinate_result[sample_id] = coords_df.to_dict(orient="records")
+                    
+                except Exception as e:
+                    print(f"Error loading adata coordinates for sample {sample_id}: {e}")
+                    cell_coordinate_result[sample_id] = []
+            else:
+                print(f"Warning: No coordinate data available for sample {sample_id}")
+                cell_coordinate_result[sample_id] = []
 
     return cell_coordinate_result
 
@@ -86,9 +107,21 @@ def get_gene_list(sample_ids):
     sample_gene_dict = {}
 
     for sample_id in sample_ids:
-        gene_df = pd.read_csv(SAMPLES[sample_id]["gene_list_path"])
-        gene_list = gene_df.columns.tolist()
-        sample_gene_dict[sample_id] = gene_list
+        if sample_id in SAMPLES:
+            sample_info = SAMPLES[sample_id]
+
+            if "adata_path" in sample_info:
+                try:
+                    adata = sc.read_h5ad(sample_info["adata_path"])
+                    gene_list = adata.var_names.tolist()
+                    sample_gene_dict[sample_id] = gene_list
+                except Exception as e:
+                    print(f"Error loading adata gene list for sample {sample_id}: {e}")
+                    sample_gene_dict[sample_id] = []
+
+            else:
+                print(f"Warning: No gene list data available for sample {sample_id}")
+                sample_gene_dict[sample_id] = []
 
     return sample_gene_dict
 
@@ -269,92 +302,44 @@ def get_selected_region_data(sample_id, cell_ids):
     return "not finished yet"
 
 
-def get_umap_data(sample_id, cell_ids=None, n_neighbors=15, min_dist=0.1, n_components=2, n_clusters=5, random_state=42):
+def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutions=1, adata_umap_title=None):
     """
     Generate UMAP data from gene expression data.
-    
-    Args:
-        sample_id: Sample identifier
-        cell_ids: List of specific cell IDs to analyze (if None, analyze all cells)
-        n_neighbors: Number of neighbors for UMAP
-        min_dist: Minimum distance for UMAP
-        n_components: Number of components for UMAP embedding
-        n_clusters: Number of clusters for KMeans clustering
-        random_state: Random seed for reproducibility
-    
-    Returns:
-        List of dictionaries containing UMAP coordinates and cluster assignments
     """
     if sample_id not in SAMPLES:
         raise ValueError(f"Sample {sample_id} not found")
     
-    # Load gene expression data
-    gene_expression_path = SAMPLES[sample_id]["gene_expression_path"]
-    df = pd.read_parquet(gene_expression_path)
+    sample_info = SAMPLES[sample_id]
     
-    # Separate ID column from gene expression data
-    cell_ids_all = df['id'].values
-    gene_data = df.drop('id', axis=1).values
+    # Check if we have adata_path (new format)
+    if "adata_path" in sample_info:
+        adata = sc.read_h5ad(sample_info["adata_path"])
+    else:
+        raise ValueError(f"No gene expression data available for sample {sample_id}")
     
-    # If specific cell_ids are provided, filter to only those cells
     if cell_ids is not None:
-        # Convert cell_ids to string for consistent comparison
-        cell_ids_str = [str(cid) for cid in cell_ids]
-        cell_ids_all_str = [str(cid) for cid in cell_ids_all]
-        
-        # Find indices of requested cells
-        cell_indices = [i for i, cid in enumerate(cell_ids_all_str) if cid in cell_ids_str]
-        
-        if len(cell_indices) == 0:
-            raise ValueError("None of the specified cell IDs were found in the data")
-        
-        # Filter data to only requested cells
-        cell_ids_all = cell_ids_all[cell_indices]
-        gene_data = gene_data[cell_indices]
-    
-    # Filter out cells/genes with all zeros to improve UMAP performance
-    # Remove cells with no expression
-    cell_mask = gene_data.sum(axis=1) > 0
-    gene_data_filtered = gene_data[cell_mask]
-    cell_ids_filtered = cell_ids_all[cell_mask]
-    
-    # Remove genes with no expression across all cells
-    gene_mask = gene_data_filtered.sum(axis=0) > 0
-    gene_data_filtered = gene_data_filtered[:, gene_mask]
-    
-    if gene_data_filtered.shape[0] == 0:
-        return []
-    
-    # Apply log transformation for better UMAP results
-    # Add small constant to avoid log(0)
-    gene_data_log = np.log1p(gene_data_filtered)
-    
-    # Add small random noise to help with spectral initialization
-    noise_factor = 1e-6
-    gene_data_log += np.random.normal(0, noise_factor, gene_data_log.shape)
-    
-    # Adjust n_neighbors if we have fewer cells than requested
-    actual_n_neighbors = min(n_neighbors, gene_data_filtered.shape[0] - 1)
-    
-    # Perform UMAP dimensionality reduction
-    reducer = umap.UMAP(
-        n_neighbors=actual_n_neighbors,
-        min_dist=min_dist,
-        n_components=n_components,
-        random_state=random_state,
-        init='random'  # Use random initialization to avoid spectral warnings
-    )
-    
-    embedding = reducer.fit_transform(gene_data_log)
-    
-    # Adjust n_clusters if we have fewer cells than requested clusters
-    actual_n_clusters = min(n_clusters, gene_data_filtered.shape[0])
-    
-    # Perform clustering on the UMAP embedding
-    kmeans = KMeans(n_clusters=actual_n_clusters, random_state=random_state, n_init=10)
-    cluster_labels = kmeans.fit_predict(embedding)
-    
-    # Format results according to UMAP component structure
+        adata = adata[cell_ids].copy()
+    else:
+        raise ValueError(f"No gene expression data available for sample {sample_id}")
+
+    sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
+
+    sc.pp.normalize_total(adata)
+    sc.pp.log1p(adata)
+    sc.pp.scale(adata, max_value=10)
+
+    sc.tl.pca(adata, use_highly_variable=True)
+    sc.pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcas)
+    sc.tl.umap(adata)
+    adata.obsm[f'X_umap_{adata_umap_title}'] = adata.obsm['X_umap'].copy()
+
+    sc.tl.leiden(adata, resolution=resolutions)
+    adata.obs[f'leiden_{adata_umap_title}'] = adata.obs['leiden'].copy()
+
+    embedding = adata.obsm[f'X_umap_{adata_umap_title}'] # shape: (n_cells, 2)
+    cluster_labels = adata.obs[f'leiden_{adata_umap_title}'].astype(int).values
+    cell_ids_filtered = adata.obs_names.tolist()
+
     results = []
     for i in range(len(cell_ids_filtered)):
         results.append({
@@ -363,85 +348,38 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=15, min_dist=0.1, n_comp
             'y': float(embedding[i, 1]),
             'cluster': f'Cluster {cluster_labels[i] + 1}'
         })
-    
+
+    # Return the result
     return results
 
 
-def perform_go_analysis(sample_id, cell_ids, top_n=5):
+def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
     """
     Perform GO analysis on the selected cluster cells and return top GO terms.
     """
     if sample_id not in SAMPLES:
         raise ValueError(f"Sample {sample_id} not found")
     
-    try:
-        gene_expression_path = SAMPLES[sample_id]["gene_expression_path"]
-        df = pd.read_parquet(gene_expression_path)
-
-        cluster_df = df[df['id'].isin(cell_ids)]
-        
-        if cluster_df.empty:
-            return []
-        
-        # Calculate mean expression for each gene in the cluster
-        gene_cols = [col for col in cluster_df.columns if col != 'id']
-        mean_expression = cluster_df[gene_cols].mean()
-        
-        # Filter for significantly expressed genes (above threshold)
-        expression_threshold = mean_expression.quantile(0.7)  # Top 30% of genes
-        significant_genes = mean_expression[mean_expression > expression_threshold].index.tolist()
-        
-        if len(significant_genes) < 5:
-            # If too few genes, use top 20 expressed genes
-            significant_genes = mean_expression.nlargest(20).index.tolist()
-        
-        # Perform GO enrichment analysis using gseapy
-        try:
-            enr = gp.enrichr(
-                gene_list=significant_genes,
-                gene_sets=['GO_Biological_Process_2023'],
-                organism='human',
-                cutoff=0.05,
-                no_plot=True
-            )
-
-            results = enr.results
-            
-            if results.empty:
-                # If no significant results, try with less stringent criteria
-                enr = gp.enrichr(
-                    gene_list=significant_genes,
-                    gene_sets=['GO_Biological_Process_2023'],
-                    organism='human',
-                    description='cluster_go_analysis',
-                    cutoff=0.5,
-                    no_plot=True
-                )
-                results = enr.results
-            
-            # Format and return top results
-            go_results = []
-            for i, (_, row) in enumerate(results.head(top_n).iterrows()):
-                go_results.append({
-                    'rank': i + 1,
-                    'term': row['Term'],
-                    'description': row['Term'].split('(')[0].strip(),
-                    'p_value': float(row['P-value']),
-                    'adjusted_p_value': float(row['Adjusted P-value']),
-                    'odds_ratio': float(row['Odds Ratio']) if 'Odds Ratio' in row else 0,
-                    'combined_score': float(row['Combined Score']) if 'Combined Score' in row else 0,
-                    'genes': row['Genes'].split(';') if 'Genes' in row else []
-                })
-            
-            return go_results
-            
-        except Exception as e:
-            print(f"GO analysis error: {e}")
-            return []
+    sample_info = SAMPLES[sample_id]
     
-    except Exception as e:
-        print(f"Error in GO analysis: {e}")
-        return []
+    if "adata_path" in sample_info:
+        adata = sc.read_h5ad(sample_info["adata_path"])
+    else:
+        raise ValueError(f"No gene expression data available for sample {sample_id}")
+    
+    sc.tl.rank_genes_groups(adata, groupby=f'leiden_{adata_umap_title}', method='wilcoxon')
+    cluster_name = str(cluster_id)
+    top_genes = adata.uns['rank_genes_groups']['names'][cluster_name][:100].tolist()
+
+    enr = gp.enrichr(gene_list=top_genes,
+                 gene_sets='GO_Biological_Process_2023',
+                 organism='Human',
+                 cutoff=0.05)
+    
+    go_results = enr.results.sort_values(by='Combined Score', ascending=False)
+    top_df = go_results.head(top_n)
+
+    return top_df.to_dict(orient='records')
 
 
 def get_trajectory_gene_list(sample_id):

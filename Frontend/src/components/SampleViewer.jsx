@@ -48,8 +48,8 @@ export const SampleViewer = ({
     const [editAreaColor, setEditAreaColor] = useState('#f72585');
     const [editPopupPosition, setEditPopupPosition] = useState({ x: 0, y: 0 });
     const [editNeighbors, setEditNeighbors] = useState(10);
-    const [editNPcas, setEditNPcas] = useState(50);
-    const [editResolution, setEditResolution] = useState(0.5);
+    const [editNPcas, setEditNPcas] = useState(30);
+    const [editResolutions, setEditResolutions] = useState(1);
 
     // Minimap state
     const [minimapVisible, setMinimapVisible] = useState(true);
@@ -577,8 +577,8 @@ export const SampleViewer = ({
                     setEditAreaName(area.name);
                     setEditAreaColor(area.color);
                     setEditNeighbors(area.neighbors || 10);
-                    setEditNPcas(area.n_pcas || 50);
-                    setEditResolution(area.resolution || 0.5);
+                    setEditNPcas(area.n_pcas || 30);
+                    setEditResolutions(area.resolutions || 1);
 
                     // Find the rightmost point and vertical center of the area
                     const rightmostPoint = findRightmostPoint(area.points);
@@ -638,7 +638,7 @@ export const SampleViewer = ({
                         color: editAreaColor,
                         neighbors: editNeighbors,
                         n_pcas: editNPcas,
-                        resolution: editResolution
+                        resolutions: editResolutions
                     }
                     : area
             ));
@@ -661,8 +661,8 @@ export const SampleViewer = ({
         setEditAreaName('');
         setEditAreaColor('#f72585');
         setEditNeighbors(10);
-        setEditNPcas(50);
-        setEditResolution(0.5);
+        setEditNPcas(30);
+        setEditResolutions(1);
     };
 
     // Convert hex color to RGB array
@@ -902,6 +902,8 @@ export const SampleViewer = ({
         const umapId = `${selectedAreaForEdit.sampleId}_${selectedAreaForEdit.name}_${Date.now()}`;
         const umapTitle = `${selectedAreaForEdit.name} (${selectedAreaForEdit.sampleId})`;
 
+        const adata_umap_title = `${selectedAreaForEdit.name}_${selectedAreaForEdit.sampleId}_${editNeighbors}_${editNPcas}_${editResolutions}`;
+
         // Add a new loading dataset entry
         setUmapDataSets(prev => [
             ...prev,
@@ -924,10 +926,9 @@ export const SampleViewer = ({
                 sample_id: selectedAreaForEdit.sampleId,
                 cell_ids: cellIdsInArea,  // Pass the cell IDs to the backend
                 n_neighbors: editNeighbors,
-                n_clusters: 5,
-                min_dist: 0.1,
-                n_components: 2,
-                random_state: 42
+                n_pcas: editNPcas,
+                resolutions: editResolutions,
+                adata_umap_title: adata_umap_title
             })
         })
             .then(res => res.json())
@@ -1285,7 +1286,7 @@ export const SampleViewer = ({
     // Combine all layers
     const layers = useMemo(() => [
         ...generateImageLayers(),
-        ...generateCellBoundaryLayers(),
+        // ...generateCellBoundaryLayers(),
         ...generateCellLayers(),
         ...generateCustomAreaLayers()
     ], [generateImageLayers, generateCellBoundaryLayers, generateCellLayers, generateCustomAreaLayers]);
@@ -2179,8 +2180,8 @@ export const SampleViewer = ({
                                         Resolution:
                                     </label>
                                     <AutoComplete
-                                        value={editResolution.toString()}
-                                        onChange={(value) => setEditResolution(parseFloat(value) || 0.5)}
+                                        value={editResolutions.toString()}
+                                        onChange={(value) => setEditResolutions(parseFloat(value) || 0.5)}
                                         options={[
                                             { value: '0.1' },
                                             { value: '0.2' },
