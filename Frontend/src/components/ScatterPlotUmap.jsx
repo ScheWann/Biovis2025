@@ -17,12 +17,6 @@ export const ScatterplotUmap = ({
   setHoveredCluster,
   umapId,
   sampleId,
-  GOAnalysisData,
-  setGOAnalysisData,
-  GOAnalysisVisible,
-  setGOAnalysisVisible,
-  GOAnalysisLoading,
-  setGOAnalysisLoading,
   setCellName,
 }) => {
   const containerRef = useRef();
@@ -30,6 +24,11 @@ export const ScatterplotUmap = ({
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
   const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
   const [currentCellIds, setCurrentCellIds] = useState([]);
+  
+  // Local GO analysis state for this ScatterPlotUmap instance
+  const [GOAnalysisData, setGOAnalysisData] = useState(null);
+  const [GOAnalysisLoading, setGOAnalysisLoading] = useState(false);
+  const [GOAnalysisVisible, setGOAnalysisVisible] = useState(false);
 
   const fetchGOAnalysisData = (sampleId, cluster, adata_umap_title) => {
     setGOAnalysisLoading(true);

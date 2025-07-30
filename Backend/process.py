@@ -393,7 +393,22 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
                 'cluster': f'Cluster {cluster_labels[i] + 1}'
             })
 
-        ADATA_CACHE[sample_id] = adata
+        # Add cluster information back to the original cached AnnData for GO analysis
+        # but don't replace the entire object to preserve all cells for future UMAP generations
+        original_adata = get_cached_adata(sample_id)
+        
+        # Add the leiden clustering results to the original cached AnnData
+        # Only update cells that were part of this UMAP analysis
+        leiden_col = f'leiden_{adata_umap_title}'
+        if leiden_col not in original_adata.obs.columns:
+            # Initialize the column with NaN for all cells
+            original_adata.obs[leiden_col] = pd.NA
+        
+        # Update cluster assignments for the cells that were processed in this UMAP
+        for cell_id, cluster_label in zip(cell_ids_filtered, cluster_labels):
+            if cell_id in original_adata.obs_names:
+                original_adata.obs.loc[cell_id, leiden_col] = cluster_label
+        
         # Return the result
         return results
     else:
@@ -412,7 +427,17 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
     if "adata_path" in sample_info:
         # Get cached AnnData
         adata = get_cached_adata(sample_id)
-        sc.tl.rank_genes_groups(adata, groupby=f'leiden_{adata_umap_title}', method='wilcoxon')
+        
+        # Ensure the leiden column exists and is categorical for scanpy
+        leiden_col = f'leiden_{adata_umap_title}'
+        if leiden_col not in adata.obs.columns:
+            raise ValueError(f"No clustering results found for {adata_umap_title}. Please generate UMAP first.")
+        
+        # Convert leiden column to categorical if it isn't already
+        if not pd.api.types.is_categorical_dtype(adata.obs[leiden_col]):
+            adata.obs[leiden_col] = adata.obs[leiden_col].astype('category')
+        
+        sc.tl.rank_genes_groups(adata, groupby=leiden_col, method='wilcoxon')
         cluster_name = str(cluster_id)
         top_genes = adata.uns['rank_genes_groups']['names'][cluster_name][:100].tolist()
 

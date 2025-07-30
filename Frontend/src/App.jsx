@@ -35,9 +35,7 @@ function App() {
   const [umapLoading, setUmapLoading] = useState(false);
   const [hoveredCluster, setHoveredCluster] = useState(null); // {cluster: string, umapId: string, cellIds: array}
 
-  const [GOAnalysisData, setGOAnalysisData] = useState(null);
-  const [GOAnalysisLoading, setGOAnalysisLoading] = useState(false);
-  const [GOAnalysisVisible, setGOAnalysisVisible] = useState(false);
+
 
   // Cell Name state
   const [cellName, setCellName] = useState(null);
@@ -424,12 +422,6 @@ function App() {
                                     setHoveredCluster={setHoveredCluster}
                                     umapId={dataset.id}
                                     sampleId={dataset.sampleId}
-                                    GOAnalysisData={GOAnalysisData}
-                                    setGOAnalysisData={setGOAnalysisData}
-                                    GOAnalysisVisible={GOAnalysisVisible}
-                                    setGOAnalysisVisible={setGOAnalysisVisible}
-                                    GOAnalysisLoading={GOAnalysisLoading}
-                                    setGOAnalysisLoading={setGOAnalysisLoading}
                                     setCellName={setCellName}
                                   />
                                 </div>
