@@ -14,6 +14,8 @@ from process import (
     perform_go_analysis,
     get_trajectory_data,
     get_trajectory_gene_list,
+    load_adata_to_cache,
+    clear_adata_cache,
     # get_pseudotime_data,
 )
 
@@ -31,6 +33,32 @@ def get_samples_option_route():
     Get a list of available samples for the selector, grouped by cell scale(e.g., 2um, 8um)
     """
     return jsonify(get_samples_option())
+
+
+@app.route("/api/load_adata_cache", methods=["POST"])
+def load_adata_cache_route():
+    """
+    Load AnnData objects for the given sample IDs into the global cache.
+    This should be called once when samples are confirmed.
+    """
+    sample_ids = request.json["sample_ids"]
+    try:
+        load_adata_to_cache(sample_ids)
+        return jsonify({"status": "success", "message": f"Loaded AnnData for {len(sample_ids)} samples"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/clear_adata_cache", methods=["POST"])
+def clear_adata_cache_route():
+    """
+    Clear the global AnnData cache to free memory.
+    """
+    try:
+        clear_adata_cache()
+        return jsonify({"status": "success", "message": "AnnData cache cleared"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/get_hires_image_size", methods=["POST"])
@@ -112,12 +140,14 @@ def get_go_analysis_route():
     Perform GO analysis on selected cluster cells
     """
     sample_id = request.json["sample_id"]
-    cell_ids = request.json["cell_ids"]
+    cluster_id = request.json["cluster_id"]
+    adata_umap_title = request.json["adata_umap_title"]
 
     try:
         go_results = perform_go_analysis(
             sample_id=sample_id,
-            cell_ids=cell_ids,
+            cluster_id=cluster_id,
+            adata_umap_title=adata_umap_title
         )
         return jsonify(go_results)
     except Exception as e:

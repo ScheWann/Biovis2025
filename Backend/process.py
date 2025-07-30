@@ -15,6 +15,8 @@ import umap
 # Disable the PIL image limit entirely
 Image.MAX_IMAGE_PIXELS = None
 
+# Global AnnData cache to avoid repeated loading
+ADATA_CACHE = {}
 
 JSON_PATH = "./samples_list.json"
 """
@@ -22,6 +24,55 @@ JSON_PATH = "./samples_list.json"
 """
 with open(JSON_PATH, "r") as f:
     SAMPLES = json.load(f)
+
+
+def load_adata_to_cache(sample_ids):
+    """
+    Load AnnData objects for the given sample IDs into the global cache.
+    This should be called once when samples are confirmed.
+    """
+    global ADATA_CACHE
+    
+    for sample_id in sample_ids:
+        if sample_id in SAMPLES and sample_id not in ADATA_CACHE:
+            sample_info = SAMPLES[sample_id]
+            if "adata_path" in sample_info:
+                try:
+                    adata = sc.read_h5ad(sample_info["adata_path"])
+                    ADATA_CACHE[sample_id] = adata
+                    print(f"Loaded AnnData for sample {sample_id}")
+                except Exception as e:
+                    print(f"Error loading AnnData for sample {sample_id}: {e}")
+                    ADATA_CACHE[sample_id] = None
+            elif "gene_expression_path" in sample_info:
+                # Handle legacy format with gene_expression_path
+                print(f"Sample {sample_id} uses legacy format (gene_expression_path), skipping cache loading")
+                ADATA_CACHE[sample_id] = None
+            else:
+                print(f"No AnnData path found for sample {sample_id}")
+                ADATA_CACHE[sample_id] = None
+
+
+def get_cached_adata(sample_id):
+    """
+    Get AnnData object from cache for the given sample ID.
+    """
+    if sample_id not in ADATA_CACHE:
+        raise ValueError(f"AnnData for sample {sample_id} not found in cache. Call load_adata_to_cache() first.")
+    
+    if ADATA_CACHE[sample_id] is None:
+        raise ValueError(f"AnnData for sample {sample_id} failed to load.")
+    
+    return ADATA_CACHE[sample_id]
+
+
+def clear_adata_cache():
+    """
+    Clear the global AnnData cache to free memory.
+    """
+    global ADATA_CACHE
+    ADATA_CACHE.clear()
+    print("AnnData cache cleared")
 
 
 def get_samples_option():
@@ -74,7 +125,7 @@ def get_coordinates(sample_ids):
             # Check if we have adata_path (new format)
             if "adata_path" in sample_info:
                 try:
-                    adata = sc.read_h5ad(sample_info["adata_path"])
+                    adata = get_cached_adata(sample_id)
                     scalef = adata.uns['spatial']['skin_TXK6Z4X_A1']['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
                     # Use array_row and array_col from obs metadata
                     if 'array_row' in adata.obs and 'array_col' in adata.obs:
@@ -109,16 +160,15 @@ def get_gene_list(sample_ids):
     for sample_id in sample_ids:
         if sample_id in SAMPLES:
             sample_info = SAMPLES[sample_id]
-
+            
             if "adata_path" in sample_info:
                 try:
-                    adata = sc.read_h5ad(sample_info["adata_path"])
+                    adata = get_cached_adata(sample_id)
                     gene_list = adata.var_names.tolist()
                     sample_gene_dict[sample_id] = gene_list
                 except Exception as e:
                     print(f"Error loading adata gene list for sample {sample_id}: {e}")
                     sample_gene_dict[sample_id] = []
-
             else:
                 print(f"Warning: No gene list data available for sample {sample_id}")
                 sample_gene_dict[sample_id] = []
@@ -204,8 +254,7 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
             if sample_id not in SAMPLES:
                 raise ValueError("Sample not found.")
             else:
-                adata_path = SAMPLES[sample_id]["adata"]
-                adata = sc.read_h5ad(adata_path)
+                adata = get_cached_adata(sample_id)
 
                 if not cell_ids:
                     valid_cell_ids = adata.obs_names.tolist()
@@ -261,7 +310,7 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
 
     def get_coordinates(sample_id):
         if sample_id in SAMPLES:
-            adata = sc.read_h5ad(SAMPLES[sample_id]["adata"])
+            adata = get_cached_adata(sample_id)
             df = adata.obsm["spatial"].copy()
             df["cell_type"] = adata.obs["cell_type"]
             df["id"] = adata.obs.index
@@ -313,44 +362,45 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
     
     # Check if we have adata_path (new format)
     if "adata_path" in sample_info:
-        adata = sc.read_h5ad(sample_info["adata_path"])
+        # Get cached AnnData
+        adata = get_cached_adata(sample_id)
+        
+        if cell_ids is not None:
+            adata = adata[cell_ids].copy()
+        else:
+            raise ValueError(f"No gene expression data available for sample {sample_id}")
+
+        sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
+
+        sc.pp.normalize_total(adata)
+        sc.pp.log1p(adata)
+        sc.pp.scale(adata, max_value=10)
+
+        sc.tl.pca(adata, use_highly_variable=True)
+        sc.pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcas)
+        sc.tl.umap(adata)
+        adata.obsm[f'X_umap_{adata_umap_title}'] = adata.obsm['X_umap'].copy()
+
+        sc.tl.leiden(adata, resolution=resolutions, key_added=f'leiden_{adata_umap_title}')
+
+        embedding = adata.obsm[f'X_umap_{adata_umap_title}'] # shape: (n_cells, 2)
+        cluster_labels = adata.obs[f'leiden_{adata_umap_title}'].astype(int).values
+        cell_ids_filtered = adata.obs_names.tolist()
+
+        results = []
+        for i in range(len(cell_ids_filtered)):
+            results.append({
+                'id': cell_ids_filtered[i],
+                'x': float(embedding[i, 0]),
+                'y': float(embedding[i, 1]),
+                'cluster': f'Cluster {cluster_labels[i] + 1}'
+            })
+
+        ADATA_CACHE[sample_id] = adata
+        # Return the result
+        return results
     else:
         raise ValueError(f"No gene expression data available for sample {sample_id}")
-    
-    if cell_ids is not None:
-        adata = adata[cell_ids].copy()
-    else:
-        raise ValueError(f"No gene expression data available for sample {sample_id}")
-
-    sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
-
-    sc.pp.normalize_total(adata)
-    sc.pp.log1p(adata)
-    sc.pp.scale(adata, max_value=10)
-
-    sc.tl.pca(adata, use_highly_variable=True)
-    sc.pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcas)
-    sc.tl.umap(adata)
-    adata.obsm[f'X_umap_{adata_umap_title}'] = adata.obsm['X_umap'].copy()
-
-    sc.tl.leiden(adata, resolution=resolutions)
-    adata.obs[f'leiden_{adata_umap_title}'] = adata.obs['leiden'].copy()
-
-    embedding = adata.obsm[f'X_umap_{adata_umap_title}'] # shape: (n_cells, 2)
-    cluster_labels = adata.obs[f'leiden_{adata_umap_title}'].astype(int).values
-    cell_ids_filtered = adata.obs_names.tolist()
-
-    results = []
-    for i in range(len(cell_ids_filtered)):
-        results.append({
-            'id': cell_ids_filtered[i],
-            'x': float(embedding[i, 0]),
-            'y': float(embedding[i, 1]),
-            'cluster': f'Cluster {cluster_labels[i] + 1}'
-        })
-
-    # Return the result
-    return results
 
 
 def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
@@ -363,23 +413,25 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
     sample_info = SAMPLES[sample_id]
     
     if "adata_path" in sample_info:
-        adata = sc.read_h5ad(sample_info["adata_path"])
+        # Get cached AnnData
+        adata = get_cached_adata(sample_id)
+        print(adata, "/////")
+        sc.tl.rank_genes_groups(adata, groupby=f'leiden_{adata_umap_title}', method='wilcoxon')
+        cluster_name = str(cluster_id)
+        top_genes = adata.uns['rank_genes_groups']['names'][cluster_name][:100].tolist()
+
+        enr = gp.enrichr(gene_list=top_genes,
+                     gene_sets='GO_Biological_Process_2023',
+                     organism='Human',
+                     cutoff=0.05)
+        
+        go_results = enr.results.sort_values(by='Combined Score', ascending=False)
+        go_results.rename(columns={'Term': 'term', 'Adjusted P-value': 'adjusted_p_value', 'Combined Score': 'combined_score', 'P-value': 'p_value', "Genes": "genes", "Odds Ratio": "odds_ratio"}, inplace=True)
+        top_df = go_results.head(top_n)
+
+        return top_df.to_dict(orient='records')
     else:
         raise ValueError(f"No gene expression data available for sample {sample_id}")
-    
-    sc.tl.rank_genes_groups(adata, groupby=f'leiden_{adata_umap_title}', method='wilcoxon')
-    cluster_name = str(cluster_id)
-    top_genes = adata.uns['rank_genes_groups']['names'][cluster_name][:100].tolist()
-
-    enr = gp.enrichr(gene_list=top_genes,
-                 gene_sets='GO_Biological_Process_2023',
-                 organism='Human',
-                 cutoff=0.05)
-    
-    go_results = enr.results.sort_values(by='Combined Score', ascending=False)
-    top_df = go_results.head(top_n)
-
-    return top_df.to_dict(orient='records')
 
 
 def get_trajectory_gene_list(sample_id):

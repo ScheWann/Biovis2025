@@ -902,7 +902,9 @@ export const SampleViewer = ({
         const umapId = `${selectedAreaForEdit.sampleId}_${selectedAreaForEdit.name}_${Date.now()}`;
         const umapTitle = `${selectedAreaForEdit.name} (${selectedAreaForEdit.sampleId})`;
 
-        const adata_umap_title = `${selectedAreaForEdit.name}_${selectedAreaForEdit.sampleId}_${editNeighbors}_${editNPcas}_${editResolutions}`;
+        const name = selectedAreaForEdit.name;
+        const formattedName = name.split(' ').join('_');
+        const adata_umap_title = `${formattedName}_${selectedAreaForEdit.sampleId}_${editNeighbors}_${editNPcas}_${editResolutions}`;
 
         // Add a new loading dataset entry
         setUmapDataSets(prev => [
@@ -910,6 +912,7 @@ export const SampleViewer = ({
             {
                 id: umapId,
                 title: umapTitle,
+                adata_umap_title: adata_umap_title,
                 data: [],
                 loading: true,
                 sampleId: selectedAreaForEdit.sampleId,

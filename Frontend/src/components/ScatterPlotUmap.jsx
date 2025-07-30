@@ -11,6 +11,7 @@ export const ScatterplotUmap = ({
   xAccessor = (d) => d.x,
   yAccessor = (d) => d.y,
   title = "UMAP",
+  adata_umap_title,
   margin = { top: 25, right: 10, bottom: 25, left: 25 },
   hoveredCluster,
   setHoveredCluster,
@@ -30,16 +31,16 @@ export const ScatterplotUmap = ({
   const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
   const [currentCellIds, setCurrentCellIds] = useState([]);
 
-  const fetchGOAnalysisData = (sampleId, cellIds) => {
-    setCurrentCellIds(cellIds); // Store current cellIds
+  const fetchGOAnalysisData = (sampleId, cluster, adata_umap_title) => {
     setGOAnalysisLoading(true);
     setGOAnalysisVisible(true);
     setGOAnalysisData(null); // Clear previous data
     
+    const cluster_id = cluster.split(" ")[1]
     fetch("/api/get_go_analysis", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sample_id: sampleId, cell_ids: cellIds }),
+      body: JSON.stringify({ sample_id: sampleId, cluster_id: cluster_id, adata_umap_title: adata_umap_title }),
     })
       .then((res) => res.json())
       .then((data) => {
@@ -159,7 +160,8 @@ export const ScatterplotUmap = ({
             const cellIds = points
               .map((d) => d.id || d.cell_id)
               .filter(Boolean);
-            fetchGOAnalysisData(sampleId, cellIds);
+            setCurrentCellIds(cellIds); // Store current cellIds
+            fetchGOAnalysisData(sampleId, cluster, adata_umap_title);
           })
           .on("mouseenter", (event) => {
             d3.select(event.currentTarget)

@@ -44,6 +44,11 @@ function App() {
 
   useEffect(() => {
     fetchSamplesOption();
+    
+    // Cleanup function to clear AnnData cache when component unmounts
+    return () => {
+      clearCache();
+    };
   }, []);
 
   // get all aviailable sample options
@@ -73,15 +78,50 @@ function App() {
       });
   };
 
+  // Clear AnnData cache
+  const clearCache = async () => {
+    try {
+      await fetch("/api/clear_adata_cache", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("Error clearing cache:", error);
+    }
+  };
+
   // confirm selected samples
-  const confirmSamples = () => {
+  const confirmSamples = async () => {
     if (tempSamples.length === 0) {
       message.warning("Please select at least one sample");
     } else {
-      fetchCoordinates(tempSamples);
-      setSelectedSamples(
-        tempSamples.map((sample) => ({ id: sample, name: sample }))
-      );
+      try {
+        // Clear previous cache first
+        await clearCache();
+        
+        // Load AnnData cache first
+        const cacheResponse = await fetch("/api/load_adata_cache", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ sample_ids: tempSamples }),
+        });
+        
+        if (!cacheResponse.ok) {
+          const errorData = await cacheResponse.json();
+          message.error(`Failed to load data cache: ${errorData.error}`);
+          return;
+        }
+        
+        // Then fetch coordinates
+        fetchCoordinates(tempSamples);
+        setSelectedSamples(
+          tempSamples.map((sample) => ({ id: sample, name: sample }))
+        );
+      } catch (error) {
+        message.error(`Error confirming samples: ${error.message}`);
+      }
     }
   };
 
@@ -378,6 +418,7 @@ function App() {
                                     umapData={dataset.data}
                                     umapLoading={dataset.loading}
                                     title={dataset.title}
+                                    adata_umap_title={dataset.adata_umap_title}
                                     hoveredCluster={hoveredCluster}
                                     setHoveredCluster={setHoveredCluster}
                                     umapId={dataset.id}

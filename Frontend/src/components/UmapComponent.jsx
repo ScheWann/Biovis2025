@@ -19,7 +19,7 @@ function generateDummyData(numPoints = 100, numClusters = 5) {
   });
 }
 
-export const UmapComponent = ({ umapData, umapLoading, title = "UMAP Scatter Plot", hoveredCluster, setHoveredCluster, umapId, sampleId, GOAnalysisData, setGOAnalysisData, GOAnalysisVisible, setGOAnalysisVisible, GOAnalysisLoading, setGOAnalysisLoading, setCellName }) => {
+export const UmapComponent = ({ umapData, umapLoading, title = "UMAP Scatter Plot", adata_umap_title, hoveredCluster, setHoveredCluster, umapId, sampleId, GOAnalysisData, setGOAnalysisData, GOAnalysisVisible, setGOAnalysisVisible, GOAnalysisLoading, setGOAnalysisLoading, setCellName }) => {
   return (
     <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
       {umapLoading ? (
@@ -45,6 +45,7 @@ export const UmapComponent = ({ umapData, umapLoading, title = "UMAP Scatter Plo
           yAccessor={(d) => d.y}
           clusterAccessor={(d) => d.cluster}
           title={title}
+          adata_umap_title={adata_umap_title}
           pointSize={3}
           hoveredCluster={hoveredCluster}
           setHoveredCluster={setHoveredCluster}
