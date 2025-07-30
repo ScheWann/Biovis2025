@@ -64,18 +64,14 @@ function App() {
   };
 
   // get cell coordinates for selected samples(cell or dot)
-  const fetchCoordinates = (sampleIds) => {
-    setSampleDataLoading(true);
-    fetch("/api/get_coordinates", {
+  const fetchCoordinates = async (sampleIds) => {
+    const response = await fetch("/api/get_coordinates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sample_ids: sampleIds }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setCoordinatesData(data);
-        setSampleDataLoading(false);
-      });
+    });
+    const data = await response.json();
+    setCoordinatesData(data);
   };
 
   // Clear AnnData cache
@@ -96,10 +92,8 @@ function App() {
       message.warning("Please select at least one sample");
     } else {
       try {
-        // Clear previous cache first
+        setSampleDataLoading(true);
         await clearCache();
-        
-        // Load AnnData cache first
         const cacheResponse = await fetch("/api/load_adata_cache", {
           method: "POST",
           headers: {
@@ -111,16 +105,17 @@ function App() {
         if (!cacheResponse.ok) {
           const errorData = await cacheResponse.json();
           message.error(`Failed to load data cache: ${errorData.error}`);
+          setSampleDataLoading(false);
           return;
-        }
+        } 
         
-        // Then fetch coordinates
-        fetchCoordinates(tempSamples);
+        await fetchCoordinates(tempSamples);
         setSelectedSamples(
           tempSamples.map((sample) => ({ id: sample, name: sample }))
         );
       } catch (error) {
         message.error(`Error confirming samples: ${error.message}`);
+        setSampleDataLoading(false);
       }
     }
   };
@@ -272,7 +267,7 @@ function App() {
 
           {/* all views */}
           <div className="content" style={{ position: "relative" }}>
-            {sampleDataLoading && (
+            {sampleDataLoading ? (
               <div
                 style={{
                   position: "absolute",
@@ -289,9 +284,7 @@ function App() {
               >
                 <Spin spinning={true} size="large" />
               </div>
-            )}
-
-            {selectedSamples.length > 0 ? (
+            ) : selectedSamples.length > 0 ? (
               <Splitter lazy style={{ width: "100%", height: "100%" }}>
                 <Splitter.Panel defaultSize="70%" min="50%" max="80%">
                   <SampleViewer
