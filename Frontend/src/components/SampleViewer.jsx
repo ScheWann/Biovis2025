@@ -15,7 +15,8 @@ export const SampleViewer = ({
     setUmapLoading,
     hoveredCluster,
     cellName,
-    setCellName
+    setCellName,
+    onImagesLoaded
 }) => {
     const containerRef = useRef(null);
     const [mainViewState, setMainViewState] = useState(null);
@@ -67,6 +68,7 @@ export const SampleViewer = ({
     // Add state for preloaded high-res images
     const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
     const fetchingImages = useRef(new Set()); // Track which images are currently being fetched
+    const imagesLoadedCallbackCalled = useRef(false); // Track if callback has been called for current samples
 
     // Add state for preloaded cell boundary images
     // const [cellBoundaryImages, setCellBoundaryImages] = useState({}); // { sampleId: imageUrl }
@@ -321,6 +323,24 @@ export const SampleViewer = ({
     useEffect(() => {
         let isMounted = true;
         
+        // Reset callback flag when samples change
+        imagesLoadedCallbackCalled.current = false;
+        
+        // Clean up images that are no longer needed
+        setHiresImages(prev => {
+            const currentSampleIds = new Set(selectedSamples.map(s => s.id));
+            const filteredImages = {};
+            Object.keys(prev).forEach(sampleId => {
+                if (currentSampleIds.has(sampleId)) {
+                    filteredImages[sampleId] = prev[sampleId];
+                } else {
+                    // Revoke the object URL to free memory
+                    try { URL.revokeObjectURL(prev[sampleId]); } catch (e) { }
+                }
+            });
+            return filteredImages;
+        });
+        
         selectedSamples.forEach(sample => {
             // Check if image is already loaded or currently being fetched
             setHiresImages(prev => {
@@ -338,31 +358,24 @@ export const SampleViewer = ({
                 fetchingImages.current.add(sample.id);
                 
                 // Start fetching asynchronously
-                console.log(`Starting fetch for image: ${sample.id}`);
                 fetch('/api/get_hires_image', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sample_id: sample.id })
                 })
                     .then(response => {
-                        console.log(`Fetch response for ${sample.id}:`, response.ok ? 'OK' : 'Failed');
                         return response.ok ? response.blob() : null;
                     })
                     .then(blob => {
                         if (blob && isMounted) {
                             const imageUrl = URL.createObjectURL(blob);
-                            console.log(`Image loaded for ${sample.id}, updating state`);
                             setHiresImages(currentState => {
-                                console.log(`Current state before update:`, Object.keys(currentState));
                                 const newState = {
                                     ...currentState,
                                     [sample.id]: imageUrl
                                 };
-                                console.log(`New state after update:`, Object.keys(newState));
                                 return newState;
                             });
-                        } else {
-                            console.log(`Image fetch failed or component unmounted for ${sample.id}`);
                         }
                     })
                     .catch(error => {
@@ -370,7 +383,6 @@ export const SampleViewer = ({
                     })
                     .finally(() => {
                         // Remove from fetching set when done
-                        console.log(`Finished processing image request for ${sample.id}`);
                         fetchingImages.current.delete(sample.id);
                     });
                 
@@ -383,6 +395,22 @@ export const SampleViewer = ({
             isMounted = false; 
         };
     }, [selectedSamples]);
+
+    // Check if all images are loaded and call callback
+    useEffect(() => {
+        if (!onImagesLoaded || imagesLoadedCallbackCalled.current) return;
+
+        const timeoutId = setTimeout(() => {
+            const allImagesLoaded = selectedSamples.length > 0 && selectedSamples.every(sample => hiresImages[sample.id]);
+            
+            if (allImagesLoaded) {
+                imagesLoadedCallbackCalled.current = true;
+                onImagesLoaded();
+            }
+        }, 2000);
+
+        return () => clearTimeout(timeoutId);
+    }, [hiresImages, selectedSamples, onImagesLoaded]);
 
     // Preload cell boundary images for all selected samples
     // useEffect(() => {
@@ -1014,21 +1042,14 @@ export const SampleViewer = ({
 
     // Generate tissue image layers
     const generateImageLayers = useCallback(() => {
-        console.log('Generating image layers...');
-        console.log('Available hiresImages:', Object.keys(hiresImages));
-        console.log('Selected samples:', selectedSamples.map(s => s.id));
-        
         const layers = selectedSamples.map(sample => {
             const imageSize = imageSizes[sample.id];
             const offset = sampleOffsets[sample.id] || [0, 0];
             const hasImage = !!hiresImages[sample.id];
 
-            console.log(`Sample ${sample.id}: imageSize=${imageSize ? 'available' : 'missing'}, hasImage=${hasImage}`);
-
             if (!imageSize) return null;
 
             if (!hasImage) {
-                console.log(`Warning: No image available for sample ${sample.id}`);
                 return null;
             }
 
@@ -1045,11 +1066,9 @@ export const SampleViewer = ({
                 parameters: { depthTest: false }
             });
             
-            console.log(`Created layer for sample ${sample.id}`);
             return layer;
         }).filter(Boolean);
         
-        console.log(`Generated ${layers.length} image layers`);
         return layers;
     }, [selectedSamples, imageSizes, sampleOffsets, hiresImages]);
 

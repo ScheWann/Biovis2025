@@ -113,12 +113,17 @@ function App() {
         setSelectedSamples(
           tempSamples.map((sample) => ({ id: sample, name: sample }))
         );
-        setSampleDataLoading(false);
+        // Don't set loading to false here - wait for images to load in SampleViewer
       } catch (error) {
         message.error(`Error confirming samples: ${error.message}`);
         setSampleDataLoading(false);
       }
     }
+  };
+
+  // Callback to be called when all images are loaded
+  const onImagesLoaded = () => {
+    setSampleDataLoading(false);
   };
 
   const handleUploadSTData = async (values) => {
@@ -268,24 +273,26 @@ function App() {
 
           {/* all views */}
           <div className="content" style={{ position: "relative" }}>
-            {sampleDataLoading ? (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  background: "rgba(0, 0, 0, 0.15)",
-                  zIndex: 1000,
-                }}
-              >
-                <Spin spinning={true} size="large" />
-              </div>
-            ) : selectedSamples.length > 0 ? (
+            {selectedSamples.length > 0 || sampleDataLoading ? (
+              <>
+                {sampleDataLoading && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: "100%",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      background: "rgba(0, 0, 0, 0.2)",
+                      zIndex: 1000,
+                    }}
+                  >
+                    <Spin spinning={true} size="large" />
+                  </div>
+                )}
               <Splitter lazy style={{ width: "100%", height: "100%" }}>
                 <Splitter.Panel defaultSize="70%" min="50%" max="80%">
                   <SampleViewer
@@ -297,6 +304,7 @@ function App() {
                     hoveredCluster={hoveredCluster}
                     cellName={cellName}
                     setCellName={setCellName}
+                    onImagesLoaded={onImagesLoaded}
                   />
                 </Splitter.Panel>
                 <Splitter.Panel defaultSize="30%" min="20%" max="50%">
@@ -438,6 +446,7 @@ function App() {
                   </Splitter>
                 </Splitter.Panel>
               </Splitter>
+              </>
             ) : (
               <div
                 style={{
