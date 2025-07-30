@@ -415,7 +415,6 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
     if "adata_path" in sample_info:
         # Get cached AnnData
         adata = get_cached_adata(sample_id)
-        print(adata, "/////")
         sc.tl.rank_genes_groups(adata, groupby=f'leiden_{adata_umap_title}', method='wilcoxon')
         cluster_name = str(cluster_id)
         top_genes = adata.uns['rank_genes_groups']['names'][cluster_name][:100].tolist()
