@@ -66,6 +66,7 @@ export const SampleViewer = ({
 
     // Add state for preloaded high-res images
     const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
+    const fetchingImages = useRef(new Set()); // Track which images are currently being fetched
 
     // Add state for preloaded cell boundary images
     // const [cellBoundaryImages, setCellBoundaryImages] = useState({}); // { sampleId: imageUrl }
@@ -321,34 +322,59 @@ export const SampleViewer = ({
         let isMounted = true;
         
         selectedSamples.forEach(sample => {
-            // Check if image is already loaded
+            // Check if image is already loaded or currently being fetched
             setHiresImages(prev => {
+                // If image is already loaded, don't fetch again
                 if (prev[sample.id]) {
                     return prev;
                 }
                 
-                // Start fetching
+                // If already fetching this image, don't start another request
+                if (fetchingImages.current.has(sample.id)) {
+                    return prev;
+                }
+                
+                // Mark as being fetched
+                fetchingImages.current.add(sample.id);
+                
+                // Start fetching asynchronously
+                console.log(`Starting fetch for image: ${sample.id}`);
                 fetch('/api/get_hires_image', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sample_id: sample.id })
                 })
                     .then(response => {
+                        console.log(`Fetch response for ${sample.id}:`, response.ok ? 'OK' : 'Failed');
                         return response.ok ? response.blob() : null;
                     })
                     .then(blob => {
                         if (blob && isMounted) {
                             const imageUrl = URL.createObjectURL(blob);
-                            setHiresImages(prev2 => ({
-                                ...prev2,
-                                [sample.id]: imageUrl
-                            }));
+                            console.log(`Image loaded for ${sample.id}, updating state`);
+                            setHiresImages(currentState => {
+                                console.log(`Current state before update:`, Object.keys(currentState));
+                                const newState = {
+                                    ...currentState,
+                                    [sample.id]: imageUrl
+                                };
+                                console.log(`New state after update:`, Object.keys(newState));
+                                return newState;
+                            });
+                        } else {
+                            console.log(`Image fetch failed or component unmounted for ${sample.id}`);
                         }
                     })
                     .catch(error => {
                         console.error(`Error fetching image for ${sample.id}:`, error);
+                    })
+                    .finally(() => {
+                        // Remove from fetching set when done
+                        console.log(`Finished processing image request for ${sample.id}`);
+                        fetchingImages.current.delete(sample.id);
                     });
                 
+                // Return current state immediately (fetch is async)
                 return prev;
             });
         });
@@ -988,13 +1014,25 @@ export const SampleViewer = ({
 
     // Generate tissue image layers
     const generateImageLayers = useCallback(() => {
-        return selectedSamples.map(sample => {
+        console.log('Generating image layers...');
+        console.log('Available hiresImages:', Object.keys(hiresImages));
+        console.log('Selected samples:', selectedSamples.map(s => s.id));
+        
+        const layers = selectedSamples.map(sample => {
             const imageSize = imageSizes[sample.id];
             const offset = sampleOffsets[sample.id] || [0, 0];
+            const hasImage = !!hiresImages[sample.id];
+
+            console.log(`Sample ${sample.id}: imageSize=${imageSize ? 'available' : 'missing'}, hasImage=${hasImage}`);
 
             if (!imageSize) return null;
 
-            return new BitmapLayer({
+            if (!hasImage) {
+                console.log(`Warning: No image available for sample ${sample.id}`);
+                return null;
+            }
+
+            const layer = new BitmapLayer({
                 id: `tissue-image-${sample.id}`,
                 image: hiresImages[sample.id],
                 bounds: [
@@ -1006,7 +1044,13 @@ export const SampleViewer = ({
                 opacity: 0.8,
                 parameters: { depthTest: false }
             });
+            
+            console.log(`Created layer for sample ${sample.id}`);
+            return layer;
         }).filter(Boolean);
+        
+        console.log(`Generated ${layers.length} image layers`);
+        return layers;
     }, [selectedSamples, imageSizes, sampleOffsets, hiresImages]);
 
     // Generate cell boundary image layers
