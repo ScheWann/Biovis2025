@@ -113,7 +113,6 @@ function App() {
         setSelectedSamples(
           tempSamples.map((sample) => ({ id: sample, name: sample }))
         );
-        // Don't set loading to false here - wait for images to load in SampleViewer
       } catch (error) {
         message.error(`Error confirming samples: ${error.message}`);
         setSampleDataLoading(false);
