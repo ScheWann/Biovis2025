@@ -8,9 +8,6 @@ import scanpy as sc
 from PIL import Image
 import gseapy as gp
 from scipy.sparse import issparse
-from sklearn.decomposition import NMF
-from sklearn.cluster import KMeans
-import umap
 
 # Disable the PIL image limit entirely
 Image.MAX_IMAGE_PIXELS = None
