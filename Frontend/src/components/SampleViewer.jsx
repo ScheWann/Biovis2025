@@ -318,18 +318,24 @@ export const SampleViewer = ({
 
     // Preload high-res images for all selected samples
     useEffect(() => {
-        console.log(selectedSamples, 'llll');
         let isMounted = true;
+        
         selectedSamples.forEach(sample => {
+            // Check if image is already loaded
             setHiresImages(prev => {
-                if (prev[sample.id]) return prev;
-                // Start fetching, but don't block here
+                if (prev[sample.id]) {
+                    return prev;
+                }
+                
+                // Start fetching
                 fetch('/api/get_hires_image', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sample_id: sample.id })
                 })
-                    .then(response => response.ok ? response.blob() : null)
+                    .then(response => {
+                        return response.ok ? response.blob() : null;
+                    })
                     .then(blob => {
                         if (blob && isMounted) {
                             const imageUrl = URL.createObjectURL(blob);
@@ -338,11 +344,18 @@ export const SampleViewer = ({
                                 [sample.id]: imageUrl
                             }));
                         }
+                    })
+                    .catch(error => {
+                        console.error(`Error fetching image for ${sample.id}:`, error);
                     });
+                
                 return prev;
             });
         });
-        return () => { isMounted = false; };
+        
+        return () => { 
+            isMounted = false; 
+        };
     }, [selectedSamples]);
 
     // Preload cell boundary images for all selected samples
@@ -1293,7 +1306,7 @@ export const SampleViewer = ({
         // ...generateCellBoundaryLayers(),
         ...generateCellLayers(),
         ...generateCustomAreaLayers()
-    ], [generateImageLayers, generateCellBoundaryLayers, generateCellLayers, generateCustomAreaLayers]);
+    ], [generateImageLayers, generateCellLayers, generateCustomAreaLayers]);
 
     // Set container size
     useEffect(() => {

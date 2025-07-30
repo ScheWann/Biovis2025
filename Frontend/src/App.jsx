@@ -113,6 +113,7 @@ function App() {
         setSelectedSamples(
           tempSamples.map((sample) => ({ id: sample, name: sample }))
         );
+        setSampleDataLoading(false);
       } catch (error) {
         message.error(`Error confirming samples: ${error.message}`);
         setSampleDataLoading(false);
@@ -278,7 +279,7 @@ function App() {
                   display: "flex",
                   justifyContent: "center",
                   alignItems: "center",
-                  background: "rgba(0, 0, 0, 0.5)",
+                  background: "rgba(0, 0, 0, 0.15)",
                   zIndex: 1000,
                 }}
               >
