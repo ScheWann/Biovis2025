@@ -123,7 +123,7 @@ def get_coordinates(sample_ids):
             if "adata_path" in sample_info:
                 try:
                     adata = get_cached_adata(sample_id)
-                    scalef = adata.uns['spatial']['skin_TXK6Z4X_A1']['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
+                    scalef = adata.uns['spatial'][sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
                     # Use array_row and array_col from obs metadata
                     if 'array_row' in adata.obs and 'array_col' in adata.obs:
                         coords_df = pd.DataFrame({
