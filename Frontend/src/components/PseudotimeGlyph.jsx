@@ -262,18 +262,7 @@ const PseudotimeGlyph = ({
         ];
 
         // Draw upper semicircle background for gene expression area
-        const arc = d3.arc()
-            .innerRadius(20)
-            .outerRadius(maxRadius)
-            .startAngle(Math.PI)
-            .endAngle(2 * Math.PI); // Upper half: from left (π) to right (2π) through top
 
-        topSection.append("path")
-            .attr("d", arc)
-            .attr("transform", `translate(${centerX}, ${centerY})`)
-            .attr("fill", "#f8f8f8")
-            .attr("stroke", "black")
-            .attr("opacity", 0.2);
 
         // Time point scale (radial distance represents time progression)
         const timeScale = d3.scaleLinear()
@@ -382,27 +371,24 @@ const PseudotimeGlyph = ({
                 .text(geneInfo.gene);
         });
 
-        // Add concentric circles for time progression
-        const maxTime = Math.max(...mockGeneData.flatMap(d => d.timePoints));
+        // Add concentric circles for time progression using trajectory data time range
+        const trajectoryMaxTime = maxPseudotime; // Use the maxPseudotime calculated from trajectory data
         const numTimeCircles = 4;
         for (let i = 1; i <= numTimeCircles; i++) {
-            const time = (i / numTimeCircles) * maxTime;
-            const radius = timeScale(time);
-            const arc = d3.arc()
-                .innerRadius(radius)
-                .outerRadius(radius)
-                .startAngle(Math.PI)
-                .endAngle(2 * Math.PI); // Upper semicircle only
-
-            topSection.append("path")
-                .attr("d", arc)
-                .attr("transform", `translate(${centerX}, ${centerY})`)
+            const time = (i / numTimeCircles) * trajectoryMaxTime;
+            const radius = 20 + (time / trajectoryMaxTime) * (maxRadius - 30); // Scale radius based on trajectory time range
+            
+            // Draw complete circles instead of semicircles
+            topSection.append("circle")
+                .attr("cx", centerX)
+                .attr("cy", centerY)
+                .attr("r", radius)
                 .attr("fill", "none")
                 .attr("stroke", "black")
                 .attr("stroke-width", 1)
                 .attr("opacity", 0.2);
 
-            // Add time labels at the top of upper semicircle
+            // Add time labels at the top of each circle
             topSection.append("text")
                 .attr("x", centerX)
                 .attr("y", centerY - radius - 5)
