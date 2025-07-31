@@ -171,6 +171,20 @@ const PseudotimeGlyph = ({
         const bottomSection = g.append("g").attr("class", "bottom-section");
         const maxRadius = axisLength / 2 - 30;
         
+        // Draw light brown background for the lower semicircle (soil-like color)
+        const arc = d3.arc()
+            .innerRadius(0)
+            .outerRadius(maxRadius)
+            .startAngle(Math.PI / 2)
+            .endAngle(Math.PI * 1.5);
+        
+        bottomSection.append("path")
+            .attr("d", arc)
+            .attr("transform", `translate(${centerX}, ${centerY})`)
+            .attr("fill", "#D2B48C")
+            .attr("opacity", 0.3)
+            .attr("stroke", "none");
+        
         // Extract all unique clusters for legend
         const allClusters = [...new Set(trajectoryData.flatMap(traj => traj.path))];
         
