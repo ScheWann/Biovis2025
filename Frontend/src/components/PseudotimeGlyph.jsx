@@ -587,33 +587,36 @@ const PseudotimeGlyph = ({
                 };
             });
 
-            // Draw line from time 0 circle edge to first point (if not at time 0)
+            // Create smooth line generator that passes through all points
+            const line = d3.line()
+                .x(d => d.x)
+                .y(d => d.y)
+                .curve(d3.curveCatmullRom.alpha(0.5)); // Smooth curve passing through all points
+
+            // Prepare points for smooth curve (including starting point if needed)
+            let curvePoints = [...expressionPoints];
+            
+            // Add starting point from time 0 circle edge if first point is not at time 0
             if (expressionPoints.length > 0 && expressionPoints[0].radius > 8) {
-                // Calculate starting point on the edge of time 0 circle in direction of first point
                 const firstPoint = expressionPoints[0];
                 const angle = Math.atan2(firstPoint.y - centerY, firstPoint.x - centerX);
                 const startX = centerX + Math.cos(angle) * 8;
                 const startY = centerY + Math.sin(angle) * 8;
                 
-                topSection.append("line")
-                    .attr("x1", startX)
-                    .attr("y1", startY)
-                    .attr("x2", firstPoint.x)
-                    .attr("y2", firstPoint.y)
-                    .attr("stroke", color)
-                    .attr("stroke-width", 2)
-                    .attr("opacity", 0.6);
+                curvePoints = [
+                    { x: startX, y: startY },
+                    ...expressionPoints
+                ];
             }
 
-            // Draw connecting lines between consecutive expression points
-            for (let i = 0; i < expressionPoints.length - 1; i++) {
-                topSection.append("line")
-                    .attr("x1", expressionPoints[i].x)
-                    .attr("y1", expressionPoints[i].y)
-                    .attr("x2", expressionPoints[i + 1].x)
-                    .attr("y2", expressionPoints[i + 1].y)
+            // Draw smooth curve through all points
+            if (curvePoints.length > 1) {
+                topSection.append("path")
+                    .datum(curvePoints)
+                    .attr("d", line)
                     .attr("stroke", color)
                     .attr("stroke-width", 2)
+                    .attr("fill", "none")
                     .attr("opacity", 0.6);
             }
 
