@@ -55,22 +55,42 @@ export const PseudotimeGlyphExample = ({
                 </div> */}
 
                 <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
                     marginTop: '10px',
-                    // padding: '10px',
-                    // backgroundColor: '#fafafa',
-                    // borderRadius: '8px'
+                    display: 'flex',
+                    gap: '20px',
+                    flexWrap: 'wrap',
+                    justifyContent: 'center'
                 }}>
-                    <PseudotimeGlyph
-                        sampleId={sampleId}
-                        cellIds={cellIds}
-                        adata_umap_title={adata_umap_title}
-                        width={dimensions.width}
-                        height={dimensions.height}
-                        geneExpressionData={exampleGeneData}
-                        early_markers={earlyMarkers}
-                    />
+                    <div style={{ textAlign: 'center' }}>
+                        <h4>Component A</h4>
+                        <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+                            Click trajectories to see independent selection
+                        </p>
+                        <PseudotimeGlyph
+                            sampleId={sampleId}
+                            cellIds={cellIds}
+                            adata_umap_title={adata_umap_title}
+                            width={dimensions.width}
+                            height={dimensions.height}
+                            geneExpressionData={exampleGeneData}
+                            early_markers={earlyMarkers}
+                        />
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                        <h4>Component B</h4>
+                        <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+                            Selection state is independent from Component A
+                        </p>
+                        <PseudotimeGlyph
+                            sampleId={sampleId + "_copy"}
+                            cellIds={cellIds}
+                            adata_umap_title={adata_umap_title}
+                            width={dimensions.width}
+                            height={dimensions.height}
+                            geneExpressionData={exampleGeneData}
+                            early_markers={earlyMarkers}
+                        />
+                    </div>
                 </div>
             {/* </Card> */}
         </div>

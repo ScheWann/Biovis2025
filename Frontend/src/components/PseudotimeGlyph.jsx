@@ -14,6 +14,7 @@ const PseudotimeGlyph = ({
     const svgRef = useRef(null);
     const [trajectoryData, setTrajectoryData] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [selectedTrajectory, setSelectedTrajectory] = useState(null);
 
     // Fetch pseudotime data
     const fetchPseudotimeData = async () => {
@@ -74,7 +75,7 @@ const PseudotimeGlyph = ({
             : generateMockTrajectoryData();
         
         createGlyph(dataToUse);
-    }, [trajectoryData, width, height, geneExpressionData]);
+    }, [trajectoryData, width, height, geneExpressionData, selectedTrajectory]);
 
     // Cleanup tooltip on unmount
     useEffect(() => {
@@ -173,7 +174,7 @@ const PseudotimeGlyph = ({
             .text("t0");
 
         // Create bottom section - macroscopic cell trajectories
-        createBottomSection(g, dataToUse, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip);
+        createBottomSection(g, dataToUse, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory);
 
         // Create top section - gene expression gauge
         createTopSection(g, geneExpressionData, centerX, centerY, axisLength, maxPseudotime, tooltip);
@@ -189,7 +190,7 @@ const PseudotimeGlyph = ({
             .text("Pseudotime Analysis Glyph");
     };
 
-    const createBottomSection = (g, trajectoryData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip) => {
+    const createBottomSection = (g, trajectoryData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory) => {
         const bottomSection = g.append("g").attr("class", "bottom-section");
         const maxRadius = axisLength / 2 - 15;
         
@@ -205,7 +206,13 @@ const PseudotimeGlyph = ({
             .attr("transform", `translate(${centerX}, ${centerY})`)
             .attr("fill", "#D2B48C")
             .attr("opacity", 0.3)
-            .attr("stroke", "none");
+            .attr("stroke", "none")
+            .style("cursor", "pointer")
+            .on("click", function(event) {
+                // Deselect trajectory when clicking on background
+                event.stopPropagation();
+                setSelectedTrajectory(null);
+            });
         
         // Extract all unique clusters for legend
         const allClusters = [...new Set(trajectoryData.flatMap(traj => traj.path))];
@@ -449,7 +456,13 @@ const PseudotimeGlyph = ({
             
             // Use the target node's cluster for edge color
             const toNode = nodes.get(edge.to);
-            const color = toNode ? clusterColorScale(toNode.cluster) : "#999";
+            const baseColor = toNode ? clusterColorScale(toNode.cluster) : "#999";
+            
+            // Determine if this edge should be grayed out
+            const isSelected = selectedTrajectory === null || selectedTrajectory === edge.trajectory;
+            const color = isSelected ? baseColor : "#ccc";
+            const opacity = isSelected ? 0.7 : 0.3;
+            const strokeWidth = isSelected ? 2 : 1;
             
             if (fromPos && toPos) {
                 let x1 = fromPos.x, y1 = fromPos.y;
@@ -468,13 +481,25 @@ const PseudotimeGlyph = ({
                     .attr("x2", toPos.x)
                     .attr("y2", toPos.y)
                     .attr("stroke", color)
-                    .attr("stroke-width", 2)
-                    .attr("opacity", 0.7)
+                    .attr("stroke-width", strokeWidth)
+                    .attr("opacity", opacity)
                     .style("cursor", "pointer")
+                    .on("click", function(event) {
+                        event.stopPropagation();
+                        // Toggle selection: if clicking on the same trajectory, deselect it
+                        if (selectedTrajectory === edge.trajectory) {
+                            setSelectedTrajectory(null);
+                        } else {
+                            setSelectedTrajectory(edge.trajectory);
+                        }
+                    })
                     .on("mouseover", function(event) {
-                        d3.select(this)
-                            .attr("stroke-width", 4)
-                            .attr("opacity", 1);
+                        // Only enhance hover effect if this trajectory is not grayed out
+                        if (isSelected) {
+                            d3.select(this)
+                                .attr("stroke-width", strokeWidth + 2)
+                                .attr("opacity", 1);
+                        }
                         
                         const fromNode = nodes.get(edge.from);
                         const toNode = nodes.get(edge.to);
@@ -490,6 +515,7 @@ const PseudotimeGlyph = ({
                                 <div>To: Cluster ${toCluster} (t=${toTime})</div>
                                 <div>Trajectory: ${edge.trajectory + 1}</div>
                                 <div>Cell differentiation pathway</div>
+                                <div><em>Click to ${selectedTrajectory === edge.trajectory ? 'deselect' : 'select'} this trajectory</em></div>
                             `)
                             .style("left", (event.pageX + 10) + "px")
                             .style("top", (event.pageY - 10) + "px");
@@ -500,8 +526,8 @@ const PseudotimeGlyph = ({
                     })
                     .on("mouseout", function() {
                         d3.select(this)
-                            .attr("stroke-width", 2)
-                            .attr("opacity", 0.7);
+                            .attr("stroke-width", strokeWidth)
+                            .attr("opacity", opacity);
                         tooltip.style("visibility", "hidden");
                     });
             }
@@ -512,12 +538,18 @@ const PseudotimeGlyph = ({
             const pos = nodePositions.get(key);
             if (!pos || node.radius <= 8) return; // Skip center node
 
+            // Check if this node belongs to the selected trajectory
+            const nodeTrajectories = Array.from(node.trajectories);
+            const isNodeSelected = selectedTrajectory === null || nodeTrajectories.includes(selectedTrajectory);
+            
             // Use cluster-based color for each cell state
-            const nodeColor = clusterColorScale(node.cluster);
+            const baseColor = clusterColorScale(node.cluster);
+            const nodeColor = isNodeSelected ? baseColor : "#ccc";
+            const nodeOpacity = isNodeSelected ? 0.8 : 0.3;
 
             // Draw endpoint as star, others as circles
             if (node.isEndpoint) {
-                drawStar(bottomSection, pos.x, pos.y, 10, nodeColor);
+                drawStar(bottomSection, pos.x, pos.y, 10, nodeColor, nodeOpacity);
             } else {
                 bottomSection.append("circle")
                     .attr("cx", pos.x)
@@ -526,7 +558,7 @@ const PseudotimeGlyph = ({
                     .attr("fill", nodeColor)
                     .attr("stroke", "#fff")
                     .attr("stroke-width", 2)
-                    .attr("opacity", 0.8);
+                    .attr("opacity", nodeOpacity);
             }
 
             // Add labels
@@ -815,7 +847,7 @@ const PseudotimeGlyph = ({
             .text("High Expr");
     };
 
-    const drawStar = (parent, cx, cy, radius, color) => {
+    const drawStar = (parent, cx, cy, radius, color, opacity = 0.9) => {
         const starPoints = 5;
         const angle = Math.PI / starPoints;
         let path = "";
@@ -833,7 +865,7 @@ const PseudotimeGlyph = ({
             .attr("fill", color)
             .attr("stroke", "#fff")
             .attr("stroke-width", 1)
-            .attr("opacity", 0.9);
+            .attr("opacity", opacity);
     };
 
     return (
