@@ -616,7 +616,7 @@ const PseudotimeGlyph = ({
         const mockGeneData = geneData || [
             { gene: "SOX2", timePoints: [0.0, 0.4, 0.7, 1.0], expressions: [0.8, 0.6, 0.3, 0.2] },
             { gene: "NANOG", timePoints: [0.1, 0.4, 0.7, 1.0], expressions: [0.2, 0.5, 0.8, 0.9] },
-            { gene: "OCT4", timePoints: [0.0, 0.3, 0.6, 0.9], expressions: [0.9, 0.7, 0.4, 0.1] }
+            { gene: "OCT4", timePoints: [0.0, 0.3, 0.6, 1.0], expressions: [0.9, 0.7, 0.4, 0.1] }
         ];
 
         // Draw upper semicircle background for gene expression area
@@ -693,11 +693,11 @@ const PseudotimeGlyph = ({
                         d3.select(this)
                             .attr("stroke-width", 4)
                             .attr("opacity", 1);
-                        
+                        console.log(geneInfo)
                         const minExpression = Math.min(...geneInfo.expressions);
                         const maxExpression = Math.max(...geneInfo.expressions);
                         const avgExpression = (geneInfo.expressions.reduce((a, b) => a + b, 0) / geneInfo.expressions.length).toFixed(2);
-                        const timeSpan = `${geneInfo.timePoints[0].toFixed(1)} - ${geneInfo.timePoints[geneInfo.timePoints.length - 1].toFixed(1)}`;
+                        const timeSpan = `${geneInfo.timePoints[0]} - ${geneInfo.timePoints[geneInfo.timePoints.length - 1]}`;
                         
                         tooltip.style("visibility", "visible")
                             .html(`

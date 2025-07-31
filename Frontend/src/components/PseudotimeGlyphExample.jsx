@@ -12,40 +12,28 @@ export const PseudotimeGlyphExample = () => {
 
     // Example gene expression data (this would come from your backend in real usage)
     const exampleGeneData = [
-        {
-            gene: "NANOG",
-            timePoints: [0.0, 0.3, 0.6, 1.0],
-            expressions: [0.9, 0.7, 0.4, 0.1]
-        },
-        {
-            gene: "SOX2",
-            timePoints: [0.0, 0.4, 0.7, 1.0],
-            expressions: [0.8, 0.6, 0.3, 0.2]
-        },
-        {
-            gene: "OCT4",
-            timePoints: [0.0, 0.2, 0.5, 0.8],
-            expressions: [0.95, 0.8, 0.5, 0.15]
-        }
+        { gene: "SOX2", timePoints: [0.0, 0.4, 0.7, 1.0], expressions: [0.8, 0.6, 0.3, 0.2] },
+        { gene: "NANOG", timePoints: [0.1, 0.4, 0.7, 1.0], expressions: [0.2, 0.5, 0.8, 0.9] },
+        { gene: "OCT4", timePoints: [0.0, 0.3, 0.6, 1.0], expressions: [0.9, 0.7, 0.4, 0.1] }
     ];
 
     return (
         <div style={{ padding: '20px' }}>
             <Card
-                title="Pseudotime Glyph Visualization"
-                style={{ marginBottom: '20px' }}
-                extra={
-                    <Space>
-                        <span>Sample:</span>
-                        <Select value={sampleId} onChange={setSampleId} style={{ width: 120 }}>
-                            <Option value="sample1">Sample 1</Option>
-                            <Option value="sample2">Sample 2</Option>
-                            <Option value="sample3">Sample 3</Option>
-                        </Select>
-                    </Space>
-                }
+                // title="Pseudotime Glyph Visualization"
+                // style={{ marginBottom: '20px' }}
+                // extra={
+                //     <Space>
+                //         <span>Sample:</span>
+                //         <Select value={sampleId} onChange={setSampleId} style={{ width: 120 }}>
+                //             <Option value="sample1">Sample 1</Option>
+                //             <Option value="sample2">Sample 2</Option>
+                //             <Option value="sample3">Sample 3</Option>
+                //         </Select>
+                //     </Space>
+                // }
             >
-                <div style={{ marginBottom: '15px' }}>
+                {/* <div style={{ marginBottom: '15px' }}>
                     <Space>
                         <span>Width:</span>
                         <InputNumber
@@ -64,7 +52,7 @@ export const PseudotimeGlyphExample = () => {
                             step={50}
                         />
                     </Space>
-                </div>
+                </div> */}
 
                 <div style={{
                     display: 'flex',
