@@ -152,28 +152,32 @@ const PseudotimeGlyph = ({
         // Scale for converting pseudotime to radial distance
         const radiusScale = d3.scaleLinear()
             .domain([0, maxPseudotime])
-            .range([15, maxRadius]);
+            .range([0, maxRadius]); // Start from 0 (center) instead of 15
 
         trajectoryData.forEach((trajectory, trajIndex) => {
             const { path, pseudotimes } = trajectory;
             const color = colorScale(trajIndex);
 
-            // Draw trajectory path points only in bottom half (0 to π)
+            // Calculate angle for this trajectory to avoid horizontal line
+            // Distribute trajectories across bottom half but avoid exact horizontal line (π/6 to 5π/6)
+            const numTrajectories = trajectoryData.length;
+            const angleSpacing = (2 * Math.PI / 3) / (numTrajectories + 1); // 2π/3 = 120 degrees range
+            const baseAngle = Math.PI / 6 + (trajIndex + 1) * angleSpacing; // Start at 30 degrees, avoid 0 and π
+
+            // Draw trajectory path points radiating from center
             const pathPoints = pseudotimes.map((pt, i) => {
                 const pseudotime = parseFloat(pt);
                 const radius = radiusScale(pseudotime);
                 
-                // Distribute time points only in the bottom half (0 to π)
-                const angle = (i / (pseudotimes.length - 1)) * Math.PI;
-                
                 return {
-                    x: centerX + Math.cos(angle) * radius,
-                    y: centerY + Math.sin(angle) * radius,
+                    x: centerX + Math.cos(baseAngle) * radius,
+                    y: centerY + Math.sin(baseAngle) * radius,
                     pseudotime: pseudotime,
                     cluster: path[i],
                     isLast: i === pseudotimes.length - 1,
                     timeIndex: i,
-                    angle: angle
+                    angle: baseAngle,
+                    radius: radius
                 };
             });
 
@@ -189,8 +193,11 @@ const PseudotimeGlyph = ({
                     .attr("opacity", 0.7);
             }
 
-            // Draw all points (they're already in the bottom half)
+            // Draw all points along the radial trajectory
             pathPoints.forEach((point, i) => {
+                // Skip drawing point at exact center (radius = 0) to avoid clutter
+                if (point.radius === 0) return;
+                
                 // Draw a star for the final stage, circle for others
                 if (point.isLast) {
                     drawStar(bottomSection, point.x, point.y, 10, color);
@@ -205,10 +212,11 @@ const PseudotimeGlyph = ({
                         .attr("opacity", 0.8);
                 }
 
-                // Add cluster and time labels
+                // Add cluster and time labels positioned to avoid overlap
+                const labelOffset = point.radius < 50 ? 15 : 25;
                 bottomSection.append("text")
                     .attr("x", point.x)
-                    .attr("y", point.y + 25)
+                    .attr("y", point.y + labelOffset)
                     .attr("text-anchor", "middle")
                     .attr("font-size", "9px")
                     .attr("fill", "#666")
@@ -217,12 +225,28 @@ const PseudotimeGlyph = ({
                 // Add pseudotime value
                 bottomSection.append("text")
                     .attr("x", point.x)
-                    .attr("y", point.y + 35)
+                    .attr("y", point.y + labelOffset + 10)
                     .attr("text-anchor", "middle")
                     .attr("font-size", "8px")
                     .attr("fill", "#999")
                     .text(`${point.pseudotime.toFixed(2)}`);
             });
+
+            // Add trajectory label near the outer end
+            const lastPoint = pathPoints[pathPoints.length - 1];
+            if (lastPoint.radius > 0) {
+                const labelX = centerX + Math.cos(baseAngle) * (maxRadius + 15);
+                const labelY = centerY + Math.sin(baseAngle) * (maxRadius + 15);
+                
+                bottomSection.append("text")
+                    .attr("x", labelX)
+                    .attr("y", labelY)
+                    .attr("text-anchor", "middle")
+                    .attr("font-size", "10px")
+                    .attr("font-weight", "bold")
+                    .attr("fill", color)
+                    .text(`Traj ${trajIndex + 1}`);
+            }
         });
     };
 

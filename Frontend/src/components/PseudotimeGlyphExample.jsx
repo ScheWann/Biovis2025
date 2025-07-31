@@ -17,11 +17,11 @@ export const PseudotimeGlyphExample = () => {
             timePoints: [0.0, 0.3, 0.6, 1.0],
             expressions: [0.9, 0.7, 0.4, 0.1]
         },
-        {
-            gene: "SOX2",
-            timePoints: [0.1, 0.4, 0.7, 1.0],
-            expressions: [0.8, 0.6, 0.3, 0.2]
-        },
+        // {
+        //     gene: "SOX2",
+        //     timePoints: [0.0, 0.4, 0.7, 1.0],
+        //     expressions: [0.8, 0.6, 0.3, 0.2]
+        // },
         {
             gene: "OCT4",
             timePoints: [0.0, 0.2, 0.5, 0.8],
