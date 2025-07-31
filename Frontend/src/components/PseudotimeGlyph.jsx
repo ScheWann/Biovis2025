@@ -87,7 +87,7 @@ const PseudotimeGlyph = ({
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove();
 
-        const margin = { top: 40, right: 40, bottom: 40, left: 40 };
+        const margin = { top: 10, right: 20, bottom: 20, left: 20 };
         const innerWidth = width - margin.left - margin.right;
         const innerHeight = height - margin.top - margin.bottom;
         const centerX = innerWidth / 2;
@@ -113,7 +113,7 @@ const PseudotimeGlyph = ({
             .style("z-index", "1000");
 
         // Draw horizontal dividing line between gene expression (top) and cell trajectories (bottom)
-        const axisLength = Math.min(innerWidth, innerHeight) * 0.8;
+        const axisLength = Math.min(innerWidth, innerHeight) * 0.95;
         g.append("line")
             .attr("x1", centerX - axisLength / 2)
             .attr("y1", centerY)
@@ -191,7 +191,7 @@ const PseudotimeGlyph = ({
 
     const createBottomSection = (g, trajectoryData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip) => {
         const bottomSection = g.append("g").attr("class", "bottom-section");
-        const maxRadius = axisLength / 2 - 30;
+        const maxRadius = axisLength / 2 - 15;
         
         // Draw light brown background for the lower semicircle (soil-like color)
         const arc = d3.arc()
@@ -610,7 +610,7 @@ const PseudotimeGlyph = ({
 
     const createTopSection = (g, geneData, centerX, centerY, axisLength, maxPseudotime, tooltip) => {
         const topSection = g.append("g").attr("class", "top-section");
-        const maxRadius = axisLength / 2 - 30;
+        const maxRadius = axisLength / 2 - 15;
 
         // Mock gene expression data if not provided
         const mockGeneData = geneData || [

@@ -434,7 +434,41 @@ function App() {
                     </Splitter.Panel>
                     <Splitter.Panel defaultSize="33%" min="20%" max="45%">
                       {/* Glyphs */}
-                      <PseudotimeGlyphExample />
+                      <div style={{ 
+                        display: 'flex', 
+                        height: '100%', 
+                        overflow: 'auto'
+                      }}>
+                        <div style={{ flex: 1, borderRight: '1px solid #e8e8e8' }}>
+                          <PseudotimeGlyphExample 
+                            title="Dataset A"
+                            initialSampleId="sample_a"
+                            initialCellIds={[1, 2, 3, 4, 5]}
+                            initialDimensions={{ width: 500, height: 500 }}
+                            customGeneData={[
+                              { gene: "SOX2", timePoints: [0.0, 0.4, 0.7, 1.0], expressions: [0.8, 0.6, 0.3, 0.2] },
+                              { gene: "NANOG", timePoints: [0.1, 0.4, 0.7, 1.0], expressions: [0.2, 0.5, 0.8, 0.9] },
+                              { gene: "OCT4", timePoints: [0.0, 0.3, 0.6, 1.0], expressions: [0.9, 0.7, 0.4, 0.1] }
+                            ]}
+                            customEarlyMarkers={['SOX2', 'NANOG', 'OCT4']}
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <PseudotimeGlyphExample 
+                            title="Dataset B"
+                            initialSampleId="sample_b"
+                            initialCellIds={[6, 7, 8, 9, 10]}
+                            initialDimensions={{ width: 500, height: 500 }}
+                            customGeneData={[
+                              { gene: "FOXD3", timePoints: [0.0, 0.3, 0.6, 1.0], expressions: [0.1, 0.4, 0.7, 0.9] },
+                              { gene: "PDGFRA", timePoints: [0.2, 0.5, 0.8, 1.0], expressions: [0.3, 0.6, 0.8, 0.5] },
+                              { gene: "SOX10", timePoints: [0.0, 0.4, 0.7, 1.0], expressions: [0.7, 0.9, 0.6, 0.3] },
+                              { gene: "MITF", timePoints: [0.1, 0.5, 0.8, 1.0], expressions: [0.2, 0.3, 0.6, 0.8] }
+                            ]}
+                            customEarlyMarkers={['FOXD3', 'PDGFRA', 'SOX10', 'MITF']}
+                          />
+                        </div>
+                      </div>
                     </Splitter.Panel>
                   </Splitter>
                 </Splitter.Panel>
