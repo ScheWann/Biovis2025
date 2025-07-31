@@ -59,6 +59,10 @@ const PseudotimeGlyph = ({
             {
                 path: [0, 1, 4, 5],
                 pseudotimes: ["0.000", "0.200", "0.600", "1.000"]
+            },
+            {
+                path: [0, 2, 6],
+                pseudotimes: ["0.000", "0.300", "0.700"]
             }
         ];
     };
@@ -233,7 +237,7 @@ const PseudotimeGlyph = ({
                 nodePositions.set(rootKey, { x: centerX, y: centerY });
             }
 
-            // Build a proper tree structure to identify trunk vs branches
+            // Build a proper tree structure to handle multiple branching points
             const buildTreeStructure = () => {
                 const treeNodes = new Map();
                 const childrenMap = new Map(); // parent -> children
@@ -245,8 +249,8 @@ const PseudotimeGlyph = ({
                         ...node,
                         children: [],
                         parent: null,
-                        isTrunk: false,
-                        branchGroup: -1
+                        branchIndex: -1,  // Which branch from its parent this node belongs to
+                        level: 0  // Distance from root
                     });
                     childrenMap.set(key, []);
                 });
@@ -264,42 +268,36 @@ const PseudotimeGlyph = ({
                     }
                 });
 
-                // Identify trunk nodes (nodes that are on the path from root to first branching point)
-                const markTrunkNodes = () => {
-                    let currentNode = Array.from(treeNodes.keys()).find(key => 
+                // Calculate levels and assign branch indices
+                const assignLevelsAndBranches = () => {
+                    const rootKey = Array.from(treeNodes.keys()).find(key => 
                         treeNodes.get(key).pseudotime === 0
                     );
                     
-                    while (currentNode) {
-                        const node = treeNodes.get(currentNode);
-                        node.isTrunk = true;
-                        
-                        // If this node has multiple children, it's a branching point
-                        if (node.children.length > 1) {
-                            // Mark children with branch groups
-                            node.children.forEach((childKey, index) => {
-                                markBranchGroup(childKey, index, treeNodes);
-                            });
-                            break;
-                        } else if (node.children.length === 1) {
-                            currentNode = node.children[0];
-                        } else {
-                            break;
-                        }
-                    }
-                };
+                    if (!rootKey) return;
 
-                const markBranchGroup = (nodeKey, branchIndex, treeNodes) => {
-                    const node = treeNodes.get(nodeKey);
-                    if (node) {
-                        node.branchGroup = branchIndex;
-                        node.children.forEach(childKey => {
-                            markBranchGroup(childKey, branchIndex, treeNodes);
+                    // BFS to assign levels
+                    const queue = [{ key: rootKey, level: 0 }];
+                    const visited = new Set();
+
+                    while (queue.length > 0) {
+                        const { key, level } = queue.shift();
+                        if (visited.has(key)) continue;
+                        visited.add(key);
+
+                        const node = treeNodes.get(key);
+                        node.level = level;
+
+                        // Assign branch indices to children based on their order
+                        node.children.forEach((childKey, index) => {
+                            const childNode = treeNodes.get(childKey);
+                            childNode.branchIndex = index;
+                            queue.push({ key: childKey, level: level + 1 });
                         });
                     }
                 };
 
-                markTrunkNodes();
+                assignLevelsAndBranches();
                 return treeNodes;
             };
 
@@ -308,80 +306,93 @@ const PseudotimeGlyph = ({
             // Define the bottom semicircle range for trajectories
             const minAngle = Math.PI / 6;  // 30 degrees
             const maxAngle = 5 * Math.PI / 6;  // 150 degrees
-            const trunkAngle = Math.PI / 2; // 90 degrees (straight down for trunk)
 
-            // Position nodes based on tree structure
-            const positionedNodes = new Set();
+            // Calculate angle for each node based on its ancestry path
+            const calculateNodeAngles = () => {
+                const nodeAngles = new Map();
+                
+                // Find root and start with straight down angle
+                const rootKey = Array.from(treeStructure.keys()).find(key => 
+                    treeStructure.get(key).pseudotime === 0
+                );
+                
+                if (rootKey) {
+                    nodeAngles.set(rootKey, Math.PI / 2); // 90 degrees (straight down)
+                }
 
-            // First, position trunk nodes along a straight line downward
-            const trunkNodes = Array.from(treeStructure.entries())
-                .filter(([key, node]) => node.isTrunk)
-                .sort((a, b) => a[1].pseudotime - b[1].pseudotime);
+                // Process nodes level by level
+                const processedLevels = new Map();
+                treeStructure.forEach((node, key) => {
+                    if (!processedLevels.has(node.level)) {
+                        processedLevels.set(node.level, []);
+                    }
+                    processedLevels.get(node.level).push({ key, node });
+                });
 
-            trunkNodes.forEach(([key, node]) => {
+                // Sort levels and process each level
+                const sortedLevels = Array.from(processedLevels.entries()).sort((a, b) => a[0] - b[0]);
+                
+                sortedLevels.forEach(([level, nodesAtLevel]) => {
+                    if (level === 0) return; // Root already processed
+
+                    nodesAtLevel.forEach(({ key, node }) => {
+                        const parentKey = node.parent;
+                        const parentNode = treeStructure.get(parentKey);
+                        const parentAngle = nodeAngles.get(parentKey);
+                        
+                        if (parentAngle !== undefined && parentNode) {
+                            const numSiblings = parentNode.children.length;
+                            
+                            if (numSiblings === 1) {
+                                // Single child: continue in same direction as parent
+                                nodeAngles.set(key, parentAngle);
+                            } else {
+                                // Multiple siblings: spread them out
+                                const branchIndex = node.branchIndex;
+                                
+                                // Calculate angular spread based on number of siblings
+                                let spreadAngle;
+                                if (numSiblings === 2) {
+                                    spreadAngle = Math.PI / 6; // 30 degrees each side
+                                } else if (numSiblings === 3) {
+                                    spreadAngle = Math.PI / 4; // 45 degrees total spread
+                                } else {
+                                    spreadAngle = Math.PI / 3; // 60 degrees total spread for more branches
+                                }
+                                
+                                // Calculate angle offset from parent angle
+                                const angleStep = (2 * spreadAngle) / (numSiblings - 1);
+                                const angleOffset = -spreadAngle + (branchIndex * angleStep);
+                                let nodeAngle = parentAngle + angleOffset;
+                                
+                                // Ensure angle stays within bounds
+                                nodeAngle = Math.max(minAngle, Math.min(maxAngle, nodeAngle));
+                                nodeAngles.set(key, nodeAngle);
+                            }
+                        }
+                    });
+                });
+
+                return nodeAngles;
+            };
+
+            const nodeAngles = calculateNodeAngles();
+
+            // Position all nodes based on their calculated angles
+            treeStructure.forEach((node, key) => {
                 if (node.pseudotime === 0) {
                     // Root is already positioned
-                    positionedNodes.add(key);
-                } else {
-                    const radius = radiusScale(node.pseudotime);
-                    const x = centerX + Math.cos(trunkAngle) * radius;
-                    const y = centerY + Math.sin(trunkAngle) * radius;
-                    nodePositions.set(key, { x, y });
-                    positionedNodes.add(key);
+                    return;
                 }
-            });
-
-            // Then, position branch nodes
-            const branchGroups = new Map();
-            treeStructure.forEach((node, key) => {
-                if (!node.isTrunk && node.branchGroup >= 0) {
-                    if (!branchGroups.has(node.branchGroup)) {
-                        branchGroups.set(node.branchGroup, []);
-                    }
-                    branchGroups.get(node.branchGroup).push({ key, node });
-                }
-            });
-
-            // Sort branch groups by branch index
-            const sortedBranchGroups = Array.from(branchGroups.entries()).sort((a, b) => a[0] - b[0]);
-            
-            sortedBranchGroups.forEach(([branchIndex, branchNodes]) => {
-                // Find the branching point (parent of first node in this branch)
-                const firstBranchNode = branchNodes.find(({ node }) => node.parent && treeStructure.get(node.parent).isTrunk);
-                if (!firstBranchNode) return;
-
-                const branchingPoint = nodePositions.get(firstBranchNode.node.parent);
-                if (!branchingPoint) return;
-
-                // Calculate branch angle based on branch index
-                const numBranches = sortedBranchGroups.length;
-                let branchAngle;
                 
-                if (numBranches === 1) {
-                    branchAngle = trunkAngle; // Continue straight if only one branch
-                } else if (numBranches === 2) {
-                    // For two branches, spread them symmetrically around the trunk
-                    const spreadAngle = Math.PI / 4; // 45 degrees spread
-                    branchAngle = trunkAngle + (branchIndex === 0 ? -spreadAngle : spreadAngle);
-                } else {
-                    // For more branches, distribute across available angle range
-                    const angleStep = (maxAngle - minAngle) / (numBranches - 1);
-                    branchAngle = minAngle + branchIndex * angleStep;
-                }
-
-                // Ensure angle is within bounds
-                branchAngle = Math.max(minAngle, Math.min(maxAngle, branchAngle));
-
-                // Position all nodes in this branch along the branch angle
-                const branchNodesSorted = branchNodes.sort((a, b) => a.node.pseudotime - b.node.pseudotime);
+                const angle = nodeAngles.get(key);
+                const radius = radiusScale(node.pseudotime);
                 
-                branchNodesSorted.forEach(({ key, node }) => {
-                    const radius = radiusScale(node.pseudotime);
-                    const x = centerX + Math.cos(branchAngle) * radius;
-                    const y = centerY + Math.sin(branchAngle) * radius;
+                if (angle !== undefined) {
+                    const x = centerX + Math.cos(angle) * radius;
+                    const y = centerY + Math.sin(angle) * radius;
                     nodePositions.set(key, { x, y });
-                    positionedNodes.add(key);
-                });
+                }
             });
 
             return nodePositions;
