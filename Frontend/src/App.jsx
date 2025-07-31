@@ -7,6 +7,7 @@ import { PlusOutlined, InboxOutlined, PaperClipOutlined, CloseOutlined } from "@
 import "@ant-design/v5-patch-for-react-19";
 import { UmapComponent } from "./components/UmapComponent";
 import { TrajectoryViewer } from "./components/TrajectoryViewer";
+import { PseudotimeGlyphExample } from "./components/PseudotimeGlyphExample";
 
 // Custom theme configuration
 const customTheme = {
@@ -432,7 +433,8 @@ function App() {
                       </div>
                     </Splitter.Panel>
                     <Splitter.Panel defaultSize="33%" min="20%" max="45%">
-                      Glyphs
+                      {/* Glyphs */}
+                      <PseudotimeGlyphExample />
                     </Splitter.Panel>
                   </Splitter>
                 </Splitter.Panel>
