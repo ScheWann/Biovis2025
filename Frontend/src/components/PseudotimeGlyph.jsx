@@ -102,23 +102,23 @@ const PseudotimeGlyph = ({
             .attr("opacity", 0.8);
 
         // Add axis labels
-        g.append("text")
-            .attr("x", centerX - axisLength / 2 - 10)
-            .attr("y", centerY - 10)
-            .attr("text-anchor", "middle")
-            .attr("font-size", "12px")
-            .attr("font-weight", "bold")
-            .attr("fill", "#666")
-            .text("Gene Expression");
+        // g.append("text")
+        //     .attr("x", centerX - axisLength / 2 - 10)
+        //     .attr("y", centerY - 10)
+        //     .attr("text-anchor", "middle")
+        //     .attr("font-size", "12px")
+        //     .attr("font-weight", "bold")
+        //     .attr("fill", "#666")
+        //     .text("Gene Expression");
 
-        g.append("text")
-            .attr("x", centerX - axisLength / 2 - 10)
-            .attr("y", centerY + 20)
-            .attr("text-anchor", "middle")
-            .attr("font-size", "12px")
-            .attr("font-weight", "bold")
-            .attr("fill", "#666")
-            .text("Cell Trajectories");
+        // g.append("text")
+        //     .attr("x", centerX - axisLength / 2 - 10)
+        //     .attr("y", centerY + 20)
+        //     .attr("text-anchor", "middle")
+        //     .attr("font-size", "12px")
+        //     .attr("font-weight", "bold")
+        //     .attr("fill", "#666")
+        //     .text("Cell Trajectories");
 
         // Process trajectory data
         const maxPseudotime = Math.max(...dataToUse.flatMap(traj =>
@@ -437,7 +437,7 @@ const PseudotimeGlyph = ({
             }
         });
 
-                // Draw nodes
+        // Draw nodes
         nodes.forEach((node, key) => {
             const pos = nodePositions.get(key);
             if (!pos || node.radius <= 8) return; // Skip center node
@@ -460,56 +460,56 @@ const PseudotimeGlyph = ({
             }
 
             // Add labels
-            const labelOffset = node.radius < 50 ? 15 : 25;
-            bottomSection.append("text")
-                .attr("x", pos.x)
-                .attr("y", pos.y + labelOffset)
-                .attr("text-anchor", "middle")
-                .attr("font-size", "9px")
-                .attr("fill", "#666")
-                .text(`C${node.cluster}`);
+            // const labelOffset = node.radius < 50 ? 15 : 25;
+            // bottomSection.append("text")
+            //     .attr("x", pos.x)
+            //     .attr("y", pos.y + labelOffset)
+            //     .attr("text-anchor", "middle")
+            //     .attr("font-size", "9px")
+            //     .attr("fill", "#666")
+            //     .text(`C${node.cluster}`);
 
-            bottomSection.append("text")
-                .attr("x", pos.x)
-                .attr("y", pos.y + labelOffset + 10)
-                .attr("text-anchor", "middle")
-                .attr("font-size", "8px")
-                .attr("fill", "#999")
-                .text(`${node.pseudotime.toFixed(2)}`);
+            // bottomSection.append("text")
+            //     .attr("x", pos.x)
+            //     .attr("y", pos.y + labelOffset + 10)
+            //     .attr("text-anchor", "middle")
+            //     .attr("font-size", "8px")
+            //     .attr("fill", "#999")
+            //     .text(`${node.pseudotime.toFixed(2)}`);
         });
 
         // Add cell state color legend
         const legendX = centerX - axisLength / 2 + 20;
         const legendStartY = centerY + axisLength / 2 - 20;
         
-        allClusters.sort((a, b) => a - b).forEach((cluster, index) => {
-            const legendY = legendStartY - index * 18;
+        // allClusters.sort((a, b) => a - b).forEach((cluster, index) => {
+        //     const legendY = legendStartY - index * 18;
             
-            bottomSection.append("circle")
-                .attr("cx", legendX)
-                .attr("cy", legendY)
-                .attr("r", 6)
-                .attr("fill", clusterColorScale(cluster))
-                .attr("stroke", "#fff")
-                .attr("stroke-width", 2);
+        //     bottomSection.append("circle")
+        //         .attr("cx", legendX)
+        //         .attr("cy", legendY)
+        //         .attr("r", 6)
+        //         .attr("fill", clusterColorScale(cluster))
+        //         .attr("stroke", "#fff")
+        //         .attr("stroke-width", 2);
 
-            bottomSection.append("text")
-                .attr("x", legendX + 15)
-                .attr("y", legendY + 4)
-                .attr("font-size", "12px")
-                .attr("font-weight", "bold")
-                .attr("fill", "#333")
-                .text(`Cell ${cluster}`);
-        });
+        //     bottomSection.append("text")
+        //         .attr("x", legendX + 15)
+        //         .attr("y", legendY + 4)
+        //         .attr("font-size", "12px")
+        //         .attr("font-weight", "bold")
+        //         .attr("fill", "#333")
+        //         .text(`Cell ${cluster}`);
+        // });
 
         // Add legend title
-        bottomSection.append("text")
-            .attr("x", legendX)
-            .attr("y", legendStartY + 20)
-            .attr("font-size", "12px")
-            .attr("font-weight", "bold")
-            .attr("fill", "#333")
-            .text("Cell States:");
+        // bottomSection.append("text")
+        //     .attr("x", legendX)
+        //     .attr("y", legendStartY + 20)
+        //     .attr("font-size", "12px")
+        //     .attr("font-weight", "bold")
+        //     .attr("fill", "#333")
+        //     .text("Cell States:");
 
         // Trajectory color scale for labels (separate from cluster colors)
         const trajectoryColorScale = d3.scaleOrdinal(d3.schemeSet2);
@@ -526,14 +526,14 @@ const PseudotimeGlyph = ({
                 const labelX = centerX + Math.cos(angle) * (maxRadius + 15);
                 const labelY = centerY + Math.sin(angle) * (maxRadius + 15);
                 
-                bottomSection.append("text")
-                    .attr("x", labelX)
-                    .attr("y", labelY)
-                    .attr("text-anchor", "middle")
-                    .attr("font-size", "10px")
-                    .attr("font-weight", "bold")
-                    .attr("fill", trajectoryColorScale(trajIndex))
-                    .text(`Traj ${trajIndex + 1}`);
+                // bottomSection.append("text")
+                //     .attr("x", labelX)
+                //     .attr("y", labelY)
+                //     .attr("text-anchor", "middle")
+                //     .attr("font-size", "10px")
+                //     .attr("font-weight", "bold")
+                //     .attr("fill", trajectoryColorScale(trajIndex))
+                //     .text(`Traj ${trajIndex + 1}`);
             }
         });
     };
@@ -625,48 +625,47 @@ const PseudotimeGlyph = ({
                 topSection.append("circle")
                     .attr("cx", point.x)
                     .attr("cy", point.y)
-                    .attr("r", 5)
+                    .attr("r", 3)
                     .attr("fill", color)
                     .attr("stroke", "#fff")
-                    .attr("stroke-width", 2)
                     .attr("opacity", 0.9);
 
                 // Add expression value labels
-                topSection.append("text")
-                    .attr("x", point.x)
-                    .attr("y", point.y - 15)
-                    .attr("text-anchor", "middle")
-                    .attr("font-size", "8px")
-                    .attr("fill", "#333")
-                    .text(point.expression.toFixed(2));
+                // topSection.append("text")
+                //     .attr("x", point.x)
+                //     .attr("y", point.y - 15)
+                //     .attr("text-anchor", "middle")
+                //     .attr("font-size", "8px")
+                //     .attr("fill", "#333")
+                //     .text(point.expression.toFixed(2));
 
                 // Add time point labels
-                topSection.append("text")
-                    .attr("x", point.x)
-                    .attr("y", point.y + 20)
-                    .attr("text-anchor", "middle")
-                    .attr("font-size", "8px")
-                    .attr("fill", "#666")
-                    .text(`t${point.timePoint.toFixed(1)}`);
+                // topSection.append("text")
+                //     .attr("x", point.x)
+                //     .attr("y", point.y + 20)
+                //     .attr("text-anchor", "middle")
+                //     .attr("font-size", "8px")
+                //     .attr("fill", "#666")
+                //     .text(`t${point.timePoint.toFixed(1)}`);
             });
 
             // Add gene legend in the top-left area
             const legendX = centerX - axisLength / 2 + 20;
             const legendY = centerY - axisLength / 2 + 20 + geneIndex * 18;
             
-            topSection.append("circle")
-                .attr("cx", legendX)
-                .attr("cy", legendY)
-                .attr("r", 5)
-                .attr("fill", color);
+            // topSection.append("circle")
+            //     .attr("cx", legendX)
+            //     .attr("cy", legendY)
+            //     .attr("r", 5)
+            //     .attr("fill", color);
 
-            topSection.append("text")
-                .attr("x", legendX + 15)
-                .attr("y", legendY + 4)
-                .attr("font-size", "12px")
-                .attr("font-weight", "bold")
-                .attr("fill", "#333")
-                .text(geneInfo.gene);
+            // topSection.append("text")
+            //     .attr("x", legendX + 15)
+            //     .attr("y", legendY + 4)
+            //     .attr("font-size", "12px")
+            //     .attr("font-weight", "bold")
+            //     .attr("fill", "#333")
+            //     .text(geneInfo.gene);
         });
 
         // Add concentric circles for time progression using trajectory data time range
