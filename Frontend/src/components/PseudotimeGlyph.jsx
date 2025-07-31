@@ -53,7 +53,7 @@ const PseudotimeGlyph = ({
     const generateMockTrajectoryData = () => {
         return [
             {
-                path: [0, 1, 2, 3],
+                path: [0, 1, 3],
                 pseudotimes: ["0.000", "0.200", "0.500", "0.800"]
             },
             {
@@ -125,8 +125,10 @@ const PseudotimeGlyph = ({
             traj.pseudotimes.map(pt => parseFloat(pt))
         ));
 
-        // Color scale for different trajectories
-        const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+        // Color scale for different cell states/clusters
+        const allClusters = [...new Set(dataToUse.flatMap(traj => traj.path))];
+        const clusterColorScale = d3.scaleOrdinal(d3.schemeCategory10)
+            .domain(allClusters);
 
         // Add time point 0 circle at center
         g.append("circle")
@@ -149,7 +151,7 @@ const PseudotimeGlyph = ({
             .text("t0");
 
         // Create bottom section - macroscopic cell trajectories
-        createBottomSection(g, dataToUse, centerX, centerY, axisLength, maxPseudotime, colorScale);
+        createBottomSection(g, dataToUse, centerX, centerY, axisLength, maxPseudotime, clusterColorScale);
 
         // Create top section - gene expression gauge
         createTopSection(g, geneExpressionData, centerX, centerY, axisLength, maxPseudotime);
@@ -165,9 +167,12 @@ const PseudotimeGlyph = ({
             .text("Pseudotime Analysis Glyph");
     };
 
-    const createBottomSection = (g, trajectoryData, centerX, centerY, axisLength, maxPseudotime, colorScale) => {
+    const createBottomSection = (g, trajectoryData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale) => {
         const bottomSection = g.append("g").attr("class", "bottom-section");
         const maxRadius = axisLength / 2 - 30;
+        
+        // Extract all unique clusters for legend
+        const allClusters = [...new Set(trajectoryData.flatMap(traj => traj.path))];
         
         // Scale for converting pseudotime to radial distance
         const radiusScale = d3.scaleLinear()
@@ -401,11 +406,14 @@ const PseudotimeGlyph = ({
         const { nodes, edges } = buildTrajectoryTree(trajectoryData);
         const nodePositions = calculateNodePositions(nodes, edges);
 
-        // Draw edges (connections between nodes)
+                // Draw edges (connections between nodes)
         edges.forEach(edge => {
             const fromPos = nodePositions.get(edge.from);
             const toPos = nodePositions.get(edge.to);
-            const color = colorScale(edge.trajectory);
+            
+            // Use the target node's cluster for edge color
+            const toNode = nodes.get(edge.to);
+            const color = toNode ? clusterColorScale(toNode.cluster) : "#999";
             
             if (fromPos && toPos) {
                 let x1 = fromPos.x, y1 = fromPos.y;
@@ -417,7 +425,7 @@ const PseudotimeGlyph = ({
                     x1 = centerX + Math.cos(angle) * 8;
                     y1 = centerY + Math.sin(angle) * 8;
                 }
-                
+
                 bottomSection.append("line")
                     .attr("x1", x1)
                     .attr("y1", y1)
@@ -429,47 +437,82 @@ const PseudotimeGlyph = ({
             }
         });
 
-        // Draw nodes
+                // Draw nodes
         nodes.forEach((node, key) => {
             const pos = nodePositions.get(key);
             if (!pos || node.radius <= 8) return; // Skip center node
 
-            // Determine color - if multiple trajectories pass through this node, use a neutral color
-            const trajArray = Array.from(node.trajectories);
-            const nodeColor = trajArray.length === 1 ? colorScale(trajArray[0]) : "#666";
+            // Use cluster-based color for each cell state
+            const nodeColor = clusterColorScale(node.cluster);
 
             // Draw endpoint as star, others as circles
             if (node.isEndpoint) {
                 drawStar(bottomSection, pos.x, pos.y, 10, nodeColor);
-                } else {
-                    bottomSection.append("circle")
+            } else {
+                bottomSection.append("circle")
                     .attr("cx", pos.x)
                     .attr("cy", pos.y)
-                        .attr("r", 6)
+                    .attr("r", 6)
                     .attr("fill", nodeColor)
-                        .attr("stroke", "#fff")
-                        .attr("stroke-width", 2)
-                        .attr("opacity", 0.8);
-                }
+                    .attr("stroke", "#fff")
+                    .attr("stroke-width", 2)
+                    .attr("opacity", 0.8);
+            }
 
             // Add labels
             const labelOffset = node.radius < 50 ? 15 : 25;
-                bottomSection.append("text")
+            bottomSection.append("text")
                 .attr("x", pos.x)
                 .attr("y", pos.y + labelOffset)
-                    .attr("text-anchor", "middle")
-                    .attr("font-size", "9px")
-                    .attr("fill", "#666")
+                .attr("text-anchor", "middle")
+                .attr("font-size", "9px")
+                .attr("fill", "#666")
                 .text(`C${node.cluster}`);
-                
-                bottomSection.append("text")
+
+            bottomSection.append("text")
                 .attr("x", pos.x)
                 .attr("y", pos.y + labelOffset + 10)
-                    .attr("text-anchor", "middle")
-                    .attr("font-size", "8px")
-                    .attr("fill", "#999")
+                .attr("text-anchor", "middle")
+                .attr("font-size", "8px")
+                .attr("fill", "#999")
                 .text(`${node.pseudotime.toFixed(2)}`);
         });
+
+        // Add cell state color legend
+        const legendX = centerX - axisLength / 2 + 20;
+        const legendStartY = centerY + axisLength / 2 - 20;
+        
+        allClusters.sort((a, b) => a - b).forEach((cluster, index) => {
+            const legendY = legendStartY - index * 18;
+            
+            bottomSection.append("circle")
+                .attr("cx", legendX)
+                .attr("cy", legendY)
+                .attr("r", 6)
+                .attr("fill", clusterColorScale(cluster))
+                .attr("stroke", "#fff")
+                .attr("stroke-width", 2);
+
+            bottomSection.append("text")
+                .attr("x", legendX + 15)
+                .attr("y", legendY + 4)
+                .attr("font-size", "12px")
+                .attr("font-weight", "bold")
+                .attr("fill", "#333")
+                .text(`Cell ${cluster}`);
+        });
+
+        // Add legend title
+        bottomSection.append("text")
+            .attr("x", legendX)
+            .attr("y", legendStartY + 20)
+            .attr("font-size", "12px")
+            .attr("font-weight", "bold")
+            .attr("fill", "#333")
+            .text("Cell States:");
+
+        // Trajectory color scale for labels (separate from cluster colors)
+        const trajectoryColorScale = d3.scaleOrdinal(d3.schemeSet2);
 
         // Add trajectory labels for endpoints
         trajectoryData.forEach((trajectory, trajIndex) => {
@@ -489,7 +532,7 @@ const PseudotimeGlyph = ({
                     .attr("text-anchor", "middle")
                     .attr("font-size", "10px")
                     .attr("font-weight", "bold")
-                    .attr("fill", colorScale(trajIndex))
+                    .attr("fill", trajectoryColorScale(trajIndex))
                     .text(`Traj ${trajIndex + 1}`);
             }
         });
