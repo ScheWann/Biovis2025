@@ -256,17 +256,17 @@ const PseudotimeGlyph = ({
 
         // Mock gene expression data if not provided
         const mockGeneData = geneData || [
-            { gene: "Gene1", timePoints: [0.2, 0.5, 0.8, 1.0], expressions: [0.3, 0.7, 0.9, 0.4] },
-            { gene: "Gene2", timePoints: [0.1, 0.4, 0.7, 1.0], expressions: [0.8, 0.6, 0.3, 0.2] },
-            { gene: "Gene3", timePoints: [0.0, 0.3, 0.6, 0.9], expressions: [0.1, 0.4, 0.8, 0.9] }
+            { gene: "SOX2", timePoints: [0.0, 0.4, 0.7, 1.0], expressions: [0.8, 0.6, 0.3, 0.2] },
+            { gene: "NANOG", timePoints: [0.1, 0.4, 0.7, 1.0], expressions: [0.2, 0.5, 0.8, 0.9] },
+            { gene: "OCT4", timePoints: [0.0, 0.3, 0.6, 0.9], expressions: [0.9, 0.7, 0.4, 0.1] }
         ];
 
-        // Draw full circle background
+        // Draw upper semicircle background for gene expression area
         const arc = d3.arc()
             .innerRadius(20)
             .outerRadius(maxRadius)
-            .startAngle(0)
-            .endAngle(2 * Math.PI);
+            .startAngle(Math.PI)
+            .endAngle(2 * Math.PI); // Upper half: from left (π) to right (2π) through top
 
         topSection.append("path")
             .attr("d", arc)
@@ -275,10 +275,16 @@ const PseudotimeGlyph = ({
             .attr("stroke", "black")
             .attr("opacity", 0.2);
 
-        // Expression level scale (radial distance represents expression level)
+        // Time point scale (radial distance represents time progression)
+        const timeScale = d3.scaleLinear()
+            .domain([0, Math.max(...mockGeneData.flatMap(d => d.timePoints))])
+            .range([20, maxRadius - 10]);
+
+        // Expression scale (angular position - higher expression = more to the right)
+        // Upper half only: from left (π) to right (2π) of the upper semicircle
         const expressionScale = d3.scaleLinear()
             .domain([0, 1])
-            .range([20, maxRadius - 10]);
+            .range([Math.PI, 2 * Math.PI]); // From left side (180°) to right side (360°) through upper half
 
         // Gene colors
         const geneColors = ['#ff6b6b', '#4ecdc4', '#45b7d1'];
@@ -286,21 +292,36 @@ const PseudotimeGlyph = ({
         mockGeneData.forEach((geneInfo, geneIndex) => {
             const color = geneColors[geneIndex % geneColors.length];
 
-            // Connect gene expression points only in top half (π to 2π)
+            // Create expression points where angular position is determined by expression level
             const expressionPoints = geneInfo.timePoints.map((timePoint, i) => {
-                // Distribute time points only in the top half (π to 2π)
-                const angle = Math.PI + (i / (geneInfo.timePoints.length - 1)) * Math.PI;
-                const radius = expressionScale(geneInfo.expressions[i]);
+                // Radius is determined by time point (progression outward)
+                const radius = timeScale(timePoint);
+                // Angle is determined by expression level (higher = more to the right)
+                const angle = expressionScale(geneInfo.expressions[i]);
+                
                 return {
                     x: centerX + Math.cos(angle) * radius,
                     y: centerY + Math.sin(angle) * radius,
                     timePoint: timePoint,
                     expression: geneInfo.expressions[i],
-                    angle: angle
+                    angle: angle,
+                    radius: radius
                 };
             });
 
-            // Draw connecting lines between expression points
+            // Draw line from center to first point
+            if (expressionPoints.length > 0) {
+                topSection.append("line")
+                    .attr("x1", centerX)
+                    .attr("y1", centerY)
+                    .attr("x2", expressionPoints[0].x)
+                    .attr("y2", expressionPoints[0].y)
+                    .attr("stroke", color)
+                    .attr("stroke-width", 2)
+                    .attr("opacity", 0.6);
+            }
+
+            // Draw connecting lines between consecutive expression points
             for (let i = 0; i < expressionPoints.length - 1; i++) {
                 topSection.append("line")
                     .attr("x1", expressionPoints[i].x)
@@ -312,7 +333,7 @@ const PseudotimeGlyph = ({
                     .attr("opacity", 0.6);
             }
 
-            // Draw all points (they're already in the top half)
+            // Draw all points
             expressionPoints.forEach((point, i) => {
                 topSection.append("circle")
                     .attr("cx", point.x)
@@ -331,6 +352,15 @@ const PseudotimeGlyph = ({
                     .attr("font-size", "8px")
                     .attr("fill", "#333")
                     .text(point.expression.toFixed(2));
+
+                // Add time point labels
+                topSection.append("text")
+                    .attr("x", point.x)
+                    .attr("y", point.y + 20)
+                    .attr("text-anchor", "middle")
+                    .attr("font-size", "8px")
+                    .attr("fill", "#666")
+                    .text(`t${point.timePoint.toFixed(1)}`);
             });
 
             // Add gene legend in the top-left area
@@ -352,15 +382,17 @@ const PseudotimeGlyph = ({
                 .text(geneInfo.gene);
         });
 
-        // Add full circular radial ticks for expression levels
-        const numTicks = 5;
-        for (let i = 1; i <= numTicks; i++) {
-            const radius = (i / numTicks) * maxRadius;
+        // Add concentric circles for time progression
+        const maxTime = Math.max(...mockGeneData.flatMap(d => d.timePoints));
+        const numTimeCircles = 4;
+        for (let i = 1; i <= numTimeCircles; i++) {
+            const time = (i / numTimeCircles) * maxTime;
+            const radius = timeScale(time);
             const arc = d3.arc()
                 .innerRadius(radius)
                 .outerRadius(radius)
-                .startAngle(0)
-                .endAngle(2 * Math.PI);
+                .startAngle(Math.PI)
+                .endAngle(2 * Math.PI); // Upper semicircle only
 
             topSection.append("path")
                 .attr("d", arc)
@@ -368,8 +400,34 @@ const PseudotimeGlyph = ({
                 .attr("fill", "none")
                 .attr("stroke", "black")
                 .attr("stroke-width", 1)
-                .attr("opacity", 0.3);
+                .attr("opacity", 0.2);
+
+            // Add time labels at the top of upper semicircle
+            topSection.append("text")
+                .attr("x", centerX)
+                .attr("y", centerY - radius - 5)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "8px")
+                .attr("fill", "#666")
+                .text(`t${time.toFixed(1)}`);
         }
+
+        // Add expression level indicators for upper semicircle
+        topSection.append("text")
+            .attr("x", centerX - maxRadius * 0.7)
+            .attr("y", centerY - 10)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "10px")
+            .attr("fill", "#666")
+            .text("Low Expr");
+
+        topSection.append("text")
+            .attr("x", centerX + maxRadius * 0.7)
+            .attr("y", centerY - 10)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "10px")
+            .attr("fill", "#666")
+            .text("High Expr");
     };
 
     const drawStar = (parent, cx, cy, radius, color) => {

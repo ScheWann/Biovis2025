@@ -17,11 +17,11 @@ export const PseudotimeGlyphExample = () => {
             timePoints: [0.0, 0.3, 0.6, 1.0],
             expressions: [0.9, 0.7, 0.4, 0.1]
         },
-        // {
-        //     gene: "SOX2",
-        //     timePoints: [0.0, 0.4, 0.7, 1.0],
-        //     expressions: [0.8, 0.6, 0.3, 0.2]
-        // },
+        {
+            gene: "SOX2",
+            timePoints: [0.0, 0.4, 0.7, 1.0],
+            expressions: [0.8, 0.6, 0.3, 0.2]
+        },
         {
             gene: "OCT4",
             timePoints: [0.0, 0.2, 0.5, 0.8],
@@ -88,12 +88,17 @@ export const PseudotimeGlyphExample = () => {
                 <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f0f8ff', borderRadius: '6px' }}>
                     <h4>Glyph Components:</h4>
                     <ul>
-                        <li><strong>Central Time Axis:</strong> Vertical line dividing top (gene expression) and bottom (cell trajectories)</li>
+                        <li><strong>Central Time Axis:</strong> Horizontal line dividing top (gene expression) and bottom (cell trajectories)</li>
                         <li><strong>Bottom Section:</strong> Macroscopic cell trajectory paths with colored circles for intermediate stages and stars for final stages</li>
-                        <li><strong>Top Section:</strong> Gauge-like visualization showing gene expression changes over pseudotime</li>
-                        <li><strong>Radial Direction:</strong> Distance from center represents pseudotime progression</li>
+                        <li><strong>Top Section:</strong> Gene expression visualization where lines start from center and progress outward</li>
+                        <li><strong>Radial Direction:</strong> Distance from center represents time progression</li>
+                        <li><strong>Angular Position:</strong> Higher expression values appear more to the right on each circular arc, lower values more to the left</li>
                         <li><strong>Color Coding:</strong> Different colors for different trajectories and genes</li>
                     </ul>
+                    <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                        <strong>Example:</strong> For SOX2 [0.8, 0.6, 0.3, 0.2], the line starts from center at time 0 with high expression (right side), 
+                        then moves left as expression decreases over time points 0.4, 0.7, and 1.0.
+                    </div>
                 </div>
             </Card>
         </div>
