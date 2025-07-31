@@ -59,10 +59,6 @@ const PseudotimeGlyph = ({
             {
                 path: [0, 1, 4, 5],
                 pseudotimes: ["0.000", "0.200", "0.600", "1.000"]
-            },
-            {
-                path: [0, 2, 6],
-                pseudotimes: ["0.000", "0.300", "0.700"]
             }
         ];
     };
@@ -174,41 +170,239 @@ const PseudotimeGlyph = ({
             .domain([0, maxPseudotime])
             .range([8, maxRadius]); // Start from time point 0 circle edge (radius 8)
 
+        // Build a tree structure from trajectory data to handle branching
+        const buildTrajectoryTree = (trajectoryData) => {
+            const nodes = new Map(); // Map of "cluster_pseudotime" -> node info
+            const edges = []; // Array of connections between nodes
+            const trajectoryPaths = []; // Track which trajectory each edge belongs to
+
         trajectoryData.forEach((trajectory, trajIndex) => {
             const { path, pseudotimes } = trajectory;
-            const color = colorScale(trajIndex);
-
-            // Calculate angle for this trajectory to avoid horizontal line
-            // Distribute trajectories across bottom half but avoid exact horizontal line (π/6 to 5π/6)
-            const numTrajectories = trajectoryData.length;
-            const angleSpacing = (2 * Math.PI / 3) / (numTrajectories + 1); // 2π/3 = 120 degrees range
-            const baseAngle = Math.PI / 6 + (trajIndex + 1) * angleSpacing; // Start at 30 degrees, avoid 0 and π
-
-            // Draw trajectory path points radiating from center
-            const pathPoints = pseudotimes.map((pt, i) => {
-                const pseudotime = parseFloat(pt);
-                const radius = radiusScale(pseudotime);
                 
-                return {
-                    x: centerX + Math.cos(baseAngle) * radius,
-                    y: centerY + Math.sin(baseAngle) * radius,
+                // Create nodes for each cell state
+                path.forEach((cluster, i) => {
+                    const pseudotime = parseFloat(pseudotimes[i]);
+                    const nodeKey = `${cluster}_${pseudotime}`;
+                    
+                    if (!nodes.has(nodeKey)) {
+                        nodes.set(nodeKey, {
+                            cluster: cluster,
                     pseudotime: pseudotime,
-                    cluster: path[i],
-                    isLast: i === pseudotimes.length - 1,
-                    timeIndex: i,
-                    angle: baseAngle,
-                    radius: radius
-                };
+                            radius: radiusScale(pseudotime),
+                            trajectories: new Set([trajIndex]),
+                            isEndpoint: false
+                        });
+                    } else {
+                        // If node already exists, add this trajectory to it
+                        nodes.get(nodeKey).trajectories.add(trajIndex);
+                    }
+                });
+
+                // Mark endpoints
+                const lastIndex = path.length - 1;
+                const lastNodeKey = `${path[lastIndex]}_${parseFloat(pseudotimes[lastIndex])}`;
+                if (nodes.has(lastNodeKey)) {
+                    nodes.get(lastNodeKey).isEndpoint = true;
+                }
+
+                // Create edges between consecutive nodes
+                for (let i = 0; i < path.length - 1; i++) {
+                    const fromKey = `${path[i]}_${parseFloat(pseudotimes[i])}`;
+                    const toKey = `${path[i + 1]}_${parseFloat(pseudotimes[i + 1])}`;
+                    
+                    edges.push({
+                        from: fromKey,
+                        to: toKey,
+                        trajectory: trajIndex
+                    });
+                    trajectoryPaths.push(trajIndex);
+                }
             });
 
-            // Draw connecting lines between consecutive time points
-            for (let i = 0; i < pathPoints.length - 1; i++) {
-                let x1 = pathPoints[i].x;
-                let y1 = pathPoints[i].y;
+            return { nodes, edges, trajectoryPaths };
+        };
+
+        // Calculate positions for nodes using a tree layout
+        const calculateNodePositions = (nodes, edges) => {
+            const nodePositions = new Map();
+            
+            // Find root node (pseudotime = 0)
+            const rootNode = Array.from(nodes.values()).find(node => node.pseudotime === 0);
+            if (rootNode) {
+                const rootKey = `${rootNode.cluster}_${rootNode.pseudotime}`;
+                nodePositions.set(rootKey, { x: centerX, y: centerY });
+            }
+
+            // Build a proper tree structure to identify trunk vs branches
+            const buildTreeStructure = () => {
+                const treeNodes = new Map();
+                const childrenMap = new Map(); // parent -> children
+                const parentMap = new Map();   // child -> parent
+
+                // Initialize all nodes
+                nodes.forEach((node, key) => {
+                    treeNodes.set(key, {
+                        ...node,
+                        children: [],
+                        parent: null,
+                        isTrunk: false,
+                        branchGroup: -1
+                    });
+                    childrenMap.set(key, []);
+                });
+
+                // Build parent-child relationships
+                edges.forEach(edge => {
+                    const parent = edge.from;
+                    const child = edge.to;
+                    
+                    if (!childrenMap.get(parent).includes(child)) {
+                        childrenMap.get(parent).push(child);
+                        parentMap.set(child, parent);
+                        treeNodes.get(child).parent = parent;
+                        treeNodes.get(parent).children.push(child);
+                    }
+                });
+
+                // Identify trunk nodes (nodes that are on the path from root to first branching point)
+                const markTrunkNodes = () => {
+                    let currentNode = Array.from(treeNodes.keys()).find(key => 
+                        treeNodes.get(key).pseudotime === 0
+                    );
+                    
+                    while (currentNode) {
+                        const node = treeNodes.get(currentNode);
+                        node.isTrunk = true;
+                        
+                        // If this node has multiple children, it's a branching point
+                        if (node.children.length > 1) {
+                            // Mark children with branch groups
+                            node.children.forEach((childKey, index) => {
+                                markBranchGroup(childKey, index, treeNodes);
+                            });
+                            break;
+                        } else if (node.children.length === 1) {
+                            currentNode = node.children[0];
+                        } else {
+                            break;
+                        }
+                    }
+                };
+
+                const markBranchGroup = (nodeKey, branchIndex, treeNodes) => {
+                    const node = treeNodes.get(nodeKey);
+                    if (node) {
+                        node.branchGroup = branchIndex;
+                        node.children.forEach(childKey => {
+                            markBranchGroup(childKey, branchIndex, treeNodes);
+                        });
+                    }
+                };
+
+                markTrunkNodes();
+                return treeNodes;
+            };
+
+            const treeStructure = buildTreeStructure();
+
+            // Define the bottom semicircle range for trajectories
+            const minAngle = Math.PI / 6;  // 30 degrees
+            const maxAngle = 5 * Math.PI / 6;  // 150 degrees
+            const trunkAngle = Math.PI / 2; // 90 degrees (straight down for trunk)
+
+            // Position nodes based on tree structure
+            const positionedNodes = new Set();
+
+            // First, position trunk nodes along a straight line downward
+            const trunkNodes = Array.from(treeStructure.entries())
+                .filter(([key, node]) => node.isTrunk)
+                .sort((a, b) => a[1].pseudotime - b[1].pseudotime);
+
+            trunkNodes.forEach(([key, node]) => {
+                if (node.pseudotime === 0) {
+                    // Root is already positioned
+                    positionedNodes.add(key);
+                } else {
+                    const radius = radiusScale(node.pseudotime);
+                    const x = centerX + Math.cos(trunkAngle) * radius;
+                    const y = centerY + Math.sin(trunkAngle) * radius;
+                    nodePositions.set(key, { x, y });
+                    positionedNodes.add(key);
+                }
+            });
+
+            // Then, position branch nodes
+            const branchGroups = new Map();
+            treeStructure.forEach((node, key) => {
+                if (!node.isTrunk && node.branchGroup >= 0) {
+                    if (!branchGroups.has(node.branchGroup)) {
+                        branchGroups.set(node.branchGroup, []);
+                    }
+                    branchGroups.get(node.branchGroup).push({ key, node });
+                }
+            });
+
+            // Sort branch groups by branch index
+            const sortedBranchGroups = Array.from(branchGroups.entries()).sort((a, b) => a[0] - b[0]);
+            
+            sortedBranchGroups.forEach(([branchIndex, branchNodes]) => {
+                // Find the branching point (parent of first node in this branch)
+                const firstBranchNode = branchNodes.find(({ node }) => node.parent && treeStructure.get(node.parent).isTrunk);
+                if (!firstBranchNode) return;
+
+                const branchingPoint = nodePositions.get(firstBranchNode.node.parent);
+                if (!branchingPoint) return;
+
+                // Calculate branch angle based on branch index
+                const numBranches = sortedBranchGroups.length;
+                let branchAngle;
                 
-                // If first point is at time 0 (radius 8), start line from edge of time 0 circle
-                if (i === 0 && pathPoints[i].radius <= 8) {
-                    const angle = Math.atan2(pathPoints[i + 1].y - centerY, pathPoints[i + 1].x - centerX);
+                if (numBranches === 1) {
+                    branchAngle = trunkAngle; // Continue straight if only one branch
+                } else if (numBranches === 2) {
+                    // For two branches, spread them symmetrically around the trunk
+                    const spreadAngle = Math.PI / 4; // 45 degrees spread
+                    branchAngle = trunkAngle + (branchIndex === 0 ? -spreadAngle : spreadAngle);
+                } else {
+                    // For more branches, distribute across available angle range
+                    const angleStep = (maxAngle - minAngle) / (numBranches - 1);
+                    branchAngle = minAngle + branchIndex * angleStep;
+                }
+
+                // Ensure angle is within bounds
+                branchAngle = Math.max(minAngle, Math.min(maxAngle, branchAngle));
+
+                // Position all nodes in this branch along the branch angle
+                const branchNodesSorted = branchNodes.sort((a, b) => a.node.pseudotime - b.node.pseudotime);
+                
+                branchNodesSorted.forEach(({ key, node }) => {
+                    const radius = radiusScale(node.pseudotime);
+                    const x = centerX + Math.cos(branchAngle) * radius;
+                    const y = centerY + Math.sin(branchAngle) * radius;
+                    nodePositions.set(key, { x, y });
+                    positionedNodes.add(key);
+                });
+            });
+
+            return nodePositions;
+        };
+
+        const { nodes, edges } = buildTrajectoryTree(trajectoryData);
+        const nodePositions = calculateNodePositions(nodes, edges);
+
+        // Draw edges (connections between nodes)
+        edges.forEach(edge => {
+            const fromPos = nodePositions.get(edge.from);
+            const toPos = nodePositions.get(edge.to);
+            const color = colorScale(edge.trajectory);
+            
+            if (fromPos && toPos) {
+                let x1 = fromPos.x, y1 = fromPos.y;
+                
+                // If starting from center (time 0), start from edge of center circle
+                const fromNode = nodes.get(edge.from);
+                if (fromNode && fromNode.pseudotime === 0) {
+                    const angle = Math.atan2(toPos.y - centerY, toPos.x - centerX);
                     x1 = centerX + Math.cos(angle) * 8;
                     y1 = centerY + Math.sin(angle) * 8;
                 }
@@ -216,57 +410,67 @@ const PseudotimeGlyph = ({
                 bottomSection.append("line")
                     .attr("x1", x1)
                     .attr("y1", y1)
-                    .attr("x2", pathPoints[i + 1].x)
-                    .attr("y2", pathPoints[i + 1].y)
+                    .attr("x2", toPos.x)
+                    .attr("y2", toPos.y)
                     .attr("stroke", color)
                     .attr("stroke-width", 2)
                     .attr("opacity", 0.7);
             }
+        });
 
-            // Draw all points along the radial trajectory
-            pathPoints.forEach((point, i) => {
-                // Skip drawing point at time 0 circle (radius = 8) to avoid overlapping with center circle
-                if (point.radius <= 8) return;
-                
-                // Draw a star for the final stage, circle for others
-                if (point.isLast) {
-                    drawStar(bottomSection, point.x, point.y, 10, color);
+        // Draw nodes
+        nodes.forEach((node, key) => {
+            const pos = nodePositions.get(key);
+            if (!pos || node.radius <= 8) return; // Skip center node
+
+            // Determine color - if multiple trajectories pass through this node, use a neutral color
+            const trajArray = Array.from(node.trajectories);
+            const nodeColor = trajArray.length === 1 ? colorScale(trajArray[0]) : "#666";
+
+            // Draw endpoint as star, others as circles
+            if (node.isEndpoint) {
+                drawStar(bottomSection, pos.x, pos.y, 10, nodeColor);
                 } else {
                     bottomSection.append("circle")
-                        .attr("cx", point.x)
-                        .attr("cy", point.y)
+                    .attr("cx", pos.x)
+                    .attr("cy", pos.y)
                         .attr("r", 6)
-                        .attr("fill", color)
+                    .attr("fill", nodeColor)
                         .attr("stroke", "#fff")
                         .attr("stroke-width", 2)
                         .attr("opacity", 0.8);
                 }
 
-                // Add cluster and time labels positioned to avoid overlap
-                const labelOffset = point.radius < 50 ? 15 : 25;
+            // Add labels
+            const labelOffset = node.radius < 50 ? 15 : 25;
                 bottomSection.append("text")
-                    .attr("x", point.x)
-                    .attr("y", point.y + labelOffset)
+                .attr("x", pos.x)
+                .attr("y", pos.y + labelOffset)
                     .attr("text-anchor", "middle")
                     .attr("font-size", "9px")
                     .attr("fill", "#666")
-                    .text(`C${point.cluster}`);
+                .text(`C${node.cluster}`);
                 
-                // Add pseudotime value
                 bottomSection.append("text")
-                    .attr("x", point.x)
-                    .attr("y", point.y + labelOffset + 10)
+                .attr("x", pos.x)
+                .attr("y", pos.y + labelOffset + 10)
                     .attr("text-anchor", "middle")
                     .attr("font-size", "8px")
                     .attr("fill", "#999")
-                    .text(`${point.pseudotime.toFixed(2)}`);
-            });
+                .text(`${node.pseudotime.toFixed(2)}`);
+        });
 
-            // Add trajectory label near the outer end
-            const lastPoint = pathPoints[pathPoints.length - 1];
-            if (lastPoint.radius > 0) {
-                const labelX = centerX + Math.cos(baseAngle) * (maxRadius + 15);
-                const labelY = centerY + Math.sin(baseAngle) * (maxRadius + 15);
+        // Add trajectory labels for endpoints
+        trajectoryData.forEach((trajectory, trajIndex) => {
+            const lastCluster = trajectory.path[trajectory.path.length - 1];
+            const lastTime = parseFloat(trajectory.pseudotimes[trajectory.pseudotimes.length - 1]);
+            const lastNodeKey = `${lastCluster}_${lastTime}`;
+            const lastPos = nodePositions.get(lastNodeKey);
+            
+            if (lastPos) {
+                const angle = Math.atan2(lastPos.y - centerY, lastPos.x - centerX);
+                const labelX = centerX + Math.cos(angle) * (maxRadius + 15);
+                const labelY = centerY + Math.sin(angle) * (maxRadius + 15);
                 
                 bottomSection.append("text")
                     .attr("x", labelX)
@@ -274,7 +478,7 @@ const PseudotimeGlyph = ({
                     .attr("text-anchor", "middle")
                     .attr("font-size", "10px")
                     .attr("font-weight", "bold")
-                    .attr("fill", color)
+                    .attr("fill", colorScale(trajIndex))
                     .text(`Traj ${trajIndex + 1}`);
             }
         });
