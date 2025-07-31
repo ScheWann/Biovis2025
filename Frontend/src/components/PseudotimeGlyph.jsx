@@ -128,6 +128,26 @@ const PseudotimeGlyph = ({
         // Color scale for different trajectories
         const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
+        // Add time point 0 circle at center
+        g.append("circle")
+            .attr("cx", centerX)
+            .attr("cy", centerY)
+            .attr("r", 8)
+            .attr("fill", "#fff")
+            .attr("stroke", "#333")
+            .attr("stroke-width", 2)
+            .attr("opacity", 0.9);
+
+        // Add time point 0 label
+        g.append("text")
+            .attr("x", centerX)
+            .attr("y", centerY + 4)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "10px")
+            .attr("font-weight", "bold")
+            .attr("fill", "#333")
+            .text("t0");
+
         // Create bottom section - macroscopic cell trajectories
         createBottomSection(g, dataToUse, centerX, centerY, axisLength, maxPseudotime, colorScale);
 
@@ -152,7 +172,7 @@ const PseudotimeGlyph = ({
         // Scale for converting pseudotime to radial distance
         const radiusScale = d3.scaleLinear()
             .domain([0, maxPseudotime])
-            .range([0, maxRadius]); // Start from 0 (center) instead of 15
+            .range([8, maxRadius]); // Start from time point 0 circle edge (radius 8)
 
         trajectoryData.forEach((trajectory, trajIndex) => {
             const { path, pseudotimes } = trajectory;
@@ -183,9 +203,19 @@ const PseudotimeGlyph = ({
 
             // Draw connecting lines between consecutive time points
             for (let i = 0; i < pathPoints.length - 1; i++) {
+                let x1 = pathPoints[i].x;
+                let y1 = pathPoints[i].y;
+                
+                // If first point is at time 0 (radius 8), start line from edge of time 0 circle
+                if (i === 0 && pathPoints[i].radius <= 8) {
+                    const angle = Math.atan2(pathPoints[i + 1].y - centerY, pathPoints[i + 1].x - centerX);
+                    x1 = centerX + Math.cos(angle) * 8;
+                    y1 = centerY + Math.sin(angle) * 8;
+                }
+                
                 bottomSection.append("line")
-                    .attr("x1", pathPoints[i].x)
-                    .attr("y1", pathPoints[i].y)
+                    .attr("x1", x1)
+                    .attr("y1", y1)
                     .attr("x2", pathPoints[i + 1].x)
                     .attr("y2", pathPoints[i + 1].y)
                     .attr("stroke", color)
@@ -195,8 +225,8 @@ const PseudotimeGlyph = ({
 
             // Draw all points along the radial trajectory
             pathPoints.forEach((point, i) => {
-                // Skip drawing point at exact center (radius = 0) to avoid clutter
-                if (point.radius === 0) return;
+                // Skip drawing point at time 0 circle (radius = 8) to avoid overlapping with center circle
+                if (point.radius <= 8) return;
                 
                 // Draw a star for the final stage, circle for others
                 if (point.isLast) {
@@ -268,7 +298,7 @@ const PseudotimeGlyph = ({
         // Use the same scaling as concentric circles and trajectory data
         const timeScale = d3.scaleLinear()
             .domain([0, maxPseudotime])
-            .range([20, maxRadius]);
+            .range([8, maxRadius]); // Start from time point 0 circle edge (radius 8)
 
         // Expression scale (angular position - higher expression = more to the right)
         // Upper half only: from left (π) to right (2π) of the upper semicircle
@@ -299,13 +329,19 @@ const PseudotimeGlyph = ({
                 };
             });
 
-            // Draw line from center to first point
-            if (expressionPoints.length > 0) {
+            // Draw line from time 0 circle edge to first point (if not at time 0)
+            if (expressionPoints.length > 0 && expressionPoints[0].radius > 8) {
+                // Calculate starting point on the edge of time 0 circle in direction of first point
+                const firstPoint = expressionPoints[0];
+                const angle = Math.atan2(firstPoint.y - centerY, firstPoint.x - centerX);
+                const startX = centerX + Math.cos(angle) * 8;
+                const startY = centerY + Math.sin(angle) * 8;
+                
                 topSection.append("line")
-                    .attr("x1", centerX)
-                    .attr("y1", centerY)
-                    .attr("x2", expressionPoints[0].x)
-                    .attr("y2", expressionPoints[0].y)
+                    .attr("x1", startX)
+                    .attr("y1", startY)
+                    .attr("x2", firstPoint.x)
+                    .attr("y2", firstPoint.y)
                     .attr("stroke", color)
                     .attr("stroke-width", 2)
                     .attr("opacity", 0.6);
@@ -377,7 +413,7 @@ const PseudotimeGlyph = ({
         const numTimeCircles = 4;
         for (let i = 1; i <= numTimeCircles; i++) {
             const time = (i / numTimeCircles) * trajectoryMaxTime;
-            const radius = 20 + (time / trajectoryMaxTime) * (maxRadius - 20); // Scale radius so time 1.0 reaches maxRadius
+            const radius = 8 + (time / trajectoryMaxTime) * (maxRadius - 8); // Scale radius from time 0 circle edge to maxRadius
             
             // Draw complete circles instead of semicircles
             topSection.append("circle")
