@@ -265,9 +265,10 @@ const PseudotimeGlyph = ({
 
 
         // Time point scale (radial distance represents time progression)
+        // Use the same scaling as concentric circles and trajectory data
         const timeScale = d3.scaleLinear()
-            .domain([0, Math.max(...mockGeneData.flatMap(d => d.timePoints))])
-            .range([20, maxRadius - 10]);
+            .domain([0, maxPseudotime])
+            .range([20, maxRadius]);
 
         // Expression scale (angular position - higher expression = more to the right)
         // Upper half only: from left (π) to right (2π) of the upper semicircle
