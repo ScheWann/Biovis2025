@@ -54,12 +54,34 @@ export const ScatterplotUmap = ({
   };
 
   const fetchPseudotimeData = ( sampleId, cellIds = null ) => {
+    // Parse parameters from adata_umap_title
+    // Format: ${formattedName}_${sampleId}_${editNeighbors}_${editNPcas}_${editResolutions}
+    let n_neighbors = 15; // default values
+    let n_pcas = 30;
+    let resolutions = 1;
+    
+    try {
+      const parts = adata_umap_title.split('_');
+      if (parts.length >= 5) {
+        // Extract the last 3 parts as the parameters
+        n_neighbors = parseInt(parts[parts.length - 3]) || 15;
+        n_pcas = parseInt(parts[parts.length - 2]) || 30;
+        resolutions = parseFloat(parts[parts.length - 1]) || 1;
+      }
+    } catch (error) {
+      console.warn("Could not parse parameters from adata_umap_title, using defaults", error);
+    }
+
     fetch("/api/get_pseudotime_data", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
         sample_id: sampleId, 
-        cell_ids: cellIds 
+        cell_ids: cellIds,
+        adata_umap_title: adata_umap_title,
+        n_neighbors: n_neighbors,
+        n_pcas: n_pcas,
+        resolutions: resolutions,
       }),
     })
       .then((res) => res.json())

@@ -16,7 +16,7 @@ from process import (
     get_trajectory_gene_list,
     load_adata_to_cache,
     clear_adata_cache,
-    # get_pseudotime_data,
+    get_pseudotime_data,
 )
 
 
@@ -290,22 +290,22 @@ def get_pseudotime_data_route():
     Generate pseudotime analysis data using diffusion pseudotime (DPT)
     """
     sample_id = request.json["sample_id"]
-    
-    # Optional parameters with defaults
-    cell_ids = request.json.get("cell_ids", None)  # New parameter for specific cells
-    root_cell_id = request.json.get("root_cell_id", None)
+    cell_ids = request.json["cell_ids"]
+    adata_umap_title = request.json["adata_umap_title"]
+    early_markers = request.json.get("early_markers", None)
     n_neighbors = request.json.get("n_neighbors", 15)
-    n_pcs = request.json.get("n_pcs", 50)
-    random_state = request.json.get("random_state", 42)
+    n_pcas = request.json.get("n_pcas", 30)
+    resolutions = request.json.get("resolutions", 1)
     
     try:
         pseudotime_data = get_pseudotime_data(
             sample_id=sample_id,
+            adata_umap_title=adata_umap_title,
             cell_ids=cell_ids,
-            root_cell_id=root_cell_id,
+            early_markers=early_markers,
             n_neighbors=n_neighbors,
-            n_pcs=n_pcs,
-            random_state=random_state
+            n_pcas=n_pcas,
+            resolutions=resolutions
         )
         return jsonify(pseudotime_data)
     except Exception as e:
