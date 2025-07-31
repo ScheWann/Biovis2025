@@ -76,6 +76,13 @@ const PseudotimeGlyph = ({
         createGlyph(dataToUse);
     }, [trajectoryData, width, height, geneExpressionData]);
 
+    // Cleanup tooltip on unmount
+    useEffect(() => {
+        return () => {
+            d3.select("body").selectAll(".pseudotime-tooltip").remove();
+        };
+    }, []);
+
     const createGlyph = (dataToUse) => {
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove();
@@ -89,6 +96,21 @@ const PseudotimeGlyph = ({
         // Create main group
         const g = svg.append("g")
             .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+        // Create tooltip (remove existing ones first to avoid duplicates)
+        d3.select("body").selectAll(".pseudotime-tooltip").remove();
+        const tooltip = d3.select("body")
+            .append("div")
+            .attr("class", "pseudotime-tooltip")
+            .style("position", "absolute")
+            .style("visibility", "hidden")
+            .style("background", "rgba(0, 0, 0, 0.8)")
+            .style("color", "white")
+            .style("padding", "8px")
+            .style("border-radius", "4px")
+            .style("font-size", "12px")
+            .style("pointer-events", "none")
+            .style("z-index", "1000");
 
         // Draw horizontal dividing line between gene expression (top) and cell trajectories (bottom)
         const axisLength = Math.min(innerWidth, innerHeight) * 0.8;
@@ -151,10 +173,10 @@ const PseudotimeGlyph = ({
             .text("t0");
 
         // Create bottom section - macroscopic cell trajectories
-        createBottomSection(g, dataToUse, centerX, centerY, axisLength, maxPseudotime, clusterColorScale);
+        createBottomSection(g, dataToUse, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip);
 
         // Create top section - gene expression gauge
-        createTopSection(g, geneExpressionData, centerX, centerY, axisLength, maxPseudotime);
+        createTopSection(g, geneExpressionData, centerX, centerY, axisLength, maxPseudotime, tooltip);
 
         // Add title
         svg.append("text")
@@ -167,7 +189,7 @@ const PseudotimeGlyph = ({
             .text("Pseudotime Analysis Glyph");
     };
 
-    const createBottomSection = (g, trajectoryData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale) => {
+    const createBottomSection = (g, trajectoryData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip) => {
         const bottomSection = g.append("g").attr("class", "bottom-section");
         const maxRadius = axisLength / 2 - 30;
         
@@ -447,7 +469,41 @@ const PseudotimeGlyph = ({
                     .attr("y2", toPos.y)
                     .attr("stroke", color)
                     .attr("stroke-width", 2)
-                    .attr("opacity", 0.7);
+                    .attr("opacity", 0.7)
+                    .style("cursor", "pointer")
+                    .on("mouseover", function(event) {
+                        d3.select(this)
+                            .attr("stroke-width", 4)
+                            .attr("opacity", 1);
+                        
+                        const fromNode = nodes.get(edge.from);
+                        const toNode = nodes.get(edge.to);
+                        const fromCluster = fromNode ? fromNode.cluster : "unknown";
+                        const toCluster = toNode ? toNode.cluster : "unknown";
+                        const fromTime = fromNode ? fromNode.pseudotime.toFixed(2) : "0.00";
+                        const toTime = toNode ? toNode.pseudotime.toFixed(2) : "0.00";
+                        
+                        tooltip.style("visibility", "visible")
+                            .html(`
+                                <div><strong>Cell State Transition</strong></div>
+                                <div>From: Cluster ${fromCluster} (t=${fromTime})</div>
+                                <div>To: Cluster ${toCluster} (t=${toTime})</div>
+                                <div>Trajectory: ${edge.trajectory + 1}</div>
+                                <div>Cell differentiation pathway</div>
+                            `)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 10) + "px");
+                    })
+                    .on("mousemove", function(event) {
+                        tooltip.style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 10) + "px");
+                    })
+                    .on("mouseout", function() {
+                        d3.select(this)
+                            .attr("stroke-width", 2)
+                            .attr("opacity", 0.7);
+                        tooltip.style("visibility", "hidden");
+                    });
             }
         });
 
@@ -552,7 +608,7 @@ const PseudotimeGlyph = ({
         });
     };
 
-    const createTopSection = (g, geneData, centerX, centerY, axisLength, maxPseudotime) => {
+    const createTopSection = (g, geneData, centerX, centerY, axisLength, maxPseudotime, tooltip) => {
         const topSection = g.append("g").attr("class", "top-section");
         const maxRadius = axisLength / 2 - 30;
 
@@ -631,7 +687,39 @@ const PseudotimeGlyph = ({
                     .attr("stroke", color)
                     .attr("stroke-width", 2)
                     .attr("fill", "none")
-                    .attr("opacity", 0.6);
+                    .attr("opacity", 0.6)
+                    .style("cursor", "pointer")
+                    .on("mouseover", function(event) {
+                        d3.select(this)
+                            .attr("stroke-width", 4)
+                            .attr("opacity", 1);
+                        
+                        const minExpression = Math.min(...geneInfo.expressions);
+                        const maxExpression = Math.max(...geneInfo.expressions);
+                        const avgExpression = (geneInfo.expressions.reduce((a, b) => a + b, 0) / geneInfo.expressions.length).toFixed(2);
+                        const timeSpan = `${geneInfo.timePoints[0].toFixed(1)} - ${geneInfo.timePoints[geneInfo.timePoints.length - 1].toFixed(1)}`;
+                        
+                        tooltip.style("visibility", "visible")
+                            .html(`
+                                <div><strong>Gene Expression: ${geneInfo.gene}</strong></div>
+                                <div>Time span: ${timeSpan}</div>
+                                <div>Expression range: ${minExpression.toFixed(2)} - ${maxExpression.toFixed(2)}</div>
+                                <div>Average expression: ${avgExpression}</div>
+                                <div>Gene regulation along pseudotime</div>
+                            `)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 10) + "px");
+                    })
+                    .on("mousemove", function(event) {
+                        tooltip.style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 10) + "px");
+                    })
+                    .on("mouseout", function() {
+                        d3.select(this)
+                            .attr("stroke-width", 2)
+                            .attr("opacity", 0.6);
+                        tooltip.style("visibility", "hidden");
+                    });
             }
 
             // Draw all points
