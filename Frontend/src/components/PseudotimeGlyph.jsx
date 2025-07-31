@@ -376,7 +376,7 @@ const PseudotimeGlyph = ({
         const numTimeCircles = 4;
         for (let i = 1; i <= numTimeCircles; i++) {
             const time = (i / numTimeCircles) * trajectoryMaxTime;
-            const radius = 20 + (time / trajectoryMaxTime) * (maxRadius - 30); // Scale radius based on trajectory time range
+            const radius = 20 + (time / trajectoryMaxTime) * (maxRadius - 20); // Scale radius so time 1.0 reaches maxRadius
             
             // Draw complete circles instead of semicircles
             topSection.append("circle")
