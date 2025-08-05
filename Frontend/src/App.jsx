@@ -316,8 +316,8 @@ function App() {
                       style={{ borderBottom: "1px solid #e8e8e8" }}
                     >
                       <div style={{ height: "100%", overflow: "auto" }}>
-                        {selectedSamples.length > 0 ? (
-                          <TrajectoryViewer sampleId={selectedSamples[0].id} />
+                        {selectedSamples.length > 0 || sampleDataLoading ? (
+                          <TrajectoryViewer sampleId={selectedSamples.length > 0 ? selectedSamples[0].id : null} />
                         ) : (
                           <div style={{
                             display: "flex",

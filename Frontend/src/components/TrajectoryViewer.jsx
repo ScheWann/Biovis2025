@@ -210,14 +210,7 @@ export const TrajectoryViewer = ({ sampleId }) => {
                     <Spin size="large" />
                 )}
 
-                {!loading && !selectedSample && (
-                    <Empty
-                        description="Please select a sample to view trajectory data"
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    />
-                )}
-
-                {!loading && selectedSample && confirmedGenes.length === 0 && (
+                {!loading && confirmedGenes.length === 0 && (
                     <Empty
                         description="Select genes and click OK to view trajectory analysis"
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
