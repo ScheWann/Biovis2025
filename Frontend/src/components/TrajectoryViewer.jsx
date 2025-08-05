@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { Select, Button, Row, Col, message, Spin, Empty } from "antd";
+import { Select, Button, Row, Col, message, Spin, Empty, Switch } from "antd";
 import { LineChart } from "./LineChart";
 
 const { Option } = Select;
@@ -16,6 +16,7 @@ export const TrajectoryViewer = ({ sampleId }) => {
     const [geneListLoading, setGeneListLoading] = useState(false);
     const containerRef = useRef();
     const [containerHeight, setContainerHeight] = useState(400);
+    const [isVertical, setIsVertical] = useState(false);
 
     // Track container height for dynamic sizing
     useEffect(() => {
@@ -50,7 +51,7 @@ export const TrajectoryViewer = ({ sampleId }) => {
             });
     }, [sampleId]);
 
-    // Fetch gene list when sample changes
+    // Fetch gene list when sample changes or orientation toggles
     useEffect(() => {
         if (selectedSample) {
             fetchGeneList(selectedSample);
@@ -60,7 +61,7 @@ export const TrajectoryViewer = ({ sampleId }) => {
             setConfirmedGenes([]);
             setTrajectoryData({});
         }
-    }, [selectedSample]);
+    }, [selectedSample, isVertical]);
 
     const fetchGeneList = async (sample_id) => {
         setGeneListLoading(true);
@@ -70,7 +71,7 @@ export const TrajectoryViewer = ({ sampleId }) => {
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ sample_id }),
+            body: JSON.stringify({ sample_id, is_vertical: isVertical }),
         }).then((response) => response.json())
             .then((data) => {
                 setAvailableGenes(data);
@@ -92,7 +93,7 @@ export const TrajectoryViewer = ({ sampleId }) => {
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ sample_id, selected_genes: genes }),
+            body: JSON.stringify({ sample_id, selected_genes: genes, is_vertical: isVertical}),
         }).then((response) => response.json())
             .then((data) => {
                 setTrajectoryData(data);
@@ -139,6 +140,17 @@ export const TrajectoryViewer = ({ sampleId }) => {
             {/* Control Panel */}
             <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexShrink: 0, padding: "8px 10px 8px 10px" }}>
                 <Row gutter={16} align="middle">
+                    <Col>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "12px", color: "#666" }}>Horizontal</span>
+                            <Switch
+                                size="small"
+                                checked={isVertical}
+                                onChange={setIsVertical}
+                            />
+                            <span style={{ fontSize: "12px", color: "#666" }}>Vertical</span>
+                        </div>
+                    </Col>
                     <Col flex="200px">
                         <Select
                             size="small"
@@ -274,4 +286,4 @@ export const TrajectoryViewer = ({ sampleId }) => {
             </div>
         </div>
     );
-}; 
+};

@@ -161,9 +161,10 @@ def get_trajectory_gene_list_route():
     Get list of available genes from trajectory data
     """
     sample_id = request.json["sample_id"]
+    is_vertical = request.json.get("is_vertical")
 
     try:
-        gene_list = get_trajectory_gene_list(sample_id=sample_id)
+        gene_list = get_trajectory_gene_list(sample_id=sample_id, is_vertical=is_vertical)
         return jsonify(gene_list)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -176,9 +177,10 @@ def get_trajectory_data_route():
     """
     sample_id = request.json["sample_id"]
     selected_genes = request.json.get("selected_genes", None)
+    is_vertical = request.json.get("is_vertical")
 
     try:
-        trajectory_data = get_trajectory_data(sample_id=sample_id, selected_genes=selected_genes)
+        trajectory_data = get_trajectory_data(sample_id=sample_id, selected_genes=selected_genes, is_vertical=is_vertical)
         return jsonify(trajectory_data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

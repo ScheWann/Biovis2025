@@ -475,19 +475,26 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
         raise ValueError(f"No gene expression data available for sample {sample_id}")
 
 
-def get_trajectory_gene_list(sample_id):
+def get_trajectory_gene_list(sample_id, is_vertical=False):
     """
     Get list of available genes from trajectory data for the given sample ID.
     """
     if sample_id not in SAMPLES:
         raise ValueError(f"Sample {sample_id} not found")
     
-    # Check if sample has trajectory data
-    if "horizontal_non_random_gene_trajectory_expression_path" not in SAMPLES[sample_id]:
-        raise ValueError(f"No trajectory data available for sample {sample_id}")
+    # Select the appropriate trajectory data path based on is_vertical flag
+    if is_vertical:
+        trajectory_key = "vertical_non_random_gene_trajectory_expression_path"
+    else:
+        trajectory_key = "horizontal_non_random_gene_trajectory_expression_path"
+    
+    # Check if sample has the requested trajectory data
+    if trajectory_key not in SAMPLES[sample_id]:
+        data_type = "vertical" if is_vertical else "horizontal"
+        raise ValueError(f"No {data_type} trajectory data available for sample {sample_id}")
     
     try:
-        trajectory_path = SAMPLES[sample_id]["horizontal_non_random_gene_trajectory_expression_path"]
+        trajectory_path = SAMPLES[sample_id][trajectory_key]
         df = pd.read_csv(trajectory_path, index_col=0)
         
         # Ensure variables column is string type
@@ -498,23 +505,31 @@ def get_trajectory_gene_list(sample_id):
         return sorted(gene_list)  # Sort alphabetically for better UX
         
     except Exception as e:
-        print(f"Error loading trajectory gene list for sample {sample_id}: {e}")
-        raise ValueError(f"Error loading trajectory gene list: {str(e)}")
+        data_type = "vertical" if is_vertical else "horizontal"
+        print(f"Error loading {data_type} trajectory gene list for sample {sample_id}: {e}")
+        raise ValueError(f"Error loading {data_type} trajectory gene list: {str(e)}")
 
 
-def get_trajectory_data(sample_id, selected_genes=None):
+def get_trajectory_data(sample_id, selected_genes=None, is_vertical=False):
     """
     Get trajectory gene expression data for the given sample ID.
     """
     if sample_id not in SAMPLES:
         raise ValueError(f"Sample {sample_id} not found")
     
-    # Check if sample has trajectory data
-    if "horizontal_non_random_gene_trajectory_expression_path" not in SAMPLES[sample_id]:
-        raise ValueError(f"No trajectory data available for sample {sample_id}")
+    # Select the appropriate trajectory data path based on is_vertical flag
+    if is_vertical:
+        trajectory_key = "vertical_non_random_gene_trajectory_expression_path"
+    else:
+        trajectory_key = "horizontal_non_random_gene_trajectory_expression_path"
+    
+    # Check if sample has the requested trajectory data
+    if trajectory_key not in SAMPLES[sample_id]:
+        data_type = "vertical" if is_vertical else "horizontal"
+        raise ValueError(f"No {data_type} trajectory data available for sample {sample_id}")
     
     try:
-        trajectory_path = SAMPLES[sample_id]["horizontal_non_random_gene_trajectory_expression_path"]
+        trajectory_path = SAMPLES[sample_id][trajectory_key]
         df = pd.read_csv(trajectory_path, index_col=0)
         
         columns_to_drop = ["colour", "PANEL", "group", "fill", "linewidth", "linetype", "weight", "alpha", "flipped_aes"]
@@ -540,8 +555,9 @@ def get_trajectory_data(sample_id, selected_genes=None):
         return trajectory_data
         
     except Exception as e:
-        print(f"Error loading trajectory data for sample {sample_id}: {e}")
-        raise ValueError(f"Error loading trajectory data: {str(e)}")
+        data_type = "vertical" if is_vertical else "horizontal"
+        print(f"Error loading {data_type} trajectory data for sample {sample_id}: {e}")
+        raise ValueError(f"Error loading {data_type} trajectory data: {str(e)}")
 
 
 def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=None, n_neighbors=15, n_pcas=30, resolutions=1):
