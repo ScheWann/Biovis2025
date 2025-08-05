@@ -252,12 +252,7 @@ export const TrajectoryViewer = ({ sampleId }) => {
                                 yMinAccessor={d => d.ymin}
                                 yMaxAccessor={d => d.ymax}
                                 margin={{ top: 30, right: 20, bottom: 50, left: 60 }}
-                                xLabel="Distance along Trajectory"
-                                yLabel="Estimated Expression"
-                                title={confirmedGenes[0]}
                                 lineColor="#e74c3c"
-                                lineWidth={2}
-                                errorBandColor="gray"
                                 errorBandOpacity={0.3}
                             />
                         ) : (
@@ -277,12 +272,8 @@ export const TrajectoryViewer = ({ sampleId }) => {
                                 }
                                 showErrorBands={true}
                                 showLegend={true}
-                                margin={{ top: 30, right: 20, bottom: 80, left: 60 }}
-                                xLabel="Distance along Trajectory"
-                                yLabel="Estimated Expression"
-                                title="Gene Expression Trajectories"
-                                lineWidth={2}
-                                errorBandOpacity={0.2}
+                                margin={{ top: 30, right: 20, bottom: 40, left: 60 }}
+                                errorBandOpacity={0.3}
                             />
                         )}
                     </div>

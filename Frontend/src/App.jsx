@@ -315,7 +315,7 @@ function App() {
                       max="45%"
                       style={{ borderBottom: "1px solid #e8e8e8" }}
                     >
-                      <div style={{ height: "calc(100% - 22px)", overflow: "auto" }}>
+                      <div style={{ height: "100%", overflow: "auto" }}>
                         {selectedSamples.length > 0 ? (
                           <TrajectoryViewer sampleId={selectedSamples[0].id} />
                         ) : (
