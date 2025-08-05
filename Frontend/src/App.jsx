@@ -294,7 +294,7 @@ function App() {
                   </div>
                 )}
               <Splitter lazy style={{ width: "100%", height: "100%" }}>
-                <Splitter.Panel defaultSize="70%" min="50%" max="80%">
+                <Splitter.Panel defaultSize="60%" min="50%" max="60%">
                   <SampleViewer
                     selectedSamples={selectedSamples}
                     coordinatesData={coordinatesData}
@@ -307,7 +307,7 @@ function App() {
                     onImagesLoaded={onImagesLoaded}
                   />
                 </Splitter.Panel>
-                <Splitter.Panel defaultSize="30%" min="20%" max="50%">
+                <Splitter.Panel defaultSize="40%" min="40%" max="50%">
                   <Splitter lazy layout="vertical">
                     <Splitter.Panel
                       defaultSize="33%"

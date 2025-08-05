@@ -1,5 +1,5 @@
 import PseudotimeGlyph from './PseudotimeGlyph';
-
+import { Empty } from 'antd';
 
 export const PseudotimeGlyphComponent = ({ 
     adata_umap_title,
@@ -48,9 +48,10 @@ export const PseudotimeGlyphComponent = ({
 
     if (!allPseudotimeData || allPseudotimeData.length === 0) {
         return (
-            <div style={{ padding: '10px', textAlign: 'center' }}>
-                No pseudotime data available
-            </div>
+            <Empty
+                description="No pseudotime data available"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
         );
     }
 
@@ -60,13 +61,7 @@ export const PseudotimeGlyphComponent = ({
     const glyphsPerRow = Math.min(numGlyphs, maxPerRow);
     const numRows = Math.ceil(numGlyphs / maxPerRow);
     
-    // Calculate width percentage for each glyph (with gap consideration)
-    const gapSize = 20; // gap in px
-    const padding = 20; // total horizontal padding
-    const widthPercentage = `calc(${100 / glyphsPerRow}% - ${(gapSize * (glyphsPerRow - 1)) / glyphsPerRow}px)`;
-    
-    // Calculate height for each row
-    const heightPercentage = `calc(${100 / numRows}% - ${(gapSize * (numRows - 1)) / numRows}px)`;
+    const gapSize = 10; // gap in px
 
     return (
         <div style={{ 
@@ -92,7 +87,7 @@ export const PseudotimeGlyphComponent = ({
                 gridTemplateRows: `repeat(${numRows}, 1fr)`,
                 gap: `${gapSize}px`,
                 width: '100%',
-                height: `calc(100% - 40px)`, // Account for padding and header
+                height: `calc(100% - 30px)`, // Account for padding and header
                 justifyItems: 'center',
                 alignItems: 'center'
             }}>

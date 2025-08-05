@@ -138,14 +138,14 @@ const PseudotimeGlyph = ({
         createTopSection(g, null, centerX, centerY, axisLength, maxPseudotime, tooltip);
 
         // Add title
-        svg.append("text")
-            .attr("x", width / 2)
-            .attr("y", 20)
-            .attr("text-anchor", "middle")
-            .attr("font-size", "14px")
-            .attr("font-weight", "bold")
-            .attr("fill", "#333")
-            .text(adata_umap_title);
+        // svg.append("text")
+        //     .attr("x", width / 2)
+        //     .attr("y", 20)
+        //     .attr("text-anchor", "middle")
+        //     .attr("font-size", "14px")
+        //     .attr("font-weight", "bold")
+        //     .attr("fill", "#333")
+        //     .text(adata_umap_title);
     };
 
     const createBottomSection = (g, trajectoryData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory) => {
@@ -171,9 +171,6 @@ const PseudotimeGlyph = ({
                 event.stopPropagation();
                 setSelectedTrajectory(null);
             });
-
-        // Extract all unique clusters for legend
-        const allClusters = [...new Set(trajectoryData.flatMap(traj => traj.path))];
 
         // Scale for converting pseudotime to radial distance
         const radiusScale = d3.scaleLinear()
@@ -745,7 +742,10 @@ const PseudotimeGlyph = ({
                     style={{ 
                         width: '100%', 
                         height: '100%',
-                        display: 'block'
+                        display: 'block',
+                        border: '1px solid #ddd',
+                        borderRadius: '5px',
+                        backgroundColor: '#f9f9f9'
                     }}
                     preserveAspectRatio="xMidYMid meet"
                 />
