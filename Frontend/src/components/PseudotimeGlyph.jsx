@@ -9,7 +9,7 @@ const PseudotimeGlyph = ({
 }) => {
     const containerRef = useRef();
     const svgRef = useRef(null);
-    const [dimensions, setDimensions] = useState({ width: 200, height: 200 });
+    const [dimensions, setDimensions] = useState({ width: 300, height: 300 });
     const [selectedTrajectory, setSelectedTrajectory] = useState(null);
 
     // Detect container size changes
@@ -17,12 +17,23 @@ const PseudotimeGlyph = ({
         const container = containerRef.current;
         if (!container) return;
 
+        const updateDimensions = () => {
+            const rect = container.getBoundingClientRect();
+            setDimensions({
+                width: Math.max(rect.width || 300, 200),
+                height: Math.max(rect.height || 300, 200),
+            });
+        };
+
+        // Initial measurement
+        updateDimensions();
+
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 const { width, height } = entry.contentRect;
                 setDimensions({
                     width: Math.max(width, 200),
-                    height: Math.max(height, 150),
+                    height: Math.max(height, 200),
                 });
             }
         });
@@ -32,10 +43,10 @@ const PseudotimeGlyph = ({
     }, []);
 
     useEffect(() => {
-        if (pseudotimeData && pseudotimeData.length > 0) {
+        if (pseudotimeData && pseudotimeData.length > 0 && dimensions.width > 0 && dimensions.height > 0) {
             createGlyph(pseudotimeData);
         }
-    }, [pseudotimeData]);
+    }, [pseudotimeData, dimensions]);
 
     // Cleanup tooltip on unmount
     useEffect(() => {
@@ -701,21 +712,45 @@ const PseudotimeGlyph = ({
     };
 
     return (
-        <>
+        <div ref={containerRef} style={{ width: "100%", height: "100%" }}>
             {pseudotimeLoading && (
-                <Spin size="large" />
+                <div style={{ 
+                    position: 'absolute', 
+                    top: '50%', 
+                    left: '50%', 
+                    transform: 'translate(-50%, -50%)' 
+                }}>
+                    <Spin size="large" />
+                </div>
             )}
-            {!pseudotimeLoading && !pseudotimeData ? (
-                <div ref={containerRef} style={{ width: "100%", height: "100%" }}>
+            {!pseudotimeLoading && (!pseudotimeData || pseudotimeData.length === 0) ? (
+                <div style={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '100%',
+                    height: '100%'
+                }}>
                     <Empty
                         description="No pseudotime data available"
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                     />
                 </div>
             ) : (
-                <svg ref={svgRef} />
+                <svg 
+                    ref={svgRef} 
+                    width={dimensions.width} 
+                    height={dimensions.height}
+                    viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
+                    style={{ 
+                        width: '100%', 
+                        height: '100%',
+                        display: 'block'
+                    }}
+                    preserveAspectRatio="xMidYMid meet"
+                />
             )}
-        </>
+        </div>
     );
 };
 
