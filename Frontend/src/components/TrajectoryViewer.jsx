@@ -125,15 +125,13 @@ export const TrajectoryViewer = ({ sampleId }) => {
         group.options || []
     );
 
-    // Calculate chart height based on number of confirmed genes
+    // Calculate chart height - now always the same since we use one chart
     const getChartHeight = () => {
         if (confirmedGenes.length === 0) return containerHeight;
-        // Use the same height calculation for both single and multiple charts
         return containerHeight - 32; // Account for controls
     };
 
     const chartHeight = getChartHeight();
-    const enableScrolling = confirmedGenes.length > 1;
 
 
     return (
@@ -201,10 +199,10 @@ export const TrajectoryViewer = ({ sampleId }) => {
             <div
                 style={{
                     flex: 1,
-                    overflowY: enableScrolling ? "auto" : "hidden",
+                    overflowY: "hidden",
                     overflowX: "hidden",
                     display: "flex",
-                    alignItems: enableScrolling ? "flex-start" : "center",
+                    alignItems: "center",
                     justifyContent: "center",
                 }}
             >
@@ -236,47 +234,57 @@ export const TrajectoryViewer = ({ sampleId }) => {
                 {!loading && confirmedGenes.length > 0 && Object.keys(trajectoryData).length > 0 && (
                     <div
                         style={{
-                            display: enableScrolling ? "block" : "flex",
-                            flexDirection: enableScrolling ? "column" : "row",
-                            gap: enableScrolling ? "20px" : "0",
-                            height: enableScrolling ? "auto" : "100%",
+                            backgroundColor: "#f9f9f9",
+                            height: `${chartHeight}px`,
+                            display: "flex",
+                            flexDirection: "column",
                             width: "100%",
+                            borderRadius: "8px",
                         }}
                     >
-                        {confirmedGenes.map((gene) => (
-                            trajectoryData[gene] && (
-                                <div
-                                    key={gene}
-                                    style={{
-                                        backgroundColor: "#f9f9f9",
-                                        height: `${chartHeight}px`,
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        width: "100%",
-                                        marginBottom: enableScrolling ? "10px" : "0",
-                                        flex: enableScrolling ? "none" : "1",
-                                        borderRadius: "8px",
-                                    }}
-                                >
-                                    <LineChart
-                                        data={trajectoryData[gene].data}
-                                        xAccessor={d => d.x}
-                                        yAccessor={d => d.y}
-                                        showErrorBands={true}
-                                        yMinAccessor={d => d.ymin}
-                                        yMaxAccessor={d => d.ymax}
-                                        margin={{ top: 30, right: 20, bottom: 50, left: 60 }}
-                                        xLabel="Distance along Trajectory"
-                                        yLabel="Estimated Expression"
-                                        title={gene}
-                                        lineColor="#e74c3c"
-                                        lineWidth={2}
-                                        errorBandColor="gray"
-                                        errorBandOpacity={0.3}
-                                    />
-                                </div>
-                            )
-                        ))}
+                        {confirmedGenes.length === 1 ? (
+                            // Single gene: use original approach
+                            <LineChart
+                                data={trajectoryData[confirmedGenes[0]].data}
+                                xAccessor={d => d.x}
+                                yAccessor={d => d.y}
+                                showErrorBands={true}
+                                yMinAccessor={d => d.ymin}
+                                yMaxAccessor={d => d.ymax}
+                                margin={{ top: 30, right: 20, bottom: 50, left: 60 }}
+                                xLabel="Distance along Trajectory"
+                                yLabel="Estimated Expression"
+                                title={confirmedGenes[0]}
+                                lineColor="#e74c3c"
+                                lineWidth={2}
+                                errorBandColor="gray"
+                                errorBandOpacity={0.3}
+                            />
+                        ) : (
+                            // Multiple genes: combine into single chart
+                            <LineChart
+                                datasets={confirmedGenes
+                                    .filter(gene => trajectoryData[gene])
+                                    .map(gene => ({
+                                        data: trajectoryData[gene].data,
+                                        xAccessor: d => d.x,
+                                        yAccessor: d => d.y,
+                                        yMinAccessor: d => d.ymin,
+                                        yMaxAccessor: d => d.ymax,
+                                        label: gene,
+                                        lineColor: undefined // Let the chart choose colors automatically
+                                    }))
+                                }
+                                showErrorBands={true}
+                                showLegend={true}
+                                margin={{ top: 30, right: 20, bottom: 80, left: 60 }}
+                                xLabel="Distance along Trajectory"
+                                yLabel="Estimated Expression"
+                                title="Gene Expression Trajectories"
+                                lineWidth={2}
+                                errorBandOpacity={0.2}
+                            />
+                        )}
                     </div>
                 )}
             </div>

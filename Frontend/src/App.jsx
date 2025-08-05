@@ -7,7 +7,7 @@ import { PlusOutlined, InboxOutlined, PaperClipOutlined, CloseOutlined } from "@
 import "@ant-design/v5-patch-for-react-19";
 import { UmapComponent } from "./components/UmapComponent";
 import { TrajectoryViewer } from "./components/TrajectoryViewer";
-import { PseudotimeGlyphExample } from "./components/PseudotimeGlyphExample";
+import { PseudotimeGlyphComponent } from "./components/PseudotimeGlyphComponent";
 
 // Custom theme configuration
 const customTheme = {
@@ -36,7 +36,9 @@ function App() {
   const [umapLoading, setUmapLoading] = useState(false);
   const [hoveredCluster, setHoveredCluster] = useState(null); // {cluster: string, umapId: string, cellIds: array}
 
-
+  // Pseudotime data state
+  const [pseudotimeData, setPseudotimeData] = useState(null); // Pseudotime data
+  const [pseudotimeLoading, setPseudotimeLoading] = useState(false);
 
   // Cell Name state
   const [cellName, setCellName] = useState(null);
@@ -424,6 +426,8 @@ function App() {
                                     umapId={dataset.id}
                                     sampleId={dataset.sampleId}
                                     setCellName={setCellName}
+                                    setPseudotimeData={setPseudotimeData}
+                                    setPseudotimeLoading={setPseudotimeLoading}
                                   />
                                 </div>
                               );
@@ -433,42 +437,11 @@ function App() {
                       </div>
                     </Splitter.Panel>
                     <Splitter.Panel defaultSize="33%" min="20%" max="45%">
-                      {/* Glyphs */}
-                      <div style={{ 
-                        display: 'flex', 
-                        height: '100%', 
-                        overflow: 'auto'
-                      }}>
-                        <div style={{ flex: 1, borderRight: '1px solid #e8e8e8' }}>
-                          <PseudotimeGlyphExample 
-                            title="Dataset A"
-                            initialSampleId="sample_a"
-                            initialCellIds={[1, 2, 3, 4, 5]}
-                            initialDimensions={{ width: 500, height: 500 }}
-                            customGeneData={[
-                              { gene: "SOX2", timePoints: [0.0, 0.4, 0.7, 1.0], expressions: [0.8, 0.6, 0.3, 0.2] },
-                              { gene: "NANOG", timePoints: [0.1, 0.4, 0.7, 1.0], expressions: [0.2, 0.5, 0.8, 0.9] },
-                              { gene: "OCT4", timePoints: [0.0, 0.3, 0.6, 1.0], expressions: [0.9, 0.7, 0.4, 0.1] }
-                            ]}
-                            customEarlyMarkers={['SOX2', 'NANOG', 'OCT4']}
+                          <PseudotimeGlyphComponent
+                            adata_umap_title={umapDataSets.length > 0 ? umapDataSets[0].adata_umap_title : null}
+                            pseudotimeData={pseudotimeData}
+                            pseudotimeLoading={pseudotimeLoading}
                           />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <PseudotimeGlyphExample 
-                            title="Dataset B"
-                            initialSampleId="sample_b"
-                            initialCellIds={[6, 7, 8, 9, 10]}
-                            initialDimensions={{ width: 500, height: 500 }}
-                            customGeneData={[
-                              { gene: "FOXD3", timePoints: [0.0, 0.3, 0.6, 1.0], expressions: [0.1, 0.4, 0.7, 0.9] },
-                              { gene: "PDGFRA", timePoints: [0.2, 0.5, 0.8, 1.0], expressions: [0.3, 0.6, 0.8, 0.5] },
-                              { gene: "SOX10", timePoints: [0.0, 0.4, 0.7, 1.0], expressions: [0.7, 0.9, 0.6, 0.3] },
-                              { gene: "MITF", timePoints: [0.1, 0.5, 0.8, 1.0], expressions: [0.2, 0.3, 0.6, 0.8] }
-                            ]}
-                            customEarlyMarkers={['FOXD3', 'PDGFRA', 'SOX10', 'MITF']}
-                          />
-                        </div>
-                      </div>
                     </Splitter.Panel>
                   </Splitter>
                 </Splitter.Panel>

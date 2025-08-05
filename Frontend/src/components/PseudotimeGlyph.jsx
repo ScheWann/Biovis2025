@@ -1,81 +1,41 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
+import { Empty, Spin } from 'antd';
 
 const PseudotimeGlyph = ({
-    sampleId,
-    cellIds,
     adata_umap_title,
-    early_markers = null,
-    width = 400,
-    height = 400,
-    geneExpressionData = null
+    pseudotimeData,
+    pseudotimeLoading
 }) => {
-    console.log(geneExpressionData, "geneExpressionData")
+    const containerRef = useRef();
     const svgRef = useRef(null);
-    const [trajectoryData, setTrajectoryData] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [dimensions, setDimensions] = useState({ width: 200, height: 200 });
     const [selectedTrajectory, setSelectedTrajectory] = useState(null);
 
-    // Fetch pseudotime data
-    const fetchPseudotimeData = async () => {
-        if (!sampleId || !cellIds || cellIds.length === 0) return;
+    // Detect container size changes
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
 
-        setLoading(true);
-        try {
-            const response = await fetch("/api/get_pseudotime_data", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    sample_id: sampleId,
-                    cell_ids: cellIds,
-                    adata_umap_title: adata_umap_title,
-                    early_markers: early_markers,
-                    n_neighbors: 15,
-                    n_pcas: 30,
-                    resolutions: 1,
-                }),
-            });
-
-            const data = await response.json();
-            console.log("Pseudotime data received:", data);
-            setTrajectoryData(data);
-        } catch (error) {
-            console.error("Failed to fetch pseudotime data:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // useEffect(() => {
-    //     fetchPseudotimeData();
-    // }, [sampleId, cellIds, adata_umap_title]);
-
-    // Generate mock trajectory data for testing when no real data is available
-    const generateMockTrajectoryData = () => {
-        return [
-            {
-                path: [0, 1, 3],
-                pseudotimes: ["0.000", "0.200", "0.500", "0.800"]
-            },
-            {
-                path: [0, 1, 4, 5],
-                pseudotimes: ["0.000", "0.200", "0.600", "1.000"]
-            },
-            {
-                path: [0, 2, 6],
-                pseudotimes: ["0.000", "0.300", "0.700"]
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const { width, height } = entry.contentRect;
+                setDimensions({
+                    width: Math.max(width, 200),
+                    height: Math.max(height, 150),
+                });
             }
-        ];
-    };
+        });
+
+        resizeObserver.observe(container);
+        return () => resizeObserver.disconnect();
+    }, []);
 
     useEffect(() => {
-        // Use real trajectory data if available, otherwise use mock data for testing
-        const dataToUse = trajectoryData && trajectoryData.length > 0 
-            ? trajectoryData 
-            : generateMockTrajectoryData();
-        
-        createGlyph(dataToUse);
-    }, [trajectoryData, width, height, geneExpressionData, selectedTrajectory]);
+        if (pseudotimeData && pseudotimeData.length > 0) {
+            createGlyph(pseudotimeData);
+        }
+    }, [pseudotimeData]);
 
     // Cleanup tooltip on unmount
     useEffect(() => {
@@ -88,6 +48,12 @@ const PseudotimeGlyph = ({
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove();
 
+        // If no data, just clear the SVG and return
+        if (!pseudotimeData || pseudotimeData.length === 0) {
+            return;
+        }
+
+        const { width, height } = dimensions;
         const margin = { top: 10, right: 20, bottom: 20, left: 20 };
         const innerWidth = width - margin.left - margin.right;
         const innerHeight = height - margin.top - margin.bottom;
@@ -124,25 +90,6 @@ const PseudotimeGlyph = ({
             .attr("stroke-width", 3)
             .attr("opacity", 0.8);
 
-        // Add axis labels
-        // g.append("text")
-        //     .attr("x", centerX - axisLength / 2 - 10)
-        //     .attr("y", centerY - 10)
-        //     .attr("text-anchor", "middle")
-        //     .attr("font-size", "12px")
-        //     .attr("font-weight", "bold")
-        //     .attr("fill", "#666")
-        //     .text("Gene Expression");
-
-        // g.append("text")
-        //     .attr("x", centerX - axisLength / 2 - 10)
-        //     .attr("y", centerY + 20)
-        //     .attr("text-anchor", "middle")
-        //     .attr("font-size", "12px")
-        //     .attr("font-weight", "bold")
-        //     .attr("fill", "#666")
-        //     .text("Cell Trajectories");
-
         // Process trajectory data
         const maxPseudotime = Math.max(...dataToUse.flatMap(traj =>
             traj.pseudotimes.map(pt => parseFloat(pt))
@@ -177,7 +124,7 @@ const PseudotimeGlyph = ({
         createBottomSection(g, dataToUse, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory);
 
         // Create top section - gene expression gauge
-        createTopSection(g, geneExpressionData, centerX, centerY, axisLength, maxPseudotime, tooltip);
+        createTopSection(g, null, centerX, centerY, axisLength, maxPseudotime, tooltip);
 
         // Add title
         svg.append("text")
@@ -187,20 +134,20 @@ const PseudotimeGlyph = ({
             .attr("font-size", "14px")
             .attr("font-weight", "bold")
             .attr("fill", "#333")
-            .text("Pseudotime Analysis Glyph");
+            .text(adata_umap_title);
     };
 
     const createBottomSection = (g, trajectoryData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory) => {
         const bottomSection = g.append("g").attr("class", "bottom-section");
         const maxRadius = axisLength / 2 - 15;
-        
+
         // Draw light brown background for the lower semicircle (soil-like color)
         const arc = d3.arc()
             .innerRadius(0)
             .outerRadius(maxRadius)
             .startAngle(Math.PI / 2)
             .endAngle(Math.PI * 1.5);
-        
+
         bottomSection.append("path")
             .attr("d", arc)
             .attr("transform", `translate(${centerX}, ${centerY})`)
@@ -208,15 +155,15 @@ const PseudotimeGlyph = ({
             .attr("opacity", 0.3)
             .attr("stroke", "none")
             .style("cursor", "pointer")
-            .on("click", function(event) {
+            .on("click", function (event) {
                 // Deselect trajectory when clicking on background
                 event.stopPropagation();
                 setSelectedTrajectory(null);
             });
-        
+
         // Extract all unique clusters for legend
         const allClusters = [...new Set(trajectoryData.flatMap(traj => traj.path))];
-        
+
         // Scale for converting pseudotime to radial distance
         const radiusScale = d3.scaleLinear()
             .domain([0, maxPseudotime])
@@ -228,18 +175,18 @@ const PseudotimeGlyph = ({
             const edges = []; // Array of connections between nodes
             const trajectoryPaths = []; // Track which trajectory each edge belongs to
 
-        trajectoryData.forEach((trajectory, trajIndex) => {
-            const { path, pseudotimes } = trajectory;
-                
+            trajectoryData.forEach((trajectory, trajIndex) => {
+                const { path, pseudotimes } = trajectory;
+
                 // Create nodes for each cell state
                 path.forEach((cluster, i) => {
                     const pseudotime = parseFloat(pseudotimes[i]);
                     const nodeKey = `${cluster}_${pseudotime}`;
-                    
+
                     if (!nodes.has(nodeKey)) {
                         nodes.set(nodeKey, {
                             cluster: cluster,
-                    pseudotime: pseudotime,
+                            pseudotime: pseudotime,
                             radius: radiusScale(pseudotime),
                             trajectories: new Set([trajIndex]),
                             isEndpoint: false
@@ -261,7 +208,7 @@ const PseudotimeGlyph = ({
                 for (let i = 0; i < path.length - 1; i++) {
                     const fromKey = `${path[i]}_${parseFloat(pseudotimes[i])}`;
                     const toKey = `${path[i + 1]}_${parseFloat(pseudotimes[i + 1])}`;
-                    
+
                     edges.push({
                         from: fromKey,
                         to: toKey,
@@ -277,7 +224,7 @@ const PseudotimeGlyph = ({
         // Calculate positions for nodes using a tree layout
         const calculateNodePositions = (nodes, edges) => {
             const nodePositions = new Map();
-            
+
             // Find root node (pseudotime = 0)
             const rootNode = Array.from(nodes.values()).find(node => node.pseudotime === 0);
             if (rootNode) {
@@ -307,7 +254,7 @@ const PseudotimeGlyph = ({
                 edges.forEach(edge => {
                     const parent = edge.from;
                     const child = edge.to;
-                    
+
                     if (!childrenMap.get(parent).includes(child)) {
                         childrenMap.get(parent).push(child);
                         parentMap.set(child, parent);
@@ -318,10 +265,10 @@ const PseudotimeGlyph = ({
 
                 // Calculate levels and assign branch indices
                 const assignLevelsAndBranches = () => {
-                    const rootKey = Array.from(treeNodes.keys()).find(key => 
+                    const rootKey = Array.from(treeNodes.keys()).find(key =>
                         treeNodes.get(key).pseudotime === 0
                     );
-                    
+
                     if (!rootKey) return;
 
                     // BFS to assign levels
@@ -358,12 +305,12 @@ const PseudotimeGlyph = ({
             // Calculate angle for each node based on its ancestry path
             const calculateNodeAngles = () => {
                 const nodeAngles = new Map();
-                
+
                 // Find root and start with straight down angle
-                const rootKey = Array.from(treeStructure.keys()).find(key => 
+                const rootKey = Array.from(treeStructure.keys()).find(key =>
                     treeStructure.get(key).pseudotime === 0
                 );
-                
+
                 if (rootKey) {
                     nodeAngles.set(rootKey, Math.PI / 2); // 90 degrees (straight down)
                 }
@@ -379,7 +326,7 @@ const PseudotimeGlyph = ({
 
                 // Sort levels and process each level
                 const sortedLevels = Array.from(processedLevels.entries()).sort((a, b) => a[0] - b[0]);
-                
+
                 sortedLevels.forEach(([level, nodesAtLevel]) => {
                     if (level === 0) return; // Root already processed
 
@@ -387,17 +334,17 @@ const PseudotimeGlyph = ({
                         const parentKey = node.parent;
                         const parentNode = treeStructure.get(parentKey);
                         const parentAngle = nodeAngles.get(parentKey);
-                        
+
                         if (parentAngle !== undefined && parentNode) {
                             const numSiblings = parentNode.children.length;
-                            
+
                             if (numSiblings === 1) {
                                 // Single child: continue in same direction as parent
                                 nodeAngles.set(key, parentAngle);
                             } else {
                                 // Multiple siblings: spread them out
                                 const branchIndex = node.branchIndex;
-                                
+
                                 // Calculate angular spread based on number of siblings
                                 let spreadAngle;
                                 if (numSiblings === 2) {
@@ -407,12 +354,12 @@ const PseudotimeGlyph = ({
                                 } else {
                                     spreadAngle = Math.PI / 3; // 60 degrees total spread for more branches
                                 }
-                                
+
                                 // Calculate angle offset from parent angle
                                 const angleStep = (2 * spreadAngle) / (numSiblings - 1);
                                 const angleOffset = -spreadAngle + (branchIndex * angleStep);
                                 let nodeAngle = parentAngle + angleOffset;
-                                
+
                                 // Ensure angle stays within bounds
                                 nodeAngle = Math.max(minAngle, Math.min(maxAngle, nodeAngle));
                                 nodeAngles.set(key, nodeAngle);
@@ -432,10 +379,10 @@ const PseudotimeGlyph = ({
                     // Root is already positioned
                     return;
                 }
-                
+
                 const angle = nodeAngles.get(key);
                 const radius = radiusScale(node.pseudotime);
-                
+
                 if (angle !== undefined) {
                     const x = centerX + Math.cos(angle) * radius;
                     const y = centerY + Math.sin(angle) * radius;
@@ -449,24 +396,24 @@ const PseudotimeGlyph = ({
         const { nodes, edges } = buildTrajectoryTree(trajectoryData);
         const nodePositions = calculateNodePositions(nodes, edges);
 
-                // Draw edges (connections between nodes)
+        // Draw edges (connections between nodes)
         edges.forEach(edge => {
             const fromPos = nodePositions.get(edge.from);
             const toPos = nodePositions.get(edge.to);
-            
+
             // Use the target node's cluster for edge color
             const toNode = nodes.get(edge.to);
             const baseColor = toNode ? clusterColorScale(toNode.cluster) : "#999";
-            
+
             // Determine if this edge should be grayed out
             const isSelected = selectedTrajectory === null || selectedTrajectory === edge.trajectory;
             const color = isSelected ? baseColor : "#ccc";
             const opacity = isSelected ? 0.7 : 0.3;
             const strokeWidth = isSelected ? 2 : 1;
-            
+
             if (fromPos && toPos) {
                 let x1 = fromPos.x, y1 = fromPos.y;
-                
+
                 // If starting from center (time 0), start from edge of center circle
                 const fromNode = nodes.get(edge.from);
                 if (fromNode && fromNode.pseudotime === 0) {
@@ -484,7 +431,7 @@ const PseudotimeGlyph = ({
                     .attr("stroke-width", strokeWidth)
                     .attr("opacity", opacity)
                     .style("cursor", "pointer")
-                    .on("click", function(event) {
+                    .on("click", function (event) {
                         event.stopPropagation();
                         // Toggle selection: if clicking on the same trajectory, deselect it
                         if (selectedTrajectory === edge.trajectory) {
@@ -493,21 +440,21 @@ const PseudotimeGlyph = ({
                             setSelectedTrajectory(edge.trajectory);
                         }
                     })
-                    .on("mouseover", function(event) {
+                    .on("mouseover", function (event) {
                         // Only enhance hover effect if this trajectory is not grayed out
                         if (isSelected) {
                             d3.select(this)
                                 .attr("stroke-width", strokeWidth + 2)
                                 .attr("opacity", 1);
                         }
-                        
+
                         const fromNode = nodes.get(edge.from);
                         const toNode = nodes.get(edge.to);
                         const fromCluster = fromNode ? fromNode.cluster : "unknown";
                         const toCluster = toNode ? toNode.cluster : "unknown";
                         const fromTime = fromNode ? fromNode.pseudotime.toFixed(2) : "0.00";
                         const toTime = toNode ? toNode.pseudotime.toFixed(2) : "0.00";
-                        
+
                         tooltip.style("visibility", "visible")
                             .html(`
                                 <div><strong>Cell State Transition</strong></div>
@@ -520,11 +467,11 @@ const PseudotimeGlyph = ({
                             .style("left", (event.pageX + 10) + "px")
                             .style("top", (event.pageY - 10) + "px");
                     })
-                    .on("mousemove", function(event) {
+                    .on("mousemove", function (event) {
                         tooltip.style("left", (event.pageX + 10) + "px")
                             .style("top", (event.pageY - 10) + "px");
                     })
-                    .on("mouseout", function() {
+                    .on("mouseout", function () {
                         d3.select(this)
                             .attr("stroke-width", strokeWidth)
                             .attr("opacity", opacity);
@@ -541,7 +488,7 @@ const PseudotimeGlyph = ({
             // Check if this node belongs to the selected trajectory
             const nodeTrajectories = Array.from(node.trajectories);
             const isNodeSelected = selectedTrajectory === null || nodeTrajectories.includes(selectedTrajectory);
-            
+
             // Use cluster-based color for each cell state
             const baseColor = clusterColorScale(node.cluster);
             const nodeColor = isNodeSelected ? baseColor : "#ccc";
@@ -560,83 +507,6 @@ const PseudotimeGlyph = ({
                     .attr("stroke-width", 2)
                     .attr("opacity", nodeOpacity);
             }
-
-            // Add labels
-            // const labelOffset = node.radius < 50 ? 15 : 25;
-            // bottomSection.append("text")
-            //     .attr("x", pos.x)
-            //     .attr("y", pos.y + labelOffset)
-            //     .attr("text-anchor", "middle")
-            //     .attr("font-size", "9px")
-            //     .attr("fill", "#666")
-            //     .text(`C${node.cluster}`);
-
-            // bottomSection.append("text")
-            //     .attr("x", pos.x)
-            //     .attr("y", pos.y + labelOffset + 10)
-            //     .attr("text-anchor", "middle")
-            //     .attr("font-size", "8px")
-            //     .attr("fill", "#999")
-            //     .text(`${node.pseudotime.toFixed(2)}`);
-        });
-
-        // Add cell state color legend
-        const legendX = centerX - axisLength / 2 + 20;
-        const legendStartY = centerY + axisLength / 2 - 20;
-        
-        // allClusters.sort((a, b) => a - b).forEach((cluster, index) => {
-        //     const legendY = legendStartY - index * 18;
-            
-        //     bottomSection.append("circle")
-        //         .attr("cx", legendX)
-        //         .attr("cy", legendY)
-        //         .attr("r", 6)
-        //         .attr("fill", clusterColorScale(cluster))
-        //         .attr("stroke", "#fff")
-        //         .attr("stroke-width", 2);
-
-        //     bottomSection.append("text")
-        //         .attr("x", legendX + 15)
-        //         .attr("y", legendY + 4)
-        //         .attr("font-size", "12px")
-        //         .attr("font-weight", "bold")
-        //         .attr("fill", "#333")
-        //         .text(`Cell ${cluster}`);
-        // });
-
-        // Add legend title
-        // bottomSection.append("text")
-        //     .attr("x", legendX)
-        //     .attr("y", legendStartY + 20)
-        //     .attr("font-size", "12px")
-        //     .attr("font-weight", "bold")
-        //     .attr("fill", "#333")
-        //     .text("Cell States:");
-
-        // Trajectory color scale for labels (separate from cluster colors)
-        const trajectoryColorScale = d3.scaleOrdinal(d3.schemeSet2);
-
-        // Add trajectory labels for endpoints
-        trajectoryData.forEach((trajectory, trajIndex) => {
-            const lastCluster = trajectory.path[trajectory.path.length - 1];
-            const lastTime = parseFloat(trajectory.pseudotimes[trajectory.pseudotimes.length - 1]);
-            const lastNodeKey = `${lastCluster}_${lastTime}`;
-            const lastPos = nodePositions.get(lastNodeKey);
-            
-            if (lastPos) {
-                const angle = Math.atan2(lastPos.y - centerY, lastPos.x - centerX);
-                const labelX = centerX + Math.cos(angle) * (maxRadius + 15);
-                const labelY = centerY + Math.sin(angle) * (maxRadius + 15);
-                
-                // bottomSection.append("text")
-                //     .attr("x", labelX)
-                //     .attr("y", labelY)
-                //     .attr("text-anchor", "middle")
-                //     .attr("font-size", "10px")
-                //     .attr("font-weight", "bold")
-                //     .attr("fill", trajectoryColorScale(trajIndex))
-                //     .text(`Traj ${trajIndex + 1}`);
-            }
         });
     };
 
@@ -652,8 +522,6 @@ const PseudotimeGlyph = ({
         ];
 
         // Draw upper semicircle background for gene expression area
-
-
         // Time point scale (radial distance represents time progression)
         // Use the same scaling as concentric circles and trajectory data
         const timeScale = d3.scaleLinear()
@@ -678,7 +546,7 @@ const PseudotimeGlyph = ({
                 const radius = timeScale(timePoint);
                 // Angle is determined by expression level (higher = more to the right)
                 const angle = expressionScale(geneInfo.expressions[i]);
-                
+
                 return {
                     x: centerX + Math.cos(angle) * radius,
                     y: centerY + Math.sin(angle) * radius,
@@ -697,14 +565,14 @@ const PseudotimeGlyph = ({
 
             // Prepare points for smooth curve (including starting point if needed)
             let curvePoints = [...expressionPoints];
-            
+
             // Add starting point from time 0 circle edge if first point is not at time 0
             if (expressionPoints.length > 0 && expressionPoints[0].radius > 8) {
                 const firstPoint = expressionPoints[0];
                 const angle = Math.atan2(firstPoint.y - centerY, firstPoint.x - centerX);
                 const startX = centerX + Math.cos(angle) * 8;
                 const startY = centerY + Math.sin(angle) * 8;
-                
+
                 curvePoints = [
                     { x: startX, y: startY },
                     ...expressionPoints
@@ -721,16 +589,16 @@ const PseudotimeGlyph = ({
                     .attr("fill", "none")
                     .attr("opacity", 0.6)
                     .style("cursor", "pointer")
-                    .on("mouseover", function(event) {
+                    .on("mouseover", function (event) {
                         d3.select(this)
                             .attr("stroke-width", 4)
                             .attr("opacity", 1);
-                        console.log(geneInfo)
+
                         const minExpression = Math.min(...geneInfo.expressions);
                         const maxExpression = Math.max(...geneInfo.expressions);
                         const avgExpression = (geneInfo.expressions.reduce((a, b) => a + b, 0) / geneInfo.expressions.length).toFixed(2);
                         const timeSpan = `${geneInfo.timePoints[0]} - ${geneInfo.timePoints[geneInfo.timePoints.length - 1]}`;
-                        
+
                         tooltip.style("visibility", "visible")
                             .html(`
                                 <div><strong>Gene Expression: ${geneInfo.gene}</strong></div>
@@ -742,11 +610,11 @@ const PseudotimeGlyph = ({
                             .style("left", (event.pageX + 10) + "px")
                             .style("top", (event.pageY - 10) + "px");
                     })
-                    .on("mousemove", function(event) {
+                    .on("mousemove", function (event) {
                         tooltip.style("left", (event.pageX + 10) + "px")
                             .style("top", (event.pageY - 10) + "px");
                     })
-                    .on("mouseout", function() {
+                    .on("mouseout", function () {
                         d3.select(this)
                             .attr("stroke-width", 2)
                             .attr("opacity", 0.6);
@@ -763,43 +631,7 @@ const PseudotimeGlyph = ({
                     .attr("fill", color)
                     .attr("stroke", "#fff")
                     .attr("opacity", 0.9);
-
-                // Add expression value labels
-                // topSection.append("text")
-                //     .attr("x", point.x)
-                //     .attr("y", point.y - 15)
-                //     .attr("text-anchor", "middle")
-                //     .attr("font-size", "8px")
-                //     .attr("fill", "#333")
-                //     .text(point.expression.toFixed(2));
-
-                // Add time point labels
-                // topSection.append("text")
-                //     .attr("x", point.x)
-                //     .attr("y", point.y + 20)
-                //     .attr("text-anchor", "middle")
-                //     .attr("font-size", "8px")
-                //     .attr("fill", "#666")
-                //     .text(`t${point.timePoint.toFixed(1)}`);
             });
-
-            // Add gene legend in the top-left area
-            const legendX = centerX - axisLength / 2 + 20;
-            const legendY = centerY - axisLength / 2 + 20 + geneIndex * 18;
-            
-            // topSection.append("circle")
-            //     .attr("cx", legendX)
-            //     .attr("cy", legendY)
-            //     .attr("r", 5)
-            //     .attr("fill", color);
-
-            // topSection.append("text")
-            //     .attr("x", legendX + 15)
-            //     .attr("y", legendY + 4)
-            //     .attr("font-size", "12px")
-            //     .attr("font-weight", "bold")
-            //     .attr("fill", "#333")
-            //     .text(geneInfo.gene);
         });
 
         // Add concentric circles for time progression using trajectory data time range
@@ -808,7 +640,7 @@ const PseudotimeGlyph = ({
         for (let i = 1; i <= numTimeCircles; i++) {
             const time = (i / numTimeCircles) * trajectoryMaxTime;
             const radius = 8 + (time / trajectoryMaxTime) * (maxRadius - 8); // Scale radius from time 0 circle edge to maxRadius
-            
+
             // Draw complete circles instead of semicircles
             topSection.append("circle")
                 .attr("cx", centerX)
@@ -869,30 +701,21 @@ const PseudotimeGlyph = ({
     };
 
     return (
-        <div style={{ width, height }}>
-            {loading && (
-                <div style={{
-                    position: 'absolute',
-                    width,
-                    height,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'rgba(249, 249, 249, 0.8)',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px',
-                    zIndex: 10
-                }}>
-                    <div>Loading pseudotime data...</div>
-                </div>
+        <>
+            {pseudotimeLoading && (
+                <Spin size="large" />
             )}
-            <svg
-                ref={svgRef}
-                width={width}
-                height={height}
-                style={{ border: '1px solid #ddd', borderRadius: '4px' }}
-            />
-        </div>
+            {!pseudotimeLoading && !pseudotimeData ? (
+                <div ref={containerRef} style={{ width: "100%", height: "100%" }}>
+                    <Empty
+                        description="No pseudotime data available"
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
+                </div>
+            ) : (
+                <svg ref={svgRef} />
+            )}
+        </>
     );
 };
 

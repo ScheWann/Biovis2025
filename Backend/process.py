@@ -9,6 +9,13 @@ from PIL import Image
 import gseapy as gp
 from scipy.sparse import issparse
 import networkx as nx
+from slingshot import (
+    run_slingshot_via_rpy2_improved,
+    analyze_trajectory_cluster_transitions,
+    analyze_trajectory_relationships,
+    merge_subset_trajectories,
+    analyze_gene_expression_along_trajectories
+)
 
 # Disable the PIL image limit entirely
 Image.MAX_IMAGE_PIXELS = None
@@ -539,7 +546,7 @@ def get_trajectory_data(sample_id, selected_genes=None):
 
 def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=None, n_neighbors=15, n_pcas=30, resolutions=1):
     """
-    Get pseudotime data for the given sample ID and cluster ID.
+    Get pseudotime data using Slingshot trajectory inference.
     
     Parameters:
     - sample_id: ID of the sample
@@ -550,52 +557,6 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
     - n_pcas: Number of principal components to use (default: 30)
     - resolutions: Resolution parameter for Leiden clustering (default: 1)
     """
-    def identify_paga_roots(adata, early_markers=None, cluster_col='leiden'):
-        # Calculate PAGA if not done
-        if 'paga' not in adata.uns:
-            sc.tl.paga(adata, groups=cluster_col)
-        
-        # Get connectivity metrics
-        conn_matrix = adata.uns['paga']['connectivities'].toarray()
-        out_degree = np.sum(conn_matrix, axis=1)
-        in_degree = np.sum(conn_matrix, axis=0)
-        connectivity_score = out_degree - in_degree
-        
-        # Biological validation if markers provided
-        if early_markers and len(early_markers) > 0:
-            bio_scores = []
-            for i, cluster in enumerate(adata.obs[cluster_col].cat.categories):
-                cluster_cells = adata.obs[cluster_col] == cluster
-                if cluster_cells.sum() > 0:
-                    # Check if markers exist in the dataset
-                    valid_markers = [m for m in early_markers if m in adata.var_names]
-                    if valid_markers:
-                        marker_expr = adata[cluster_cells, valid_markers].X.mean()
-                        bio_scores.append(marker_expr)
-                    else:
-                        bio_scores.append(0)
-                else:
-                    bio_scores.append(0)
-            bio_scores = np.array(bio_scores)
-            
-            # Combine scores (normalize first) - avoid division by zero
-            if connectivity_score.max() != connectivity_score.min():
-                conn_norm = (connectivity_score - connectivity_score.min()) / (connectivity_score.max() - connectivity_score.min())
-            else:
-                conn_norm = np.zeros_like(connectivity_score)
-                
-            if bio_scores.max() != bio_scores.min():
-                bio_norm = (bio_scores - bio_scores.min()) / (bio_scores.max() - bio_scores.min())
-            else:
-                bio_norm = np.zeros_like(bio_scores)
-                
-            combined_score = conn_norm + bio_norm
-            root_cluster = np.argmax(combined_score)
-        else:
-            root_cluster = np.argmax(connectivity_score)
-        
-        return root_cluster, connectivity_score
-
     if sample_id not in SAMPLES:
         raise ValueError(f"Sample {sample_id} not found")
     
@@ -619,7 +580,7 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
         if adata.n_obs == 0:
             raise ValueError("No cells remaining after filtering. Please check your cell_ids parameter.")
 
-        # Apply the same preprocessing pipeline as get_umap_data to ensure proper data structure for DPT
+        # Preprocessing pipeline
         sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
         sc.pp.normalize_total(adata)
         sc.pp.log1p(adata)
@@ -638,93 +599,246 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
         if not pd.api.types.is_categorical_dtype(adata.obs[leiden_col]):
             adata.obs[leiden_col] = adata.obs[leiden_col].astype('category')
 
-        root_cluster, _ = identify_paga_roots(adata, early_markers=early_markers, cluster_col=leiden_col)
-
-        # Convert root_cluster to match the category type
-        categories = adata.obs[leiden_col].cat.categories
-        if len(categories) > 0:
-            # Try to match the type of the categories
-            if isinstance(categories[0], str):
-                root_cluster_key = str(root_cluster)
-            else:
-                root_cluster_key = int(root_cluster) if hasattr(root_cluster, 'item') else root_cluster
-        else:
-            root_cluster_key = str(root_cluster)
-        
-        root_cells = adata.obs[adata.obs[leiden_col] == root_cluster_key].index
-        
-        # Check if root cluster has any cells
-        if len(root_cells) == 0:
-            raise ValueError(f"Root cluster {root_cluster} has no cells. Available clusters: {list(adata.obs[leiden_col].cat.categories)}")
-        
-        # Find root cells in the current adata object
-        root_indices = np.flatnonzero(adata.obs_names.isin(root_cells))
-        if len(root_indices) == 0:
-            # If no root cells found after filtering, use the first cell from any cluster
-            adata.uns['iroot'] = 0
-        else:
-            adata.uns['iroot'] = root_indices[0]
-        
-        # Now that we have properly preprocessed data with a valid neighbor graph, run DPT
-        sc.tl.diffmap(adata)
-        sc.tl.dpt(adata)
-
-        adata.obs[f'dpt_pseudotime_{adata_umap_title}'] = adata.obs['dpt_pseudotime'].copy()
-
-        # Get pseudotime statistics for each cluster
-        cluster_pseudotime = {}
-        for cluster in adata.obs[leiden_col].cat.categories:
-            cluster_cells = adata.obs[leiden_col] == cluster
-            if cluster_cells.sum() > 0:
-                cluster_pt = adata.obs.loc[cluster_cells, f'dpt_pseudotime_{adata_umap_title}']
-                cluster_pseudotime[int(cluster)] = {
-                    'mean_pseudotime': float(cluster_pt.mean()),
-                    'median_pseudotime': float(cluster_pt.median()),
-                    'std_pseudotime': float(cluster_pt.std()),
-                    'min_pseudotime': float(cluster_pt.min()),
-                    'max_pseudotime': float(cluster_pt.max()),
-                    'n_cells': int(len(cluster_pt))
-                }
-
-        paga_connectivity = adata.uns['paga']['connectivities']
-        
-        # Convert PAGA connectivity to NetworkX graph - use integers for consistency
-        G = nx.Graph()
-        for i in range(paga_connectivity.shape[0]):
-            for j in range(i+1, paga_connectivity.shape[1]):
-                conn_value = paga_connectivity[i,j]
-                if conn_value > 0.1:  # threshold for connectivity
-                    # Avoid division by zero
-                    weight = 1.0 / max(conn_value, 1e-6)
-                    G.add_edge(i, j, weight=weight)
-
-        # Find all possible paths from root cluster to leaf clusters
-        leaf_clusters = [node for node in G.nodes() if G.degree(node) == 1 and node != root_cluster]
-
-        # Store results as list of objects
-        trajectory_objects = []
-
-        for leaf in leaf_clusters:
-            try:
-                path = nx.shortest_path(G, root_cluster, leaf)
-                path_pseudotimes = []
+        # Run Slingshot trajectory inference
+        try:
+            adata_with_slingshot = run_slingshot_via_rpy2_improved(
+                adata,
+                cluster_key=leiden_col,
+                embedding_key=f'X_umap_{adata_umap_title}',
+                start_cluster=None,  # Let Slingshot auto-detect
+                end_clusters=None
+            )
+            
+            if adata_with_slingshot is None:
+                raise ValueError("Slingshot analysis failed")
                 
-                for cluster in path:
-                    if cluster in cluster_pseudotime:
-                        path_pseudotimes.append(cluster_pseudotime[cluster]['mean_pseudotime'])
+            # Analyze trajectory cluster transitions
+            trajectory_analysis = analyze_trajectory_cluster_transitions(
+                adata_with_slingshot, 
+                cluster_key=leiden_col, 
+                embedding_key=f'X_umap_{adata_umap_title}'
+            )
+            
+            # Analyze relationships between trajectories
+            relationships = analyze_trajectory_relationships(trajectory_analysis)
+            
+            # Merge subset trajectories if any exist
+            merged_analysis = merge_subset_trajectories(
+                adata_with_slingshot, 
+                trajectory_analysis, 
+                relationships, 
+                merge_strategy="keep_longer"
+            )
+            
+            # Convert to the expected format
+            trajectory_objects = []
+            
+            for traj_key, traj_info in merged_analysis.items():
+                if "clusters_involved" in traj_info:
+                    clusters_path = traj_info["clusters_involved"]
+                    
+                    # Get the trajectory number
+                    traj_num = traj_key.split("_")[-1] if "_" in traj_key else traj_key
+                    pseudotime_col = f"slingshot_pseudotime_{traj_num}"
+                    
+                    # Calculate pseudotime for each cluster in the path
+                    path_pseudotimes = []
+                    for cluster in clusters_path:
+                        cluster_cells = adata_with_slingshot.obs[leiden_col] == str(cluster)
+                        if cluster_cells.sum() > 0 and pseudotime_col in adata_with_slingshot.obs.columns:
+                            cluster_pt = adata_with_slingshot.obs.loc[cluster_cells, pseudotime_col]
+                            valid_pt = cluster_pt.dropna()
+                            if len(valid_pt) > 0:
+                                mean_pt = float(valid_pt.mean())
+                            else:
+                                mean_pt = 0.0
+                        else:
+                            mean_pt = 0.0
+                        path_pseudotimes.append(mean_pt)
+                    
+                    # Normalize pseudotimes to [0, 1] range for this trajectory
+                    if len(path_pseudotimes) > 1:
+                        min_pt = min(path_pseudotimes)
+                        max_pt = max(path_pseudotimes)
+                        if max_pt > min_pt:
+                            normalized_pt = [(pt - min_pt) / (max_pt - min_pt) for pt in path_pseudotimes]
+                        else:
+                            normalized_pt = [0.0] * len(path_pseudotimes)
                     else:
-                        path_pseudotimes.append(0.0)
-
-                trajectory_obj = {
-                    'path': [int(cluster) for cluster in path],
-                    'pseudotimes': [f'{pt:.3f}' for pt in path_pseudotimes]
-                }
-                trajectory_objects.append(trajectory_obj)
-            except nx.NetworkXNoPath:
-                print(f"No path found to cluster {leaf}")
-            except Exception as e:
-                print(f"Error processing path to cluster {leaf}: {e}")
-
-        return trajectory_objects
+                        normalized_pt = [0.0] * len(path_pseudotimes)
+                    
+                    trajectory_obj = {
+                        'path': [int(cluster) for cluster in clusters_path],
+                        'pseudotimes': [f'{pt:.3f}' for pt in normalized_pt]
+                    }
+                    trajectory_objects.append(trajectory_obj)
+            
+            # Store the processed adata for gene expression analysis
+            global PROCESSED_ADATA_CACHE
+            if 'PROCESSED_ADATA_CACHE' not in globals():
+                PROCESSED_ADATA_CACHE = {}
+            PROCESSED_ADATA_CACHE[f"{sample_id}_{adata_umap_title}"] = {
+                'adata': adata_with_slingshot,
+                'trajectory_analysis': merged_analysis,
+                'leiden_col': leiden_col
+            }
+            
+            return trajectory_objects
+            
+        except Exception as e:
+            print(f"Slingshot analysis failed: {e}")
+            # Fallback to a simple trajectory based on cluster connectivity
+            return _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title)
     else:
         raise ValueError(f"No gene expression data available for sample {sample_id}")
+
+
+def _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title):
+    """
+    Fallback trajectory analysis when Slingshot fails.
+    """
+    # Simple fallback: create a linear trajectory based on cluster numbers
+    clusters = sorted([int(c) for c in adata.obs[leiden_col].cat.categories])
+    
+    trajectory_obj = {
+        'path': clusters,
+        'pseudotimes': [f'{i/(len(clusters)-1):.3f}' if len(clusters) > 1 else '0.000' 
+                       for i in range(len(clusters))]
+    }
+    
+    return [trajectory_obj]
+
+
+def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, trajectory_path):
+    """
+    Get gene expression data along a specific trajectory path.
+    
+    Parameters:
+    - sample_id: ID of the sample
+    - adata_umap_title: Title for the UMAP analysis
+    - gene_names: List of gene names to analyze
+    - trajectory_path: List of cluster IDs representing the trajectory path
+    
+    Returns:
+    - List of gene expression data objects
+    """
+    # Check if we have cached processed data
+    cache_key = f"{sample_id}_{adata_umap_title}"
+    if 'PROCESSED_ADATA_CACHE' not in globals() or cache_key not in PROCESSED_ADATA_CACHE:
+        raise ValueError("No cached trajectory data found. Please run get_pseudotime_data first.")
+    
+    cached_data = PROCESSED_ADATA_CACHE[cache_key]
+    adata = cached_data['adata']
+    trajectory_analysis = cached_data['trajectory_analysis']
+    leiden_col = cached_data['leiden_col']
+    
+    # Validate gene names
+    if isinstance(gene_names, str):
+        gene_names = [gene_names]
+    
+    available_genes = []
+    for gene in gene_names:
+        if gene in adata.var_names:
+            available_genes.append(gene)
+        else:
+            print(f"Gene '{gene}' not found in dataset")
+    
+    if not available_genes:
+        raise ValueError("No valid genes found in dataset")
+    
+    # Find the trajectory that matches the given path
+    matching_trajectory = None
+    for traj_key, traj_info in trajectory_analysis.items():
+        if "clusters_involved" in traj_info:
+            traj_path = [int(c) for c in traj_info["clusters_involved"]]
+            if traj_path == trajectory_path:
+                matching_trajectory = traj_key
+                break
+    
+    if matching_trajectory is None:
+        # If no exact match, try to find the best matching trajectory
+        best_match = None
+        best_overlap = 0
+        for traj_key, traj_info in trajectory_analysis.items():
+            if "clusters_involved" in traj_info:
+                traj_path = [int(c) for c in traj_info["clusters_involved"]]
+                overlap = len(set(traj_path) & set(trajectory_path))
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_match = traj_key
+        
+        if best_match is None:
+            raise ValueError("No matching trajectory found")
+        matching_trajectory = best_match
+        print(f"Using best matching trajectory: {matching_trajectory}")
+    
+    # Get the trajectory number for pseudotime column
+    traj_num = matching_trajectory.split("_")[-1] if "_" in matching_trajectory else matching_trajectory
+    pseudotime_col = f"slingshot_pseudotime_{traj_num}"
+    
+    if pseudotime_col not in adata.obs.columns:
+        raise ValueError(f"Pseudotime data not found for trajectory {traj_num}")
+    
+    # Analyze gene expression along the trajectory
+    gene_results = analyze_gene_expression_along_trajectories(
+        adata, 
+        available_genes, 
+        {matching_trajectory: trajectory_analysis[matching_trajectory]}
+    )
+    
+    # Convert to the expected format
+    result_data = []
+    
+    for gene in available_genes:
+        if gene in gene_results and matching_trajectory in gene_results[gene]:
+            traj_data = gene_results[gene][matching_trajectory]
+            
+            # Get pseudotime and expression data
+            pseudotimes = traj_data['pseudotime']
+            expressions = traj_data['expression']
+            
+            # Create time points based on trajectory path
+            # Map clusters to normalized time points
+            cluster_time_map = {}
+            for i, cluster in enumerate(trajectory_path):
+                cluster_time_map[cluster] = i / (len(trajectory_path) - 1) if len(trajectory_path) > 1 else 0.0
+            
+            # Calculate mean expression for each cluster in the path
+            time_points = []
+            expression_values = []
+            
+            for cluster in trajectory_path:
+                cluster_cells = adata.obs[leiden_col] == str(cluster)
+                if cluster_cells.sum() > 0:
+                    # Get gene expression for this cluster
+                    gene_idx = adata.var_names.get_loc(gene)
+                    if hasattr(adata.X, "toarray"):
+                        gene_expr = adata.X[cluster_cells, gene_idx].toarray().flatten()
+                    else:
+                        gene_expr = adata.X[cluster_cells, gene_idx]
+                    
+                    mean_expr = float(np.mean(gene_expr))
+                    time_point = cluster_time_map[cluster]
+                    
+                    time_points.append(time_point)
+                    expression_values.append(mean_expr)
+            
+            # Normalize expression values to [0, 1] range
+            if len(expression_values) > 0:
+                min_expr = min(expression_values)
+                max_expr = max(expression_values)
+                if max_expr > min_expr:
+                    normalized_expr = [(expr - min_expr) / (max_expr - min_expr) for expr in expression_values]
+                else:
+                    normalized_expr = [0.5] * len(expression_values)  # All same value, set to middle
+            else:
+                normalized_expr = []
+            
+            gene_data = {
+                "gene": gene,
+                "timePoints": time_points,
+                "expressions": normalized_expr
+            }
+            result_data.append(gene_data)
+    
+    return result_data

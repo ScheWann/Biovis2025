@@ -12,12 +12,14 @@ export const ScatterplotUmap = ({
   yAccessor = (d) => d.y,
   title = "UMAP",
   adata_umap_title,
+  setPseudotimeLoading,
   margin = { top: 25, right: 10, bottom: 25, left: 25 },
   hoveredCluster,
   setHoveredCluster,
   umapId,
   sampleId,
   setCellName,
+  setPseudotimeData
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -53,18 +55,20 @@ export const ScatterplotUmap = ({
       });
   };
 
-  const fetchPseudotimeData = ( sampleId, cellIds = null ) => {
+  const fetchPseudotimeData = async ( sampleId, cellIds ) => {
     // Parse parameters from adata_umap_title
     // Format: ${formattedName}_${sampleId}_${editNeighbors}_${editNPcas}_${editResolutions}
-    let n_neighbors = 15; // default values
-    let n_pcas = 30;
-    let resolutions = 1;
+    let n_neighbors;
+    let n_pcas;
+    let resolutions;
     
+    setPseudotimeLoading(true);
+
     try {
       const parts = adata_umap_title.split('_');
       if (parts.length >= 5) {
         // Extract the last 3 parts as the parameters
-        n_neighbors = parseInt(parts[parts.length - 3]) || 15;
+        n_neighbors = parseInt(parts[parts.length - 3]) || 10;
         n_pcas = parseInt(parts[parts.length - 2]) || 30;
         resolutions = parseFloat(parts[parts.length - 1]) || 1;
       }
@@ -72,25 +76,30 @@ export const ScatterplotUmap = ({
       console.warn("Could not parse parameters from adata_umap_title, using defaults", error);
     }
 
-    fetch("/api/get_pseudotime_data", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        sample_id: sampleId, 
-        cell_ids: cellIds,
-        adata_umap_title: adata_umap_title,
-        n_neighbors: n_neighbors,
-        n_pcas: n_pcas,
-        resolutions: resolutions,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log(data, "pseudotime data");
-      })
-      .catch((err) => {
-        console.error("Failed to fetch pseudotime data", err);
+    try {
+      const res = await fetch("/api/get_pseudotime_data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sample_id: sampleId,
+          cell_ids: cellIds,
+          adata_umap_title: adata_umap_title,
+          n_neighbors: n_neighbors,
+          n_pcas: n_pcas,
+          resolutions: resolutions,
+        }),
       });
+      const data = await res.json();
+
+      setPseudotimeData(data);
+      setPseudotimeLoading(false);
+
+      return data;
+    } catch (err) {
+      console.error("Failed to fetch pseudotime data", err);
+      setPseudotimeLoading(false);
+      throw err;
+    }
   }
 
   // Detect container size changes

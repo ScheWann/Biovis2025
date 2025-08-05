@@ -17,6 +17,7 @@ from process import (
     load_adata_to_cache,
     clear_adata_cache,
     get_pseudotime_data,
+    get_trajectory_gene_expression,
 )
 
 
@@ -287,7 +288,7 @@ def upload_spaceranger():
 @app.route("/api/get_pseudotime_data", methods=["POST"])
 def get_pseudotime_data_route():
     """
-    Generate pseudotime analysis data using diffusion pseudotime (DPT)
+    Generate pseudotime analysis data using Slingshot trajectory inference
     """
     sample_id = request.json["sample_id"]
     cell_ids = request.json["cell_ids"]
@@ -308,6 +309,28 @@ def get_pseudotime_data_route():
             resolutions=resolutions
         )
         return jsonify(pseudotime_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/get_trajectory_gene_expression", methods=["POST"])
+def get_trajectory_gene_expression_route():
+    """
+    Get gene expression data along a specific trajectory path
+    """
+    sample_id = request.json["sample_id"]
+    adata_umap_title = request.json["adata_umap_title"]
+    gene_names = request.json["gene_names"]
+    trajectory_path = request.json["trajectory_path"]
+    
+    try:
+        gene_expression_data = get_trajectory_gene_expression(
+            sample_id=sample_id,
+            adata_umap_title=adata_umap_title,
+            gene_names=gene_names,
+            trajectory_path=trajectory_path
+        )
+        return jsonify(gene_expression_data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
