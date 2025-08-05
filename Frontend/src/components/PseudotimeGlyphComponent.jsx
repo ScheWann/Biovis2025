@@ -1,7 +1,7 @@
 import PseudotimeGlyph from './PseudotimeGlyph';
-import { Empty } from 'antd';
+import { Empty, Spin } from 'antd';
 
-export const PseudotimeGlyphComponent = ({ 
+export const PseudotimeGlyphComponent = ({
     adata_umap_title,
     pseudotimeDataSets,
     pseudotimeLoadingStates
@@ -40,9 +40,9 @@ export const PseudotimeGlyphComponent = ({
     // If allPseudotimeData is not an array or is empty, show loading or empty state
     if (anyLoading && hasNoData) {
         return (
-            <div style={{ padding: '10px', textAlign: 'center' }}>
-                Loading pseudotime data...
-            </div>
+            <div style={{ textAlign: 'center', marginTop: '15%' }}>
+                <Spin size="large" />
+            </div>  
         );
     }
 
@@ -60,27 +60,27 @@ export const PseudotimeGlyphComponent = ({
     const maxPerRow = 3;
     const glyphsPerRow = Math.min(numGlyphs, maxPerRow);
     const numRows = Math.ceil(numGlyphs / maxPerRow);
-    
+
     const gapSize = 10; // gap in px
 
     return (
-        <div style={{ 
-            padding: '10px', 
-            width: '100%', 
+        <div style={{
+            padding: '10px',
+            width: '100%',
             height: '100%',
             boxSizing: 'border-box'
         }}>
             {/* Summary header */}
-            <div style={{ 
-                marginBottom: '10px', 
-                textAlign: 'center', 
-                fontSize: '12px', 
+            {/* <div style={{
+                marginBottom: '10px',
+                textAlign: 'center',
+                fontSize: '12px',
                 color: '#666',
                 fontWeight: 'bold'
             }}>
                 {Object.keys(pseudotimeDataSets).length} dataset(s), {allPseudotimeData.length} trajectory(s)
-            </div>
-            
+            </div> */}
+
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(${glyphsPerRow}, 1fr)`,
@@ -92,9 +92,9 @@ export const PseudotimeGlyphComponent = ({
                 alignItems: 'center'
             }}>
                 {allPseudotimeData.map((trajectoryData, index) => (
-                    <div 
-                        key={index} 
-                        style={{ 
+                    <div
+                        key={index}
+                        style={{
                             width: '100%',
                             height: '100%',
                             minWidth: '200px',
@@ -112,7 +112,7 @@ export const PseudotimeGlyphComponent = ({
                                 border: '2px dashed #ccc',
                                 borderRadius: '8px',
                                 color: '#666',
-                                fontSize: '14px'
+                                fontSize: '8px'
                             }}>
                                 Loading {trajectoryData.source_title}...
                             </div>
@@ -125,7 +125,7 @@ export const PseudotimeGlyphComponent = ({
                         )}
                     </div>
                 ))}
-                        </div>
+            </div>
         </div>
     );
 };
