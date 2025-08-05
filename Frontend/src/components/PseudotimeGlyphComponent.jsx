@@ -3,10 +3,24 @@ import PseudotimeGlyph from './PseudotimeGlyph';
 
 export const PseudotimeGlyphComponent = ({ 
     adata_umap_title,
-    pseudotimeData,
+    pseudotimeDataSets,
     pseudotimeLoading
 }) => {
-    // If pseudotimeData is not an array or is empty, show loading or empty state
+    // Convert pseudotimeDataSets object to array of all trajectory data
+    const allPseudotimeData = [];
+    Object.entries(pseudotimeDataSets).forEach(([title, dataArray]) => {
+        if (Array.isArray(dataArray)) {
+            dataArray.forEach((trajectoryData, index) => {
+                allPseudotimeData.push({
+                    ...trajectoryData,
+                    source_title: title,
+                    display_title: `${title} - Trajectory ${index + 1}`
+                });
+            });
+        }
+    });
+
+    // If allPseudotimeData is not an array or is empty, show loading or empty state
     if (pseudotimeLoading) {
         return (
             <div style={{ padding: '10px', textAlign: 'center' }}>
@@ -15,7 +29,7 @@ export const PseudotimeGlyphComponent = ({
         );
     }
 
-    if (!pseudotimeData || !Array.isArray(pseudotimeData) || pseudotimeData.length === 0) {
+    if (!allPseudotimeData || allPseudotimeData.length === 0) {
         return (
             <div style={{ padding: '10px', textAlign: 'center' }}>
                 No pseudotime data available
@@ -24,7 +38,7 @@ export const PseudotimeGlyphComponent = ({
     }
 
     // Calculate responsive dimensions
-    const numGlyphs = pseudotimeData.length;
+    const numGlyphs = allPseudotimeData.length;
     const maxPerRow = 3;
     const glyphsPerRow = Math.min(numGlyphs, maxPerRow);
     const numRows = Math.ceil(numGlyphs / maxPerRow);
@@ -44,17 +58,28 @@ export const PseudotimeGlyphComponent = ({
             height: '100%',
             boxSizing: 'border-box'
         }}>
+            {/* Summary header */}
+            <div style={{ 
+                marginBottom: '10px', 
+                textAlign: 'center', 
+                fontSize: '12px', 
+                color: '#666',
+                fontWeight: 'bold'
+            }}>
+                {Object.keys(pseudotimeDataSets).length} dataset(s), {allPseudotimeData.length} trajectory(s)
+            </div>
+            
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(${glyphsPerRow}, 1fr)`,
                 gridTemplateRows: `repeat(${numRows}, 1fr)`,
                 gap: `${gapSize}px`,
                 width: '100%',
-                height: `calc(100% - 20px)`, // Account for padding
+                height: `calc(100% - 40px)`, // Account for padding and header
                 justifyItems: 'center',
                 alignItems: 'center'
             }}>
-                {pseudotimeData.map((trajectoryData, index) => (
+                {allPseudotimeData.map((trajectoryData, index) => (
                     <div 
                         key={index} 
                         style={{ 
@@ -66,13 +91,13 @@ export const PseudotimeGlyphComponent = ({
                         }}
                     >
                         <PseudotimeGlyph
-                            adata_umap_title={`${adata_umap_title} - Trajectory ${index + 1}`}
+                            adata_umap_title={trajectoryData.display_title || `${adata_umap_title} - Trajectory ${index + 1}`}
                             pseudotimeData={[trajectoryData]}
                             pseudotimeLoading={pseudotimeLoading}
                         />
                     </div>
                 ))}
-            </div>
+                        </div>
         </div>
     );
 };

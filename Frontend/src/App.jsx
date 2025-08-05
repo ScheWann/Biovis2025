@@ -37,7 +37,7 @@ function App() {
   const [hoveredCluster, setHoveredCluster] = useState(null); // {cluster: string, umapId: string, cellIds: array}
 
   // Pseudotime data state
-  const [pseudotimeData, setPseudotimeData] = useState(null); // Pseudotime data
+  const [pseudotimeDataSets, setPseudotimeDataSets] = useState({}); // Object keyed by adata_umap_title
   const [pseudotimeLoading, setPseudotimeLoading] = useState(false);
 
   // Cell Name state
@@ -426,7 +426,7 @@ function App() {
                                     umapId={dataset.id}
                                     sampleId={dataset.sampleId}
                                     setCellName={setCellName}
-                                    setPseudotimeData={setPseudotimeData}
+                                    setPseudotimeDataSets={setPseudotimeDataSets}
                                     setPseudotimeLoading={setPseudotimeLoading}
                                   />
                                 </div>
@@ -439,7 +439,7 @@ function App() {
                     <Splitter.Panel defaultSize="33%" min="20%" max="45%">
                           <PseudotimeGlyphComponent
                             adata_umap_title={umapDataSets.length > 0 ? umapDataSets[0].adata_umap_title : null}
-                            pseudotimeData={pseudotimeData}
+                            pseudotimeDataSets={pseudotimeDataSets}
                             pseudotimeLoading={pseudotimeLoading}
                           />
                     </Splitter.Panel>

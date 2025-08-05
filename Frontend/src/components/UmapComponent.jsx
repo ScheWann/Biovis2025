@@ -11,7 +11,7 @@ export const UmapComponent = ({
   umapId, 
   sampleId, 
   setCellName,
-  setPseudotimeData,
+  setPseudotimeDataSets,
   setPseudotimeLoading
 }) => {
   return (
@@ -46,7 +46,7 @@ export const UmapComponent = ({
           umapId={umapId}
           sampleId={sampleId}
           setCellName={setCellName}
-          setPseudotimeData={setPseudotimeData}
+          setPseudotimeDataSets={setPseudotimeDataSets}
           setPseudotimeLoading={setPseudotimeLoading}
         />
       ) : null}

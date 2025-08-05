@@ -19,13 +19,22 @@ export const ScatterplotUmap = ({
   umapId,
   sampleId,
   setCellName,
-  setPseudotimeData
+  setPseudotimeDataSets
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
+  const pseudotimeDataSetsRef = useRef({});
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
   const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
   const [currentCellIds, setCurrentCellIds] = useState([]);
+  
+  // Keep ref updated with current pseudotimeDataSets
+  useEffect(() => {
+    setPseudotimeDataSets(prevDataSets => {
+      pseudotimeDataSetsRef.current = prevDataSets;
+      return prevDataSets;
+    });
+  });
   
   // Local GO analysis state for this ScatterPlotUmap instance
   const [GOAnalysisData, setGOAnalysisData] = useState(null);
@@ -56,6 +65,14 @@ export const ScatterplotUmap = ({
   };
 
   const fetchPseudotimeData = async ( sampleId, cellIds ) => {
+    // Check if data for this adata_umap_title already exists
+    if (pseudotimeDataSetsRef.current[adata_umap_title]) {
+      console.log(`Pseudotime data for "${adata_umap_title}" already exists - skipping fetch`);
+      return pseudotimeDataSetsRef.current[adata_umap_title];
+    }
+
+    console.log(`Fetching new pseudotime data for "${adata_umap_title}"`);
+
     // Parse parameters from adata_umap_title
     // Format: ${formattedName}_${sampleId}_${editNeighbors}_${editNPcas}_${editResolutions}
     let n_neighbors;
@@ -91,7 +108,15 @@ export const ScatterplotUmap = ({
       });
       const data = await res.json();
 
-      setPseudotimeData(data);
+      // Add the new data to the datasets object
+      setPseudotimeDataSets(prevDataSets => {
+        const newDataSets = {
+          ...prevDataSets,
+          [adata_umap_title]: data
+        };
+        pseudotimeDataSetsRef.current = newDataSets;
+        return newDataSets;
+      });
       setPseudotimeLoading(false);
 
       return data;
