@@ -350,9 +350,10 @@ function App() {
                             flex: 1,
                             display: "grid",
                             gridTemplateColumns: "repeat(2, 1fr)",
+                            gridTemplateRows: "1fr",
                             gap: "8px",
-                            maxHeight: "calc(100% - 27px)",
-                            padding: "0px 5px 5px 5px"
+                            maxHeight: "100%",
+                            padding: "5px 5px 5px 5px"
                           }}
                         >
                           {umapDataSets.length === 0 ? (
@@ -367,6 +368,8 @@ function App() {
                                 backgroundColor: "#fafafa",
                                 position: "relative",
                                 overflow: "hidden",
+                                height: "100%",
+                                minHeight: "200px",
                               };
 
                               // Determine size based on count

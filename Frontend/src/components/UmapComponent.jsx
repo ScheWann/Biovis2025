@@ -4,7 +4,7 @@ import { Spin } from "antd";
 export const UmapComponent = ({ 
   umapData, 
   umapLoading, 
-  title = "UMAP Scatter Plot", 
+  title, 
   adata_umap_title, 
   hoveredCluster, 
   setHoveredCluster, 
