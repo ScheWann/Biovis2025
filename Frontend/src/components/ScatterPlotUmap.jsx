@@ -175,8 +175,13 @@ export const ScatterplotUmap = ({
     const xScale = d3.scaleLinear().domain(xExtent).range([0, innerWidth]);
     const yScale = d3.scaleLinear().domain(yExtent).range([innerHeight, 0]);
 
-    // Color by cluster
-    const clusters = Array.from(new Set(data.map(clusterAccessor)));
+    // Color by cluster - sort clusters numerically for consistent ordering
+    const clusters = Array.from(new Set(data.map(clusterAccessor))).sort((a, b) => {
+      // Extract numeric part from cluster names (e.g., "Cluster 1" -> 1)
+      const numA = parseInt(a.toString().replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.toString().replace(/\D/g, '')) || 0;
+      return numA - numB;
+    });
     const color = d3.scaleOrdinal().domain(clusters).range(COLORS);
 
     // SVG
@@ -347,7 +352,35 @@ export const ScatterplotUmap = ({
         `translate(${width - margin.right - 70}, ${margin.top - 20})`
       );
     clusters.forEach((cl, i) => {
-      legend
+      const legendGroup = legend
+        .append("g")
+        .style("cursor", "pointer")
+        .on("mouseenter", () => {
+          // Find all points in this cluster
+          const clusterPoints = data.filter(
+            (point) => clusterAccessor(point) === cl
+          );
+          const cellIds = clusterPoints
+            .map((p) => p.id || p.cell_id)
+            .filter(Boolean);
+
+          if (!hoveredCluster || hoveredCluster.cluster !== cl) {
+            setHoveredCluster({
+              cluster: cl,
+              cellIds: cellIds,
+              points: clusterPoints,
+              umapId: umapId,
+              sampleId: sampleId,
+            });
+          }
+        })
+        .on("mouseleave", () => {
+          if (hoveredCluster && hoveredCluster.cluster === cl) {
+            setHoveredCluster(null);
+          }
+        });
+
+      legendGroup
         .append("circle")
         .attr("cx", 0)
         .attr("cy", i * 15)
@@ -357,7 +390,7 @@ export const ScatterplotUmap = ({
           "opacity",
           !hoveredCluster || hoveredCluster.cluster === cl ? 1 : 0.3
         );
-      legend
+      legendGroup
         .append("text")
         .attr("x", 8)
         .attr("y", i * 15 + 3)

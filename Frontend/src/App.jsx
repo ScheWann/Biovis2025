@@ -350,10 +350,10 @@ function App() {
                             flex: 1,
                             display: "grid",
                             gridTemplateColumns: "repeat(2, 1fr)",
-                            gridTemplateRows: "1fr",
-                            gap: "8px",
+                            gridAutoRows: "1fr",
+                            gap: 5,
                             maxHeight: "100%",
-                            padding: "5px 5px 5px 5px"
+                            overflow: umapDataSets.length <= 2 ? "hidden" : "auto",
                           }}
                         >
                           {umapDataSets.length === 0 ? (
