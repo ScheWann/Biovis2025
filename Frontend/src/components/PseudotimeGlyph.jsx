@@ -20,8 +20,8 @@ const PseudotimeGlyph = ({
         const updateDimensions = () => {
             const rect = container.getBoundingClientRect();
             setDimensions({
-                width: Math.max(rect.width || 300, 200),
-                height: Math.max(rect.height || 300, 200),
+                width: Math.max(rect.width || 400, 300),
+                height: Math.max(rect.height || 400, 300),
             });
         };
 
@@ -32,8 +32,8 @@ const PseudotimeGlyph = ({
             for (const entry of entries) {
                 const { width, height } = entry.contentRect;
                 setDimensions({
-                    width: Math.max(width, 200),
-                    height: Math.max(height, 200),
+                    width: Math.max(width, 300),
+                    height: Math.max(height, 300),
                 });
             }
         });
@@ -65,7 +65,7 @@ const PseudotimeGlyph = ({
         }
 
         const { width, height } = dimensions;
-        const margin = { top: 10, right: 20, bottom: 20, left: 20 };
+        const margin = { top: 10, right: 15, bottom: 15, left: 15 };
         const innerWidth = width - margin.left - margin.right;
         const innerHeight = height - margin.top - margin.bottom;
         const centerX = innerWidth / 2;
@@ -91,7 +91,7 @@ const PseudotimeGlyph = ({
             .style("z-index", "1000");
 
         // Draw horizontal dividing line between gene expression (top) and cell trajectories (bottom)
-        const axisLength = Math.min(innerWidth, innerHeight) * 0.95;
+        const axisLength = Math.min(innerWidth, innerHeight) * 0.98;
         g.append("line")
             .attr("x1", centerX - axisLength / 2)
             .attr("y1", centerY)

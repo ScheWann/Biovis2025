@@ -137,7 +137,7 @@ export const TrajectoryViewer = ({ sampleId }) => {
     return (
         <div ref={containerRef} className="trajectory-viewer" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
             {/* Control Panel */}
-            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexShrink: 0, padding: "0px 10px 8px 10px" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexShrink: 0, padding: "8px 10px 8px 10px" }}>
                 <Row gutter={16} align="middle">
                     <Col flex="200px">
                         <Select
