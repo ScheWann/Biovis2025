@@ -38,7 +38,7 @@ function App() {
 
   // Pseudotime data state
   const [pseudotimeDataSets, setPseudotimeDataSets] = useState({}); // Object keyed by adata_umap_title
-  const [pseudotimeLoading, setPseudotimeLoading] = useState(false);
+  const [pseudotimeLoadingStates, setPseudotimeLoadingStates] = useState({}); // Object keyed by adata_umap_title
 
   // Cell Name state
   const [cellName, setCellName] = useState(null);
@@ -427,7 +427,7 @@ function App() {
                                     sampleId={dataset.sampleId}
                                     setCellName={setCellName}
                                     setPseudotimeDataSets={setPseudotimeDataSets}
-                                    setPseudotimeLoading={setPseudotimeLoading}
+                                    setPseudotimeLoadingStates={setPseudotimeLoadingStates}
                                   />
                                 </div>
                               );
@@ -440,7 +440,7 @@ function App() {
                           <PseudotimeGlyphComponent
                             adata_umap_title={umapDataSets.length > 0 ? umapDataSets[0].adata_umap_title : null}
                             pseudotimeDataSets={pseudotimeDataSets}
-                            pseudotimeLoading={pseudotimeLoading}
+                            pseudotimeLoadingStates={pseudotimeLoadingStates}
                           />
                     </Splitter.Panel>
                   </Splitter>

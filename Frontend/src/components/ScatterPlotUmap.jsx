@@ -12,14 +12,14 @@ export const ScatterplotUmap = ({
   yAccessor = (d) => d.y,
   title = "UMAP",
   adata_umap_title,
-  setPseudotimeLoading,
   margin = { top: 25, right: 10, bottom: 25, left: 25 },
   hoveredCluster,
   setHoveredCluster,
   umapId,
   sampleId,
   setCellName,
-  setPseudotimeDataSets
+  setPseudotimeDataSets,
+  setPseudotimeLoadingStates
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -79,7 +79,11 @@ export const ScatterplotUmap = ({
     let n_pcas;
     let resolutions;
     
-    setPseudotimeLoading(true);
+    // Set loading state for this specific dataset
+    setPseudotimeLoadingStates(prevStates => ({
+      ...prevStates,
+      [adata_umap_title]: true
+    }));
 
     try {
       const parts = adata_umap_title.split('_');
@@ -117,12 +121,21 @@ export const ScatterplotUmap = ({
         pseudotimeDataSetsRef.current = newDataSets;
         return newDataSets;
       });
-      setPseudotimeLoading(false);
+      
+      // Clear loading state for this specific dataset
+      setPseudotimeLoadingStates(prevStates => ({
+        ...prevStates,
+        [adata_umap_title]: false
+      }));
 
       return data;
     } catch (err) {
       console.error("Failed to fetch pseudotime data", err);
-      setPseudotimeLoading(false);
+      // Clear loading state for this specific dataset on error
+      setPseudotimeLoadingStates(prevStates => ({
+        ...prevStates,
+        [adata_umap_title]: false
+      }));
       throw err;
     }
   }

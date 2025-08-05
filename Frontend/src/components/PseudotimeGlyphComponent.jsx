@@ -4,7 +4,7 @@ import PseudotimeGlyph from './PseudotimeGlyph';
 export const PseudotimeGlyphComponent = ({ 
     adata_umap_title,
     pseudotimeDataSets,
-    pseudotimeLoading
+    pseudotimeLoadingStates
 }) => {
     // Convert pseudotimeDataSets object to array of all trajectory data
     const allPseudotimeData = [];
@@ -14,14 +14,31 @@ export const PseudotimeGlyphComponent = ({
                 allPseudotimeData.push({
                     ...trajectoryData,
                     source_title: title,
-                    display_title: `${title} - Trajectory ${index + 1}`
+                    display_title: `${title} - Trajectory ${index + 1}`,
+                    isLoading: pseudotimeLoadingStates[title] || false
                 });
             });
         }
     });
 
+    // Add loading placeholders for datasets that are currently being loaded
+    Object.entries(pseudotimeLoadingStates).forEach(([title, isLoading]) => {
+        if (isLoading && !pseudotimeDataSets[title]) {
+            allPseudotimeData.push({
+                source_title: title,
+                display_title: `${title} - Loading...`,
+                isLoading: true,
+                isPlaceholder: true
+            });
+        }
+    });
+
+    // Check if there's any global loading happening and no data exists yet
+    const anyLoading = Object.values(pseudotimeLoadingStates).some(loading => loading);
+    const hasNoData = Object.keys(pseudotimeDataSets).length === 0;
+
     // If allPseudotimeData is not an array or is empty, show loading or empty state
-    if (pseudotimeLoading) {
+    if (anyLoading && hasNoData) {
         return (
             <div style={{ padding: '10px', textAlign: 'center' }}>
                 Loading pseudotime data...
@@ -90,11 +107,27 @@ export const PseudotimeGlyphComponent = ({
                             textAlign: 'center'
                         }}
                     >
-                        <PseudotimeGlyph
-                            adata_umap_title={trajectoryData.display_title || `${adata_umap_title} - Trajectory ${index + 1}`}
-                            pseudotimeData={[trajectoryData]}
-                            pseudotimeLoading={pseudotimeLoading}
-                        />
+                        {trajectoryData.isPlaceholder ? (
+                            <div style={{
+                                width: '100%',
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '2px dashed #ccc',
+                                borderRadius: '8px',
+                                color: '#666',
+                                fontSize: '14px'
+                            }}>
+                                Loading {trajectoryData.source_title}...
+                            </div>
+                        ) : (
+                            <PseudotimeGlyph
+                                adata_umap_title={trajectoryData.display_title || `${adata_umap_title} - Trajectory ${index + 1}`}
+                                pseudotimeData={[trajectoryData]}
+                                pseudotimeLoading={trajectoryData.isLoading}
+                            />
+                        )}
                     </div>
                 ))}
                         </div>

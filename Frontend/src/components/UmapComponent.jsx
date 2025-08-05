@@ -12,7 +12,7 @@ export const UmapComponent = ({
   sampleId, 
   setCellName,
   setPseudotimeDataSets,
-  setPseudotimeLoading
+  setPseudotimeLoadingStates
 }) => {
   return (
     <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -47,7 +47,7 @@ export const UmapComponent = ({
           sampleId={sampleId}
           setCellName={setCellName}
           setPseudotimeDataSets={setPseudotimeDataSets}
-          setPseudotimeLoading={setPseudotimeLoading}
+          setPseudotimeLoadingStates={setPseudotimeLoadingStates}
         />
       ) : null}
     </div>
