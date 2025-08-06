@@ -86,6 +86,11 @@ function App() {
     setCoordinatesData(coordinatesData);
 
     // Fetch cell types data at the same time
+    await fetchCellTypes(sampleIds);
+  };
+
+  // get cell types data for selected samples
+  const fetchCellTypes = async (sampleIds) => {
     try {
       const cellTypesResponse = await fetch("/api/get_cell_types", {
         method: "POST",
@@ -97,6 +102,10 @@ function App() {
         const cellTypesData = await cellTypesResponse.json();
         const cellTypesArray = cellTypesData.combined || [];
         setCellTypesData(cellTypesArray);
+        
+        // Set all cell types as selected by default
+        const allCellTypeNames = cellTypesArray.map(({ name }) => name);
+        setSelectedCellTypes(allCellTypeNames);
         
         // Set default colors for cell types
         const defaultColors = [
