@@ -21,7 +21,14 @@ export const ScatterplotUmap = ({
   setPseudotimeDataSets,
   setPseudotimeLoadingStates,
   setClusterColorMappings,
-  hoveredTrajectory
+  hoveredTrajectory,
+  coordinatesData,
+  cellTypesData,
+  setCellTypesData,
+  selectedCellTypes,
+  setSelectedCellTypes,
+  cellTypeColors,
+  setCellTypeColors
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -596,6 +603,13 @@ export const ScatterplotUmap = ({
         title="Gene Ontology Analysis"
         setCellName={setCellName}
         cellIds={currentCellIds}
+        coordinatesData={coordinatesData}
+        cellTypesData={cellTypesData}
+        setCellTypesData={setCellTypesData}
+        selectedCellTypes={selectedCellTypes}
+        setSelectedCellTypes={setSelectedCellTypes}
+        cellTypeColors={cellTypeColors}
+        setCellTypeColors={setCellTypeColors}
       />
     </div>
   );

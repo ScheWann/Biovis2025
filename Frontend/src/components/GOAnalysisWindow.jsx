@@ -11,7 +11,14 @@ export const GOAnalysisWindow = ({
     position, // {x, y} - position where the cluster was clicked
     title = "GO Analysis Results",
     setCellName,
-    cellIds = []
+    cellIds = [],
+    coordinatesData,
+    cellTypesData,
+    setCellTypesData,
+    selectedCellTypes,
+    setSelectedCellTypes,
+    cellTypeColors,
+    setCellTypeColors
 }) => {
     const tooltipRef = useRef();
     const svgRef = useRef();
@@ -20,10 +27,12 @@ export const GOAnalysisWindow = ({
 
     const confirmCellName = () => {
         if (inputCellName.trim() && cellIds.length > 0) {
+            const newCellTypeName = inputCellName.trim();
+            
             // Create object mapping each cellId to the inputCellName
             const newCellNames = {};
             cellIds.forEach(cellId => {
-                newCellNames[cellId] = inputCellName.trim();
+                newCellNames[cellId] = newCellTypeName;
             });
             
             // Update setCellName with the new mappings
@@ -32,8 +41,88 @@ export const GOAnalysisWindow = ({
                 ...newCellNames
             }));
 
+            // Update cell types data to reflect the reallocation
+            setCellTypesData(prevCellTypesData => {
+                // Find which original cell types these cells belonged to
+                const originalCellTypes = {};
+                
+                // Get all cell data across samples to find original cell types
+                const allCells = Object.values(coordinatesData || {}).flat();
+                
+                cellIds.forEach(cellId => {
+                    const cell = allCells.find(c => c.id === cellId);
+                    if (cell && cell.cell_type) {
+                        originalCellTypes[cell.cell_type] = (originalCellTypes[cell.cell_type] || 0) + 1;
+                    }
+                });
+
+                // Create new cell types array with updated counts
+                let updatedCellTypes = [...prevCellTypesData];
+                
+                // Reduce counts for original cell types
+                Object.entries(originalCellTypes).forEach(([cellType, count]) => {
+                    const cellTypeIndex = updatedCellTypes.findIndex(ct => ct.name === cellType);
+                    if (cellTypeIndex !== -1) {
+                        updatedCellTypes[cellTypeIndex] = {
+                            ...updatedCellTypes[cellTypeIndex],
+                            count: Math.max(0, updatedCellTypes[cellTypeIndex].count - count)
+                        };
+                    }
+                });
+
+                // Remove cell types with zero count
+                updatedCellTypes = updatedCellTypes.filter(ct => ct.count > 0);
+
+                // Add or update the new cell type
+                const newCellTypeIndex = updatedCellTypes.findIndex(ct => ct.name === newCellTypeName);
+                if (newCellTypeIndex !== -1) {
+                    // Update existing cell type count
+                    updatedCellTypes[newCellTypeIndex] = {
+                        ...updatedCellTypes[newCellTypeIndex],
+                        count: updatedCellTypes[newCellTypeIndex].count + cellIds.length
+                    };
+                } else {
+                    // Add new cell type
+                    updatedCellTypes.push({
+                        name: newCellTypeName,
+                        count: cellIds.length
+                    });
+                }
+
+                // Sort by count (descending)
+                return updatedCellTypes.sort((a, b) => b.count - a.count);
+            });
+
+            // Update selected cell types to include the new cell type if it doesn't exist
+            setSelectedCellTypes(prevSelected => {
+                if (!prevSelected.includes(newCellTypeName)) {
+                    return [...prevSelected, newCellTypeName];
+                }
+                return prevSelected;
+            });
+
+            // Set color for new cell type if it doesn't have one
+            setCellTypeColors(prevColors => {
+                if (!prevColors[newCellTypeName]) {
+                    // Default color palette for new cell types
+                    const defaultColors = [
+                        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+                        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+                        '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
+                        '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
+                    ];
+                    const colorIndex = Object.keys(prevColors).length % defaultColors.length;
+                    return {
+                        ...prevColors,
+                        [newCellTypeName]: defaultColors[colorIndex]
+                    };
+                }
+                return prevColors;
+            });
+
             // Clear the input and close the window
             setInputCellName("");
+            setVisible(false);
         }
     };
 

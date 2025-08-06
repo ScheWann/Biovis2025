@@ -358,6 +358,7 @@ function App() {
                     selectedSamples={selectedSamples}
                     coordinatesData={coordinatesData}
                     cellTypesData={cellTypesData}
+                    setCellTypesData={setCellTypesData}
                     selectedCellTypes={selectedCellTypes}
                     setSelectedCellTypes={setSelectedCellTypes}
                     cellTypeColors={cellTypeColors}
@@ -479,6 +480,13 @@ function App() {
                                     setPseudotimeLoadingStates={setPseudotimeLoadingStates}
                                     setClusterColorMappings={setClusterColorMappings}
                                     hoveredTrajectory={hoveredTrajectory}
+                                    coordinatesData={coordinatesData}
+                                    cellTypesData={cellTypesData}
+                                    setCellTypesData={setCellTypesData}
+                                    selectedCellTypes={selectedCellTypes}
+                                    setSelectedCellTypes={setSelectedCellTypes}
+                                    cellTypeColors={cellTypeColors}
+                                    setCellTypeColors={setCellTypeColors}
                                   />
                                 </div>
                               );

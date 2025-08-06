@@ -12,6 +12,7 @@ export const SampleViewer = ({
     selectedSamples,
     coordinatesData,
     cellTypesData,
+    setCellTypesData,
     selectedCellTypes,
     setSelectedCellTypes,
     cellTypeColors,
