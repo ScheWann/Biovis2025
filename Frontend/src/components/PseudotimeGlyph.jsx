@@ -526,18 +526,18 @@ const PseudotimeGlyph = ({
                         const fromTime = fromNode ? fromNode.pseudotime.toFixed(2) : "0.00";
                         const toTime = toNode ? toNode.pseudotime.toFixed(2) : "0.00";
 
+                        // Get the complete trajectory sequence
+                        const trajectory = trajectoryData[edge.trajectory];
+                        const trajectorySequence = trajectory.path.map((cluster, idx) => 
+                            `${cluster} (t=${parseFloat(trajectory.pseudotimes[idx]).toFixed(2)})`
+                        ).join(' → ');
+
                         tooltip.style("visibility", "visible")
-                            // .html(`
-                            //     <div><strong>Cell State Transition</strong></div>
-                            //     <div>From: Cluster ${fromCluster} (t=${fromTime})</div>
-                            //     <div>To: Cluster ${toCluster} (t=${toTime})</div>
-                            //     <div>Trajectory: ${edge.trajectory + 1}</div>
-                            //     <div>Cell differentiation pathway</div>
-                            //     <div><em>Click to ${selectedTrajectory === edge.trajectory ? 'deselect' : 'select'} this trajectory</em></div>
-                            // `);
                             .html(`
-                                <div>From: Cluster ${fromCluster} (t=${fromTime})</div>
-                                <div>To: Cluster ${toCluster} (t=${toTime})</div>
+                                <div><strong>Trajectory ${edge.trajectory + 1}</strong></div>
+                                <div>Current transition: ${fromCluster} (t=${fromTime}) → ${toCluster} (t=${toTime})</div>
+                                <div><strong>Complete sequence:</strong></div>
+                                <div style="font-size: 11px; margin-top: 5px;">${trajectorySequence}</div>
                             `);
                         positionTooltip(event, tooltip);
                     })
@@ -569,16 +569,69 @@ const PseudotimeGlyph = ({
 
             // Draw endpoint as star, others as circles
             if (node.isEndpoint) {
-                drawStar(bottomSection, pos.x, pos.y, 10, nodeColor, nodeOpacity);
+                const star = drawStar(bottomSection, pos.x, pos.y, 10, nodeColor, nodeOpacity);
+                // Add tooltip functionality to star
+                star.style("cursor", "pointer")
+                    .on("mouseover", function (event) {
+                        // Get all trajectories this node belongs to
+                        const trajectoryInfo = Array.from(node.trajectories).map(trajIndex => {
+                            const trajectory = trajectoryData[trajIndex];
+                            const trajectorySequence = trajectory.path.map((cluster, idx) => 
+                                `${cluster} (t=${parseFloat(trajectory.pseudotimes[idx]).toFixed(2)})`
+                            ).join(' → ');
+                            return `<div><strong>Trajectory ${trajIndex + 1}:</strong> ${trajectorySequence}</div>`;
+                        }).join('');
+
+                        tooltip.style("visibility", "visible")
+                            .html(`
+                                <div><strong>Endpoint - Cluster ${node.cluster}</strong></div>
+                                <div>Time: ${node.pseudotime.toFixed(2)}</div>
+                                <div style="margin-top: 8px;"><strong>Belongs to trajectory(ies):</strong></div>
+                                ${trajectoryInfo}
+                            `);
+                        positionTooltip(event, tooltip);
+                    })
+                    .on("mousemove", function (event) {
+                        positionTooltip(event, tooltip);
+                    })
+                    .on("mouseout", function () {
+                        tooltip.style("visibility", "hidden");
+                    });
             } else {
-                bottomSection.append("circle")
+                const circle = bottomSection.append("circle")
                     .attr("cx", pos.x)
                     .attr("cy", pos.y)
                     .attr("r", 6)
                     .attr("fill", nodeColor)
                     .attr("stroke", "#fff")
                     .attr("stroke-width", 2)
-                    .attr("opacity", nodeOpacity);
+                    .attr("opacity", nodeOpacity)
+                    .style("cursor", "pointer")
+                    .on("mouseover", function (event) {
+                        // Get all trajectories this node belongs to
+                        const trajectoryInfo = Array.from(node.trajectories).map(trajIndex => {
+                            const trajectory = trajectoryData[trajIndex];
+                            const trajectorySequence = trajectory.path.map((cluster, idx) => 
+                                `${cluster} (t=${parseFloat(trajectory.pseudotimes[idx]).toFixed(2)})`
+                            ).join(' → ');
+                            return `<div><strong>Trajectory ${trajIndex + 1}:</strong> ${trajectorySequence}</div>`;
+                        }).join('');
+
+                        tooltip.style("visibility", "visible")
+                            .html(`
+                                <div><strong>Cluster ${node.cluster}</strong></div>
+                                <div>Time: ${node.pseudotime.toFixed(2)}</div>
+                                <div style="margin-top: 8px;"><strong>Belongs to trajectory(ies):</strong></div>
+                                ${trajectoryInfo}
+                            `);
+                        positionTooltip(event, tooltip);
+                    })
+                    .on("mousemove", function (event) {
+                        positionTooltip(event, tooltip);
+                    })
+                    .on("mouseout", function () {
+                        tooltip.style("visibility", "hidden");
+                    });
             }
         });
     };
@@ -787,7 +840,7 @@ const PseudotimeGlyph = ({
         }
         path += " Z";
 
-        parent.append("path")
+        return parent.append("path")
             .attr("d", path)
             .attr("fill", color)
             .attr("stroke", "#fff")
