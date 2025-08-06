@@ -1,11 +1,113 @@
 import PseudotimeGlyph from './PseudotimeGlyph';
-import { Empty, Spin } from 'antd';
+import { Empty, Spin, Select } from 'antd';
+import { useState, useEffect } from 'react';
 
 export const PseudotimeGlyphComponent = ({
     adata_umap_title,
     pseudotimeDataSets,
-    pseudotimeLoadingStates
+    pseudotimeLoadingStates,
+    relatedSampleIds,
 }) => {
+    // State for tracking selected glyphs
+    const [selectedGlyphs, setSelectedGlyphs] = useState(new Set());
+    
+    // State for selected gene
+    const [selectedGene, setSelectedGene] = useState(null);
+    
+    // State for highly variable genes
+    const [highVariableGenes, setHighVariableGenes] = useState([]);
+    const [genesLoading, setGenesLoading] = useState(false);
+    
+    // Load highly variable genes on component mount
+    useEffect(() => {
+        const fetchHighVariableGenes = async () => {
+            setGenesLoading(true);
+            try {
+                if (relatedSampleIds.length > 0) {
+                    const response = await fetch("/api/get_highly_variable_genes", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            sample_ids: relatedSampleIds,
+                            top_n: 20
+                        }),
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Convert the response to the format expected by the select component
+                        const geneList = [];
+                        Object.entries(data).forEach(([sampleId, genes]) => {
+                            genes.forEach(gene => {
+                                geneList.push({
+                                    value: `${sampleId}_${gene}`,
+                                    label: gene,
+                                    sampleId: sampleId
+                                });
+                            });
+                        });
+                        
+                        setHighVariableGenes(geneList);
+                    } else {
+                        console.error("Failed to fetch highly variable genes");
+                        // Fallback to mock data
+                        setHighVariableGenes([]);
+                    }
+                } else {
+                    setHighVariableGenes([]);
+                }
+            } catch (error) {
+                console.error("Error fetching highly variable genes:", error);
+                setHighVariableGenes([]);
+            } finally {
+                setGenesLoading(false);
+            }
+        };
+        
+        if (Object.keys(pseudotimeDataSets).length > 0) {
+            fetchHighVariableGenes();
+        }
+    }, [pseudotimeDataSets, relatedSampleIds]);
+
+    // Group genes by sample ID for the select options
+    const geneOptions = highVariableGenes.reduce((groups, gene) => {
+        if (!groups[gene.sampleId]) {
+            groups[gene.sampleId] = [];
+        }
+        groups[gene.sampleId].push({
+            label: gene.label,
+            value: gene.value
+        });
+        return groups;
+    }, {});
+    
+    // Convert to antd Select option format with groups
+    const selectOptions = Object.entries(geneOptions).map(([sampleId, genes]) => ({
+        label: sampleId,
+        options: genes
+    }));
+    
+    // Handle glyph selection
+    const handleGlyphSelection = (glyphIndex, isSelected) => {
+        const newSelected = new Set(selectedGlyphs);
+        if (isSelected) {
+            newSelected.add(glyphIndex);
+        } else {
+            newSelected.delete(glyphIndex);
+        }
+        setSelectedGlyphs(newSelected);
+        console.log('Selected glyphs:', Array.from(newSelected));
+    };
+    
+    // Debug selected gene changes
+    useEffect(() => {
+        if (selectedGene) {
+            console.log('Selected gene:', selectedGene);
+        }
+    }, [selectedGene]);
     // Convert pseudotimeDataSets object to array of all trajectory data
     const allPseudotimeData = [];
     Object.entries(pseudotimeDataSets).forEach(([title, dataArray]) => {
@@ -68,18 +170,32 @@ export const PseudotimeGlyphComponent = ({
             padding: '10px',
             width: '100%',
             height: '100%',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            position: 'relative'
         }}>
-            {/* Summary header */}
-            {/* <div style={{
-                marginBottom: '10px',
-                textAlign: 'center',
-                fontSize: '12px',
-                color: '#666',
-                fontWeight: 'bold'
+            {/* Gene Selection Dropdown in upper right corner */}
+            <div style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                zIndex: 1000,
+                width: '200px'
             }}>
-                {Object.keys(pseudotimeDataSets).length} dataset(s), {allPseudotimeData.length} trajectory(s)
-            </div> */}
+                <Select
+                    placeholder={genesLoading ? "Loading genes..." : "Select a gene"}
+                    value={selectedGene}
+                    onChange={setSelectedGene}
+                    style={{ width: '100%' }}
+                    size="small"
+                    options={selectOptions}
+                    loading={genesLoading}
+                    disabled={genesLoading}
+                    showSearch
+                    filterOption={(input, option) =>
+                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                />
+            </div>
 
             <div style={{
                 display: 'grid',
@@ -87,9 +203,10 @@ export const PseudotimeGlyphComponent = ({
                 gridTemplateRows: `repeat(${numRows}, 1fr)`,
                 gap: `${gapSize}px`,
                 width: '100%',
-                height: `calc(100% - 30px)`, // Account for padding and header
+                height: `calc(100% - 30px)`,
                 justifyItems: 'center',
-                alignItems: 'center'
+                alignItems: 'center',
+                marginTop: '35px'
             }}>
                 {allPseudotimeData.map((trajectoryData, index) => (
                     <div
@@ -121,6 +238,8 @@ export const PseudotimeGlyphComponent = ({
                                 adata_umap_title={trajectoryData.display_title || `${adata_umap_title} - Trajectory ${index + 1}`}
                                 pseudotimeData={[trajectoryData]}
                                 pseudotimeLoading={trajectoryData.isLoading}
+                                isSelected={selectedGlyphs.has(index)}
+                                onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
                             />
                         )}
                     </div>

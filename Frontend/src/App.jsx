@@ -424,6 +424,7 @@ function App() {
                     <Splitter.Panel defaultSize="33%" min="20%" max="45%">
                           <PseudotimeGlyphComponent
                             adata_umap_title={umapDataSets.length > 0 ? umapDataSets[0].adata_umap_title : null}
+                            relatedSampleIds={umapDataSets.length > 0 ? [...new Set(umapDataSets.map(d => d.sampleId))] : []}
                             pseudotimeDataSets={pseudotimeDataSets}
                             pseudotimeLoadingStates={pseudotimeLoadingStates}
                           />

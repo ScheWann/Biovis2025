@@ -13,6 +13,7 @@ from process import (
     get_umap_data,
     perform_go_analysis,
     get_trajectory_data,
+    get_highly_variable_genes,
     get_trajectory_gene_list,
     load_adata_to_cache,
     clear_adata_cache,
@@ -87,6 +88,16 @@ def get_gene_list_route():
     """
     sample_ids = request.json["sample_ids"]
     return jsonify(get_gene_list(sample_ids))
+
+
+@app.route("/api/get_highly_variable_genes", methods=["POST"])
+def get_highly_variable_genes_route():
+    """
+    Get list of highly variable genes for the selected samples
+    """
+    sample_ids = request.json["sample_ids"]
+    top_n = request.json.get("top_n", 20)  # Default to top 20
+    return jsonify(get_highly_variable_genes(sample_ids, top_n))
 
 
 @app.route("/api/get_kosara_data", methods=["POST"])

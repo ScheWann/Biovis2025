@@ -1,11 +1,13 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
-import { Empty, Spin } from 'antd';
+import { Empty, Spin, Checkbox } from 'antd';
 
 const PseudotimeGlyph = ({
     adata_umap_title,
     pseudotimeData,
-    pseudotimeLoading
+    pseudotimeLoading,
+    isSelected = false,
+    onSelectionChange
 }) => {
     const containerRef = useRef();
     const svgRef = useRef(null);
@@ -710,6 +712,22 @@ const PseudotimeGlyph = ({
 
     return (
         <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }}>
+            {/* Checkbox in upper left corner */}
+            <div style={{ 
+                position: 'absolute', 
+                top: '5px', 
+                left: '5px', 
+                zIndex: 1000,
+                backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                borderRadius: '4px',
+                padding: '2px'
+            }}>
+                <Checkbox 
+                    checked={isSelected}
+                    onChange={(e) => onSelectionChange && onSelectionChange(e.target.checked)}
+                    size="small"
+                />
+            </div>
             {pseudotimeLoading && (
                 <div style={{ 
                     position: 'absolute', 
