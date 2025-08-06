@@ -151,14 +151,14 @@ def run_slingshot_via_rpy2_improved(
                     pseudotimes_df = pd.read_csv(pseudotimes_file, index_col=0)
                     weights_df = pd.read_csv(weights_file, index_col=0)
 
-                    # Add results to adata
+                    # Add results to adata with embedding_key as unique identifier
                     for i, col in enumerate(pseudotimes_df.columns):
-                        adata.obs[f"slingshot_pseudotime_{i+1}"] = pseudotimes_df.iloc[
+                        adata.obs[f"slingshot_pseudotime_{embedding_key}_{i+1}"] = pseudotimes_df.iloc[
                             :, i
                         ].values
 
                     for i, col in enumerate(weights_df.columns):
-                        adata.obs[f"slingshot_weight_{i+1}"] = weights_df.iloc[:, i].values
+                        adata.obs[f"slingshot_weight_{embedding_key}_{i+1}"] = weights_df.iloc[:, i].values
 
                     print(
                         f"Slingshot analysis completed! Found {len(pseudotimes_df.columns)} trajectories"
@@ -198,9 +198,9 @@ def analyze_trajectory_cluster_transitions(
     dict
         Dictionary containing trajectory analysis results
     """
-    # Get pseudotime columns
+    # Get pseudotime columns with embedding key
     pseudotime_cols = [
-        col for col in adata.obs.columns if col.startswith("slingshot_pseudotime")
+        col for col in adata.obs.columns if col.startswith(f"slingshot_pseudotime_{embedding_key}_")
     ]
 
     if not pseudotime_cols:
@@ -574,7 +574,7 @@ def merge_subset_trajectories(
 
 
 def analyze_gene_expression_along_trajectories(
-    adata, gene_names, trajectory_analysis=None, use_merged=True
+    adata, gene_names, trajectory_analysis=None, use_merged=True, embedding_key="X_umap"
 ):
     """
     Analyze the expression of specified genes along trajectories based on pseudotime.
@@ -589,6 +589,8 @@ def analyze_gene_expression_along_trajectories(
         Dictionary containing trajectory analysis results
     use_merged : bool
         Whether to use merged trajectory analysis if available
+    embedding_key : str
+        The embedding key used for the trajectory analysis
 
     Returns:
     --------
@@ -636,9 +638,9 @@ def analyze_gene_expression_along_trajectories(
 
     print(f"Available genes for analysis: {', '.join(available_genes)}")
 
-    # Get all pseudotime columns
+    # Get all pseudotime columns with embedding key
     pseudotime_cols = [
-        col for col in adata.obs.columns if col.startswith("slingshot_pseudotime")
+        col for col in adata.obs.columns if col.startswith(f"slingshot_pseudotime_{embedding_key}_")
     ]
 
     # Create analysis for each gene
@@ -664,7 +666,7 @@ def analyze_gene_expression_along_trajectories(
 
             traj_num = traj_key.split("_")[-1] if "_" in traj_key else traj_key
 
-            # Find the corresponding pseudotime column
+            # Find the corresponding pseudotime column with embedding key
             pt_col = None
             for col in pseudotime_cols:
                 if col.endswith(f"_{traj_num}"):
