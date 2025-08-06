@@ -53,8 +53,6 @@ export const PseudotimeGlyphComponent = ({
             }
             
             try {
-                console.trace('API call stack trace'); // This will help identify what triggered the call
-                
                 const response = await fetch("/api/get_highly_variable_genes", {
                     method: "POST",
                     headers: {
@@ -268,7 +266,7 @@ export const PseudotimeGlyphComponent = ({
                     allPseudotimeData.push({
                         ...trajectoryData,
                         source_title: title,
-                        display_title: `${displayTitle} - Trajectory ${index + 1}`,
+                        display_title: `${displayTitle} - ${index + 1}`,
                         isLoading: pseudotimeLoadingStates[title] || false
                     });
                 });

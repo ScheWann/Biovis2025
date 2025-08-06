@@ -251,7 +251,7 @@ const PseudotimeGlyph = ({
         // Add title
         svg.append("text")
             .attr("x", width / 2)
-            .attr("y", 20)
+            .attr("y", height - 10)
             .attr("text-anchor", "middle")
             .attr("font-size", "14px")
             .attr("font-weight", "bold")
