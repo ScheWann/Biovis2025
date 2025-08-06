@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
-import { Empty, Spin } from 'antd';
+import { Empty, Spin, Select, Button } from 'antd';
+import { CheckOutlined } from '@ant-design/icons';
 
 const PseudotimeGlyph = ({
     adata_umap_title,
@@ -11,6 +12,13 @@ const PseudotimeGlyph = ({
     const svgRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 300, height: 300 });
     const [selectedTrajectory, setSelectedTrajectory] = useState(null);
+    const [selectedOption, setSelectedOption] = useState(null);
+    const [selectorOptions] = useState([
+        { value: 'trajectory1', label: 'Trajectory Analysis' },
+        { value: 'gene_expr', label: 'Gene Expression' },
+        { value: 'cluster_view', label: 'Cluster View' },
+        { value: 'export', label: 'Export Data' }
+    ]);
 
     // Detect container size changes
     useEffect(() => {
@@ -54,6 +62,39 @@ const PseudotimeGlyph = ({
             d3.select("body").selectAll(".pseudotime-tooltip").remove();
         };
     }, []);
+
+    // Handler functions for selector and confirmation button
+    const handleSelectorChange = (value) => {
+        setSelectedOption(value);
+    };
+
+    const handleConfirmAction = () => {
+        if (!selectedOption) return;
+        
+        switch (selectedOption) {
+            case 'trajectory1':
+                console.log('Performing trajectory analysis...');
+                // Add trajectory analysis logic here
+                break;
+            case 'gene_expr':
+                console.log('Analyzing gene expression...');
+                // Add gene expression analysis logic here
+                break;
+            case 'cluster_view':
+                console.log('Switching to cluster view...');
+                // Add cluster view logic here
+                break;
+            case 'export':
+                console.log('Exporting data...');
+                // Add export logic here
+                break;
+            default:
+                break;
+        }
+        
+        // Reset selection after action
+        setSelectedOption(null);
+    };
 
     const createGlyph = (dataToUse) => {
         const svg = d3.select(svgRef.current);
@@ -709,7 +750,34 @@ const PseudotimeGlyph = ({
     };
 
     return (
-        <div ref={containerRef} style={{ width: "100%", height: "100%" }}>
+        <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }}>
+            {/* Control panel in upper right corner */}
+            <div style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                zIndex: 1000,
+                display: 'flex',
+                gap: '5px',
+                alignItems: 'center',
+            }}>
+                <Select
+                    placeholder="Select action"
+                    style={{ width: 160 }}
+                    value={selectedOption}
+                    onChange={handleSelectorChange}
+                    options={selectorOptions}
+                    size="small"
+                />
+                <Button 
+                    type="primary" 
+                    size="small"
+                    icon={<CheckOutlined />}
+                    disabled={!selectedOption}
+                    onClick={handleConfirmAction}
+                />
+            </div>
+
             {pseudotimeLoading && (
                 <div style={{ 
                     position: 'absolute', 
