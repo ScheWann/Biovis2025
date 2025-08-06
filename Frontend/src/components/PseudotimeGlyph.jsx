@@ -467,20 +467,19 @@ const PseudotimeGlyph = ({
         const { nodes, edges } = buildTrajectoryTree(trajectoryData);
         const nodePositions = calculateNodePositions(nodes, edges);
 
+        // Use black color for all trajectory paths
+        const trajectoryColor = "#333333"; // Black color
+
         // Draw edges (connections between nodes)
         edges.forEach(edge => {
             const fromPos = nodePositions.get(edge.from);
             const toPos = nodePositions.get(edge.to);
 
-            // Use the target node's cluster for edge color
-            const toNode = nodes.get(edge.to);
-            const baseColor = toNode ? clusterColorScale(toNode.cluster) : "#999";
-
             // Determine if this edge should be grayed out
             const isSelected = selectedTrajectory === null || selectedTrajectory === edge.trajectory;
-            const color = isSelected ? baseColor : "#ccc";
-            const opacity = isSelected ? 0.7 : 0.3;
-            const strokeWidth = isSelected ? 2 : 1;
+            const color = isSelected ? trajectoryColor : "#ccc";
+            const opacity = isSelected ? 0.8 : 0.4;
+            const strokeWidth = isSelected ? 3 : 2;
 
             if (fromPos && toPos) {
                 let x1 = fromPos.x, y1 = fromPos.y;
@@ -499,7 +498,7 @@ const PseudotimeGlyph = ({
                     .attr("x2", toPos.x)
                     .attr("y2", toPos.y)
                     .attr("stroke", color)
-                    .attr("stroke-width", Math.max(strokeWidth, 3)) // Minimum width for hover
+                    .attr("stroke-width", strokeWidth)
                     .attr("opacity", opacity)
                     .attr("stroke-linecap", "round")
                     .style("cursor", "pointer")
@@ -547,7 +546,7 @@ const PseudotimeGlyph = ({
                     })
                     .on("mouseout", function () {
                         d3.select(this)
-                            .attr("stroke-width", Math.max(strokeWidth, 3))
+                            .attr("stroke-width", strokeWidth)
                             .attr("opacity", opacity);
                         tooltip.style("visibility", "hidden");
                     });
