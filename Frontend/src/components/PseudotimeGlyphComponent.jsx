@@ -16,12 +16,10 @@ export const PseudotimeGlyphComponent = ({
     
     // State for highly variable genes
     const [highVariableGenes, setHighVariableGenes] = useState([]);
-    const [genesLoading, setGenesLoading] = useState(false);
     
     // Load highly variable genes on component mount
     useEffect(() => {
         const fetchHighVariableGenes = async () => {
-            setGenesLoading(true);
             try {
                 if (relatedSampleIds.length > 0) {
                     const response = await fetch("/api/get_highly_variable_genes", {
@@ -62,8 +60,6 @@ export const PseudotimeGlyphComponent = ({
             } catch (error) {
                 console.error("Error fetching highly variable genes:", error);
                 setHighVariableGenes([]);
-            } finally {
-                setGenesLoading(false);
             }
         };
         
@@ -182,14 +178,12 @@ export const PseudotimeGlyphComponent = ({
                 width: '200px'
             }}>
                 <Select
-                    placeholder={genesLoading ? "Loading genes..." : "Select a gene"}
+                    placeholder="Select a gene"
                     value={selectedGene}
                     onChange={setSelectedGene}
                     style={{ width: '100%' }}
                     size="small"
                     options={selectOptions}
-                    loading={genesLoading}
-                    disabled={genesLoading}
                     showSearch
                     filterOption={(input, option) =>
                         (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
