@@ -20,6 +20,7 @@ export const PseudotimeGlyphComponent = ({
     // State for gene expression analysis
     const [geneExpressionData, setGeneExpressionData] = useState([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [componentError, setComponentError] = useState(null);
     
     // Load highly variable genes on component mount
     useEffect(() => {
@@ -166,21 +167,34 @@ export const PseudotimeGlyphComponent = ({
                     
                     if (response.ok) {
                         const data = await response.json();
-                        analysisResults.push({
-                            ...request,
-                            gene_expression_data: data
-                        });
+                        // Validate and sanitize the response data to prevent memory issues
+                        if (data && typeof data === 'object') {
+                            analysisResults.push({
+                                ...request,
+                                gene_expression_data: data
+                            });
+                        } else {
+                            console.warn(`Invalid gene expression data format for sample ${request.sample_id}`);
+                        }
                     } else {
-                        console.error(`Failed to get gene expression data for sample ${request.sample_id}`);
+                        const errorText = await response.text();
+                        console.error(`Failed to get gene expression data for sample ${request.sample_id}: ${response.status} ${errorText}`);
                     }
                 } catch (error) {
                     console.error(`Error fetching gene expression data for sample ${request.sample_id}:`, error);
                 }
             }
             
-            setGeneExpressionData(analysisResults);
+            // Only update state if we have successful results
+            if (analysisResults.length > 0) {
+                console.log(`Successfully processed ${analysisResults.length} gene expression analysis results`);
+                setGeneExpressionData(analysisResults);
+            } else {
+                console.warn('No gene expression data was successfully retrieved');
+            }
         } catch (error) {
             console.error('Error during gene expression analysis:', error);
+            // Don't let errors break the entire component - just log them and continue
         } finally {
             setIsAnalyzing(false);
         }
@@ -188,34 +202,62 @@ export const PseudotimeGlyphComponent = ({
     
     // Convert pseudotimeDataSets object to array of all trajectory data
     const allPseudotimeData = [];
-    Object.entries(pseudotimeDataSets).forEach(([title, dataArray]) => {
-        if (Array.isArray(dataArray)) {
-            dataArray.forEach((trajectoryData, index) => {
-                allPseudotimeData.push({
-                    ...trajectoryData,
-                    source_title: title,
-                    display_title: `${title} - Trajectory ${index + 1}`,
-                    isLoading: pseudotimeLoadingStates[title] || false
+    
+    try {
+        Object.entries(pseudotimeDataSets).forEach(([title, dataArray]) => {
+            if (Array.isArray(dataArray)) {
+                dataArray.forEach((trajectoryData, index) => {
+                    allPseudotimeData.push({
+                        ...trajectoryData,
+                        source_title: title,
+                        display_title: `${title} - Trajectory ${index + 1}`,
+                        isLoading: pseudotimeLoadingStates[title] || false
+                    });
                 });
-            });
-        }
-    });
+            }
+        });
 
-    // Add loading placeholders for datasets that are currently being loaded
-    Object.entries(pseudotimeLoadingStates).forEach(([title, isLoading]) => {
-        if (isLoading && !pseudotimeDataSets[title]) {
-            allPseudotimeData.push({
-                source_title: title,
-                display_title: `${title} - Loading...`,
-                isLoading: true,
-                isPlaceholder: true
-            });
-        }
-    });
+        // Add loading placeholders for datasets that are currently being loaded
+        Object.entries(pseudotimeLoadingStates).forEach(([title, isLoading]) => {
+            if (isLoading && !pseudotimeDataSets[title]) {
+                allPseudotimeData.push({
+                    source_title: title,
+                    display_title: `${title} - Loading...`,
+                    isLoading: true,
+                    isPlaceholder: true
+                });
+            }
+        });
+    } catch (error) {
+        console.error('Error processing pseudotime data:', error);
+        // Continue with empty data rather than breaking the component
+    }
 
     // Check if there's any global loading happening and no data exists yet
     const anyLoading = Object.values(pseudotimeLoadingStates).some(loading => loading);
     const hasNoData = Object.keys(pseudotimeDataSets).length === 0;
+
+    // If there's a component error, show error state
+    if (componentError) {
+        return (
+            <div style={{ 
+                textAlign: 'center', 
+                marginTop: '15%', 
+                color: '#ff4d4f',
+                padding: '20px'
+            }}>
+                <div style={{ fontSize: '16px', marginBottom: '10px' }}>Component Error</div>
+                <div style={{ fontSize: '12px', marginBottom: '10px' }}>{componentError.message}</div>
+                <Button 
+                    size="small" 
+                    onClick={() => setComponentError(null)}
+                    type="primary"
+                >
+                    Retry
+                </Button>
+            </div>
+        );
+    }
 
     // If allPseudotimeData is not an array or is empty, show loading or empty state
     if (anyLoading && hasNoData) {
@@ -243,104 +285,145 @@ export const PseudotimeGlyphComponent = ({
 
     const gapSize = 10; // gap in px
 
-    return (
-        <div style={{
-            padding: '10px',
-            width: '100%',
-            height: '100%',
-            boxSizing: 'border-box',
-            position: 'relative'
-        }}>
-            {/* Gene Selection Dropdown and Confirmation Button */}
+    // Wrap the entire render in error handling to prevent white screen
+    try {
+        return (
             <div style={{
-                position: 'absolute',
-                top: '10px',
-                right: '10px',
-                zIndex: 1000,
-                display: 'flex',
-                gap: '8px',
-                alignItems: 'center'
-            }}>
-                <Select
-                    placeholder="Select genes"
-                    value={selectedGenes}
-                    onChange={setSelectedGenes}
-                    style={{ width: '200px' }}
-                    size="small"
-                    options={selectOptions}
-                    mode="multiple"
-                    showSearch
-                    filterOption={(input, option) =>
-                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                    }
-                    maxTagCount="responsive"
-                />
-                <Button
-                    onClick={handleAnalyzeGeneExpression}
-                    disabled={selectedGlyphs.size === 0 || selectedGenes.length === 0 || isAnalyzing}
-                    loading={isAnalyzing}
-                    type="primary"
-                    size="small"
-                >
-                    Analyze
-                </Button>
-            </div>
-
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(${glyphsPerRow}, 1fr)`,
-                gridTemplateRows: `repeat(${numRows}, 1fr)`,
-                gap: `${gapSize}px`,
+                padding: '10px',
                 width: '100%',
-                height: `calc(100% - 30px)`,
-                justifyItems: 'center',
-                alignItems: 'center',
-                marginTop: '35px'
+                height: '100%',
+                boxSizing: 'border-box',
+                position: 'relative'
             }}>
-                {allPseudotimeData.map((trajectoryData, index) => (
-                    <div
-                        key={index}
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            minWidth: '200px',
-                            minHeight: '200px',
-                            textAlign: 'center'
-                        }}
+                {/* Gene Selection Dropdown and Confirmation Button */}
+                <div style={{
+                    position: 'absolute',
+                    top: '10px',
+                    right: '10px',
+                    zIndex: 1000,
+                    display: 'flex',
+                    gap: '8px',
+                    alignItems: 'center'
+                }}>
+                    <Select
+                        placeholder="Select genes"
+                        value={selectedGenes}
+                        onChange={setSelectedGenes}
+                        style={{ width: '200px' }}
+                        size="small"
+                        options={selectOptions}
+                        mode="multiple"
+                        showSearch
+                        filterOption={(input, option) =>
+                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                        }
+                        maxTagCount="responsive"
+                    />
+                    <Button
+                        onClick={handleAnalyzeGeneExpression}
+                        disabled={selectedGlyphs.size === 0 || selectedGenes.length === 0 || isAnalyzing}
+                        loading={isAnalyzing}
+                        type="primary"
+                        size="small"
                     >
-                        {trajectoryData.isPlaceholder ? (
-                            <div style={{
+                        Analyze
+                    </Button>
+                </div>
+
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${glyphsPerRow}, 1fr)`,
+                    gridTemplateRows: `repeat(${numRows}, 1fr)`,
+                    gap: `${gapSize}px`,
+                    width: '100%',
+                    height: `calc(100% - 30px)`,
+                    justifyItems: 'center',
+                    alignItems: 'center',
+                    marginTop: '35px'
+                }}>
+                    {allPseudotimeData.map((trajectoryData, index) => (
+                        <div
+                            key={index}
+                            style={{
                                 width: '100%',
                                 height: '100%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                border: '2px dashed #ccc',
-                                borderRadius: '8px',
-                                color: '#666',
-                                fontSize: '8px'
-                            }}>
-                                Loading {trajectoryData.source_title}...
-                            </div>
-                        ) : (
-                            (() => {
-                                const geneDataForGlyph = geneExpressionData.find(data => data.trajectory_id === index)?.gene_expression_data || null;
-                                console.log(`Glyph ${index}: Passing gene data:`, geneDataForGlyph);
-                                return (
-                                    <PseudotimeGlyph
-                                        adata_umap_title={trajectoryData.display_title || `${adata_umap_title} - Trajectory ${index + 1}`}
-                                        pseudotimeData={[trajectoryData]}
-                                        pseudotimeLoading={trajectoryData.isLoading}
-                                        isSelected={selectedGlyphs.has(index)}
-                                        onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
-                                        geneExpressionData={geneDataForGlyph}
-                                    />
-                                );
-                            })()
-                        )}
-                    </div>
-                ))}
+                                minWidth: '200px',
+                                minHeight: '200px',
+                                textAlign: 'center'
+                            }}
+                        >
+                            {trajectoryData.isPlaceholder ? (
+                                <div style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '2px dashed #ccc',
+                                    borderRadius: '8px',
+                                    color: '#666',
+                                    fontSize: '8px'
+                                }}>
+                                    Loading {trajectoryData.source_title}...
+                                </div>
+                            ) : (
+                                (() => {
+                                    try {
+                                        const geneDataForGlyph = geneExpressionData.find(data => data.trajectory_id === index)?.gene_expression_data || null;
+                                        return (
+                                            <PseudotimeGlyph
+                                                adata_umap_title={trajectoryData.display_title || `${adata_umap_title} - Trajectory ${index + 1}`}
+                                                pseudotimeData={[trajectoryData]}
+                                                pseudotimeLoading={trajectoryData.isLoading}
+                                                isSelected={selectedGlyphs.has(index)}
+                                                onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
+                                                geneExpressionData={geneDataForGlyph}
+                                            />
+                                        );
+                                    } catch (error) {
+                                        console.error(`Error rendering glyph ${index}:`, error);
+                                        return (
+                                            <div style={{
+                                                width: '100%',
+                                                height: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                border: '2px solid #ff4d4f',
+                                                borderRadius: '8px',
+                                                color: '#ff4d4f',
+                                                fontSize: '12px'
+                                            }}>
+                                                Error rendering glyph
+                                            </div>
+                                        );
+                                    }
+                                })()
+                            )}
+                        </div>
+                    ))}
+                </div>
             </div>
-        </div>
-    );
+        );
+    } catch (error) {
+        console.error('Critical component render error:', error);
+        return (
+            <div style={{ 
+                textAlign: 'center', 
+                marginTop: '15%', 
+                color: '#ff4d4f',
+                padding: '20px'
+            }}>
+                <div style={{ fontSize: '16px', marginBottom: '10px' }}>Component Render Error</div>
+                <div style={{ fontSize: '12px', marginBottom: '10px' }}>{error.message}</div>
+                <Button 
+                    size="small" 
+                    onClick={() => window.location.reload()}
+                    type="primary"
+                >
+                    Reload Page
+                </Button>
+            </div>
+        );
+    }
 };
