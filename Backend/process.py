@@ -23,6 +23,9 @@ Image.MAX_IMAGE_PIXELS = None
 # Global AnnData cache to avoid repeated loading
 ADATA_CACHE = {}
 
+# Global cache for processed trajectory data
+PROCESSED_ADATA_CACHE = {}
+
 JSON_PATH = "./samples_list.json"
 """
     Load sample list from a JSON file.
@@ -78,6 +81,15 @@ def clear_adata_cache():
     global ADATA_CACHE
     ADATA_CACHE.clear()
     print("AnnData cache cleared")
+
+
+def clear_processed_cache():
+    """
+    Clear the global processed trajectory cache to free memory.
+    """
+    global PROCESSED_ADATA_CACHE
+    PROCESSED_ADATA_CACHE.clear()
+    print("Processed trajectory cache cleared")
 
 
 def get_samples_option():
@@ -691,25 +703,25 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
             
             # Store the processed adata for gene expression analysis
             global PROCESSED_ADATA_CACHE
-            if 'PROCESSED_ADATA_CACHE' not in globals():
-                PROCESSED_ADATA_CACHE = {}
-            PROCESSED_ADATA_CACHE[f"{sample_id}_{adata_umap_title}"] = {
+            cache_key = f"{sample_id}_{adata_umap_title}"
+            PROCESSED_ADATA_CACHE[cache_key] = {
                 'adata': adata_with_slingshot,
                 'trajectory_analysis': merged_analysis,
                 'leiden_col': leiden_col
             }
+            print(f"Stored trajectory data in cache with key: {cache_key}")
             
             return trajectory_objects
             
         except Exception as e:
             print(f"Slingshot analysis failed: {e}")
             # Fallback to a simple trajectory based on cluster connectivity
-            return _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title)
+            return _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title, sample_id)
     else:
         raise ValueError(f"No gene expression data available for sample {sample_id}")
 
 
-def _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title):
+def _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title, sample_id):
     """
     Fallback trajectory analysis when Slingshot fails.
     """
@@ -721,6 +733,26 @@ def _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title):
         'pseudotimes': [f'{i/(len(clusters)-1):.3f}' if len(clusters) > 1 else '0.000' 
                        for i in range(len(clusters))]
     }
+    
+    # Create a simple trajectory analysis structure for caching
+    fallback_analysis = {
+        'lineage_1': {
+            'clusters_involved': clusters,
+            'transition_path': clusters,
+            'total_cells': adata.n_obs,
+            'valid_clusters_count': len(clusters)
+        }
+    }
+    
+    # Store the processed adata for gene expression analysis
+    global PROCESSED_ADATA_CACHE
+    cache_key = f"{sample_id}_{adata_umap_title}"
+    PROCESSED_ADATA_CACHE[cache_key] = {
+        'adata': adata,
+        'trajectory_analysis': fallback_analysis,
+        'leiden_col': leiden_col
+    }
+    print(f"Stored fallback trajectory data in cache with key: {cache_key}")
     
     return [trajectory_obj]
 
@@ -740,8 +772,9 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
     """
     # Check if we have cached processed data
     cache_key = f"{sample_id}_{adata_umap_title}"
-    if 'PROCESSED_ADATA_CACHE' not in globals() or cache_key not in PROCESSED_ADATA_CACHE:
-        raise ValueError("No cached trajectory data found. Please run get_pseudotime_data first.")
+
+    if cache_key not in PROCESSED_ADATA_CACHE:
+        raise ValueError(f"No cached trajectory data found for key '{cache_key}'. Please run get_pseudotime_data first. Available keys: {list(PROCESSED_ADATA_CACHE.keys())}")
     
     cached_data = PROCESSED_ADATA_CACHE[cache_key]
     adata = cached_data['adata']
