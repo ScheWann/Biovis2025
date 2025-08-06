@@ -56,6 +56,7 @@ const PseudotimeGlyph = ({
     // sampleId,
     source_title
 }) => {
+    console.log(source_title, "source_title in PseudotimeGlyph");
     const containerRef = useRef();
     const svgRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 300, height: 300 });
@@ -249,14 +250,14 @@ const PseudotimeGlyph = ({
         createTopSection(g, geneExpressionData, centerX, centerY, axisLength, maxPseudotime, tooltip);
 
         // Add title
-        // svg.append("text")
-        //     .attr("x", width / 2)
-        //     .attr("y", 20)
-        //     .attr("text-anchor", "middle")
-        //     .attr("font-size", "14px")
-        //     .attr("font-weight", "bold")
-        //     .attr("fill", "#333")
-        //     .text(adata_umap_title);
+        svg.append("text")
+            .attr("x", width / 2)
+            .attr("y", 20)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("font-weight", "bold")
+            .attr("fill", "#333")
+            .text(adata_umap_title);
     };
 
     const createBottomSection = (g, trajectoryData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory) => {

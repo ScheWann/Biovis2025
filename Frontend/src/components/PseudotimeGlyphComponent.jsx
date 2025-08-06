@@ -10,6 +10,7 @@ export const PseudotimeGlyphComponent = ({
     clusterColorMappings,
     hoveredTrajectory,
     setHoveredTrajectory,
+    umapDataSets,
 }) => {
     // State for tracking selected glyphs
     const [selectedGlyphs, setSelectedGlyphs] = useState(new Set());
@@ -230,6 +231,20 @@ export const PseudotimeGlyphComponent = ({
         Object.entries(pseudotimeDataSets).forEach(([title, dataArray]) => {
             if (Array.isArray(dataArray)) {
                 dataArray.forEach((trajectoryData, index) => {
+                    // Find the corresponding UMAP dataset title
+                    let displayTitle = title;
+                    
+                    // Look for matching UMAP dataset by adata_umap_title
+                    if (umapDataSets && Array.isArray(umapDataSets)) {
+                        const matchingUmapDataset = umapDataSets.find(dataset => 
+                            dataset.adata_umap_title === title || dataset.title === title
+                        );
+                        
+                        if (matchingUmapDataset) {
+                            displayTitle = matchingUmapDataset.title;
+                        }
+                    }
+                    
                     // Ensure sampleId is set - try multiple fallback strategies
                     let sampleId = trajectoryData.sampleId;
                     
@@ -253,7 +268,7 @@ export const PseudotimeGlyphComponent = ({
                     allPseudotimeData.push({
                         ...trajectoryData,
                         source_title: title,
-                        display_title: `${title} - Trajectory ${index + 1}`,
+                        display_title: `${displayTitle} - Trajectory ${index + 1}`,
                         isLoading: pseudotimeLoadingStates[title] || false
                     });
                 });
@@ -263,9 +278,21 @@ export const PseudotimeGlyphComponent = ({
         // Add loading placeholders for datasets that are currently being loaded
         Object.entries(pseudotimeLoadingStates).forEach(([title, isLoading]) => {
             if (isLoading && !pseudotimeDataSets[title]) {
+                // Find the corresponding UMAP dataset title for loading placeholder
+                let displayTitle = title;
+                if (umapDataSets && Array.isArray(umapDataSets)) {
+                    const matchingUmapDataset = umapDataSets.find(dataset => 
+                        dataset.adata_umap_title === title || dataset.title === title
+                    );
+                    
+                    if (matchingUmapDataset) {
+                        displayTitle = matchingUmapDataset.title;
+                    }
+                }
+                
                 allPseudotimeData.push({
                     source_title: title,
-                    display_title: `${title} - Loading...`,
+                    display_title: `${displayTitle} - Loading...`,
                     isLoading: true,
                     isPlaceholder: true
                 });
@@ -435,7 +462,7 @@ export const PseudotimeGlyphComponent = ({
 
                                         return (
                                             <PseudotimeGlyph
-                                                adata_umap_title={trajectoryData.display_title || `${adata_umap_title} - Trajectory ${index + 1}`}
+                                                adata_umap_title={trajectoryData.display_title}
                                                 pseudotimeData={[trajectoryData]}
                                                 pseudotimeLoading={trajectoryData.isLoading}
                                                 isSelected={selectedGlyphs.has(index)}
@@ -445,7 +472,6 @@ export const PseudotimeGlyphComponent = ({
                                                 hoveredTrajectory={hoveredTrajectory}
                                                 setHoveredTrajectory={setHoveredTrajectory}
                                                 trajectoryIndex={index}
-                                                // sampleId={trajectoryData.sampleId}
                                                 source_title={trajectoryData.source_title || adata_umap_title}
                                             />
                                         );
