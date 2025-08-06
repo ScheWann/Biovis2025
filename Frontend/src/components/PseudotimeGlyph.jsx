@@ -7,7 +7,8 @@ const PseudotimeGlyph = ({
     pseudotimeData,
     pseudotimeLoading,
     isSelected = false,
-    onSelectionChange
+    onSelectionChange,
+    geneExpressionData = null
 }) => {
     const containerRef = useRef();
     const svgRef = useRef(null);
@@ -48,7 +49,7 @@ const PseudotimeGlyph = ({
         if (pseudotimeData && pseudotimeData.length > 0 && dimensions.width > 0 && dimensions.height > 0) {
             createGlyph(pseudotimeData);
         }
-    }, [pseudotimeData, dimensions]);
+    }, [pseudotimeData, dimensions, geneExpressionData]);
 
     // Cleanup tooltip on unmount
     useEffect(() => {
@@ -137,7 +138,7 @@ const PseudotimeGlyph = ({
         createBottomSection(g, dataToUse, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory);
 
         // Create top section - gene expression gauge
-        createTopSection(g, null, centerX, centerY, axisLength, maxPseudotime, tooltip);
+        createTopSection(g, geneExpressionData, centerX, centerY, axisLength, maxPseudotime, tooltip);
 
         // Add title
         // svg.append("text")
@@ -521,15 +522,41 @@ const PseudotimeGlyph = ({
     };
 
     const createTopSection = (g, geneData, centerX, centerY, axisLength, maxPseudotime, tooltip) => {
-        const topSection = g.append("g").attr("class", "top-section");
         const maxRadius = axisLength / 2 - 15;
+        const topSection = g.append("g").attr("class", "top-section");
 
-        // Mock gene expression data if not provided
-        const mockGeneData = geneData || [
-            { gene: "SOX2", timePoints: [0.0, 0.4, 0.7, 1.0], expressions: [0.8, 0.6, 0.3, 0.2] },
-            { gene: "NANOG", timePoints: [0.1, 0.4, 0.7, 1.0], expressions: [0.2, 0.5, 0.8, 0.9] },
-            { gene: "OCT4", timePoints: [0.0, 0.3, 0.6, 1.0], expressions: [0.9, 0.7, 0.4, 0.1] }
-        ];
+        // Add concentric circles for time progression using trajectory data time range
+        // These should always be shown as a time reference
+        const trajectoryMaxTime = maxPseudotime;
+        const numTimeCircles = 4;
+        for (let i = 1; i <= numTimeCircles; i++) {
+            const time = (i / numTimeCircles) * trajectoryMaxTime;
+            const radius = 8 + (time / trajectoryMaxTime) * (maxRadius - 8);
+
+            // Draw complete circles
+            topSection.append("circle")
+                .attr("cx", centerX)
+                .attr("cy", centerY)
+                .attr("r", radius)
+                .attr("fill", "none")
+                .attr("stroke", "black")
+                .attr("stroke-width", 1)
+                .attr("opacity", 0.2);
+
+            // Add time labels at the top of each circle
+            topSection.append("text")
+                .attr("x", centerX)
+                .attr("y", centerY - radius - 5)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "8px")
+                .attr("fill", "#666")
+                .text(`t${time.toFixed(1)}`);
+        }
+
+        // Only proceed with gene expression specific elements if data is provided
+        if (!geneData || !Array.isArray(geneData) || geneData.length === 0) {
+            return;
+        }
 
         // Draw upper semicircle background for gene expression area
         // Time point scale (radial distance represents time progression)
@@ -547,7 +574,7 @@ const PseudotimeGlyph = ({
         // Gene colors
         const geneColors = ['#ff6b6b', '#4ecdc4', '#45b7d1'];
 
-        mockGeneData.forEach((geneInfo, geneIndex) => {
+        geneData.forEach((geneInfo, geneIndex) => {
             const color = geneColors[geneIndex % geneColors.length];
 
             // Create expression points where angular position is determined by expression level
@@ -644,33 +671,6 @@ const PseudotimeGlyph = ({
             });
         });
 
-        // Add concentric circles for time progression using trajectory data time range
-        const trajectoryMaxTime = maxPseudotime; // Use the maxPseudotime calculated from trajectory data
-        const numTimeCircles = 4;
-        for (let i = 1; i <= numTimeCircles; i++) {
-            const time = (i / numTimeCircles) * trajectoryMaxTime;
-            const radius = 8 + (time / trajectoryMaxTime) * (maxRadius - 8); // Scale radius from time 0 circle edge to maxRadius
-
-            // Draw complete circles instead of semicircles
-            topSection.append("circle")
-                .attr("cx", centerX)
-                .attr("cy", centerY)
-                .attr("r", radius)
-                .attr("fill", "none")
-                .attr("stroke", "black")
-                .attr("stroke-width", 1)
-                .attr("opacity", 0.2);
-
-            // Add time labels at the top of each circle
-            topSection.append("text")
-                .attr("x", centerX)
-                .attr("y", centerY - radius - 5)
-                .attr("text-anchor", "middle")
-                .attr("font-size", "8px")
-                .attr("fill", "#666")
-                .text(`t${time.toFixed(1)}`);
-        }
-
         // Add expression level indicators for upper semicircle
         topSection.append("text")
             .attr("x", centerX - maxRadius * 0.7)
@@ -687,7 +687,7 @@ const PseudotimeGlyph = ({
             .attr("font-size", "10px")
             .attr("fill", "#666")
             .text("High Expr");
-    };
+    }
 
     const drawStar = (parent, cx, cy, radius, color, opacity = 0.9) => {
         const starPoints = 5;
