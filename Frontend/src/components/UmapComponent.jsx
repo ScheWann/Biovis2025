@@ -13,7 +13,8 @@ export const UmapComponent = ({
   setCellName,
   setPseudotimeDataSets,
   setPseudotimeLoadingStates,
-  setClusterColorMappings
+  setClusterColorMappings,
+  hoveredTrajectory
 }) => {
   return (
     <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -50,6 +51,7 @@ export const UmapComponent = ({
           setPseudotimeDataSets={setPseudotimeDataSets}
           setPseudotimeLoadingStates={setPseudotimeLoadingStates}
           setClusterColorMappings={setClusterColorMappings}
+          hoveredTrajectory={hoveredTrajectory}
         />
       ) : null}
     </div>

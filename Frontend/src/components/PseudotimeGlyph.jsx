@@ -9,7 +9,11 @@ const PseudotimeGlyph = ({
     isSelected = false,
     onSelectionChange,
     geneExpressionData = null,
-    clusterColors = null
+    clusterColors = null,
+    setHoveredTrajectory,
+    trajectoryIndex,
+    // sampleId,
+    source_title
 }) => {
     const containerRef = useRef();
     const svgRef = useRef(null);
@@ -532,6 +536,17 @@ const PseudotimeGlyph = ({
                             `${cluster} (t=${parseFloat(trajectory.pseudotimes[idx]).toFixed(2)})`
                         ).join(' → ');
 
+                        // Emit trajectory hover event to parent components
+                        if (trajectory && source_title) {
+                            setHoveredTrajectory({
+                                path: trajectory.path,
+                                adata_umap_title: source_title,
+                                // sampleId: sampleId,
+                                pseudotimes: trajectory.pseudotimes,
+                                trajectoryIndex: trajectoryIndex
+                            });
+                        }
+
                         tooltip.style("visibility", "visible")
                             .html(`
                                 <div><strong>Trajectory ${edge.trajectory + 1}</strong></div>
@@ -549,6 +564,9 @@ const PseudotimeGlyph = ({
                             .attr("stroke-width", strokeWidth)
                             .attr("opacity", opacity);
                         tooltip.style("visibility", "hidden");
+
+                        // Clear trajectory hover event
+                        setHoveredTrajectory(null);
                     });
             }
         });

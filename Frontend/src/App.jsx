@@ -46,6 +46,9 @@ function App() {
   // Cell Name state
   const [cellName, setCellName] = useState(null);
 
+  // Trajectory hover state
+  const [hoveredTrajectory, setHoveredTrajectory] = useState(null); // {path: ['Cluster 1', 'Cluster 2', ...], adata_umap_title: string, sampleId: string}
+
   useEffect(() => {
     fetchSamplesOption();
     
@@ -417,6 +420,7 @@ function App() {
                                     setPseudotimeDataSets={setPseudotimeDataSets}
                                     setPseudotimeLoadingStates={setPseudotimeLoadingStates}
                                     setClusterColorMappings={setClusterColorMappings}
+                                    hoveredTrajectory={hoveredTrajectory}
                                   />
                                 </div>
                               );
@@ -432,6 +436,8 @@ function App() {
                             pseudotimeDataSets={pseudotimeDataSets}
                             pseudotimeLoadingStates={pseudotimeLoadingStates}
                             clusterColorMappings={clusterColorMappings}
+                            hoveredTrajectory={hoveredTrajectory}
+                            setHoveredTrajectory={setHoveredTrajectory}
                           />
                     </Splitter.Panel>
                   </Splitter>

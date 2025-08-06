@@ -8,6 +8,8 @@ export const PseudotimeGlyphComponent = ({
     pseudotimeLoadingStates,
     relatedSampleIds,
     clusterColorMappings,
+    hoveredTrajectory,
+    setHoveredTrajectory,
 }) => {
     // State for tracking selected glyphs
     const [selectedGlyphs, setSelectedGlyphs] = useState(new Set());
@@ -188,7 +190,6 @@ export const PseudotimeGlyphComponent = ({
             
             // Only update state if we have successful results
             if (analysisResults.length > 0) {
-                console.log(`Successfully processed ${analysisResults.length} gene expression analysis results`);
                 setGeneExpressionData(analysisResults);
             } else {
                 console.warn('No gene expression data was successfully retrieved');
@@ -208,6 +209,26 @@ export const PseudotimeGlyphComponent = ({
         Object.entries(pseudotimeDataSets).forEach(([title, dataArray]) => {
             if (Array.isArray(dataArray)) {
                 dataArray.forEach((trajectoryData, index) => {
+                    // Ensure sampleId is set - try multiple fallback strategies
+                    let sampleId = trajectoryData.sampleId;
+                    
+                    // First fallback: try relatedSampleIds
+                    if (!sampleId && relatedSampleIds.length > 0) {
+                        sampleId = relatedSampleIds[0];
+                    }
+                    
+                    // Second fallback: try to extract from title (format: prefix_sampleId_suffix)
+                    if (!sampleId) {
+                        const titleToCheck = title || adata_umap_title;
+                        if (titleToCheck && typeof titleToCheck === 'string') {
+                            // Look for patterns like skin_TXK6Z4X_A1 or similar
+                            const match = titleToCheck.match(/(skin_[A-Z0-9]+_[A-Z0-9]+)/);
+                            if (match) {
+                                sampleId = match[1];
+                            }
+                        }
+                    }
+                    
                     allPseudotimeData.push({
                         ...trajectoryData,
                         source_title: title,
@@ -390,7 +411,7 @@ export const PseudotimeGlyphComponent = ({
                                                 clusterColors = clusterColorMappings[keyWithSample]?.clusters;
                                             }
                                         }
-                                        
+
                                         return (
                                             <PseudotimeGlyph
                                                 adata_umap_title={trajectoryData.display_title || `${adata_umap_title} - Trajectory ${index + 1}`}
@@ -400,6 +421,11 @@ export const PseudotimeGlyphComponent = ({
                                                 onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
                                                 geneExpressionData={geneDataForGlyph}
                                                 clusterColors={clusterColors}
+                                                hoveredTrajectory={hoveredTrajectory}
+                                                setHoveredTrajectory={setHoveredTrajectory}
+                                                trajectoryIndex={index}
+                                                // sampleId={trajectoryData.sampleId}
+                                                source_title={trajectoryData.source_title || adata_umap_title}
                                             />
                                         );
                                     } catch (error) {

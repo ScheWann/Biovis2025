@@ -20,7 +20,8 @@ export const ScatterplotUmap = ({
   setCellName,
   setPseudotimeDataSets,
   setPseudotimeLoadingStates,
-  setClusterColorMappings 
+  setClusterColorMappings,
+  hoveredTrajectory
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -429,6 +430,137 @@ export const ScatterplotUmap = ({
           !hoveredCluster || hoveredCluster.cluster === cl ? 1 : 0.3
         );
     });
+
+    // Trajectory visualization - draw stars and arrows when trajectory is hovered
+    if (hoveredTrajectory && 
+        hoveredTrajectory.adata_umap_title === adata_umap_title && 
+        hoveredTrajectory.path && 
+        hoveredTrajectory.path.length > 1) {
+
+      // Calculate cluster centers
+      const clusterCenters = new Map();
+      clusters.forEach(cluster => {
+        const clusterPoints = data.filter(d => clusterAccessor(d) === cluster);
+
+        if (clusterPoints.length > 0) {
+          const centerX = d3.mean(clusterPoints, xAccessor);
+          const centerY = d3.mean(clusterPoints, yAccessor);
+          clusterCenters.set(cluster, { 
+            x: xScale(centerX), 
+            y: yScale(centerY) 
+          });
+        }
+      });
+
+      // Create trajectory group
+      const trajectoryGroup = g.append("g").attr("class", "trajectory-visualization");
+
+      // Draw stars at cluster centers for clusters in the trajectory path
+      hoveredTrajectory.path.forEach((clusterId, index) => {
+        // Convert numeric cluster ID to "Cluster X" format to match UMAP data
+        const clusterName = `Cluster ${clusterId}`;
+        const center = clusterCenters.get(clusterName);
+
+        if (center) {
+          // Draw star shape
+          const starPoints = [];
+          const outerRadius = 12;
+          const innerRadius = 6;
+          const numPoints = 5;
+          
+          for (let i = 0; i < numPoints * 2; i++) {
+            const angle = (i * Math.PI) / numPoints;
+            const radius = i % 2 === 0 ? outerRadius : innerRadius;
+            const x = center.x + Math.cos(angle - Math.PI/2) * radius;
+            const y = center.y + Math.sin(angle - Math.PI/2) * radius;
+            starPoints.push([x, y]);
+          }
+
+          trajectoryGroup
+            .append("polygon")
+            .attr("points", starPoints.map(p => p.join(",")).join(" "))
+            .attr("fill", "#FFD700")
+            .attr("stroke", "#FFA500")
+            .attr("stroke-width", 2)
+            .attr("opacity", 0.9)
+            .style("filter", "drop-shadow(2px 2px 4px rgba(0,0,0,0.3))")
+            .style("z-index", 100000)
+            ;
+
+          // Add cluster label on the star
+          trajectoryGroup
+            .append("text")
+            .attr("x", center.x)
+            .attr("y", center.y + 4)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "10px")
+            .attr("font-weight", "bold")
+            .attr("fill", "#333")
+            .text(index + 1); // Show trajectory order number
+        }
+      });
+
+      // Draw arrows between consecutive clusters in the trajectory
+      for (let i = 0; i < hoveredTrajectory.path.length - 1; i++) {
+        const fromClusterId = hoveredTrajectory.path[i];
+        const toClusterId = hoveredTrajectory.path[i + 1];
+        // Convert numeric cluster IDs to "Cluster X" format
+        const fromClusterName = `Cluster ${fromClusterId}`;
+        const toClusterName = `Cluster ${toClusterId}`;
+        const fromCenter = clusterCenters.get(fromClusterName);
+        const toCenter = clusterCenters.get(toClusterName);
+
+        if (fromCenter && toCenter) {
+          // Calculate arrow direction
+          const dx = toCenter.x - fromCenter.x;
+          const dy = toCenter.y - fromCenter.y;
+          const length = Math.sqrt(dx * dx + dy * dy);
+          
+          if (length > 24) { // Only draw arrow if clusters are far enough apart
+            const unitX = dx / length;
+            const unitY = dy / length;
+            
+            // Adjust start and end points to avoid overlapping with stars
+            const startX = fromCenter.x + unitX * 15;
+            const startY = fromCenter.y + unitY * 15;
+            const endX = toCenter.x - unitX * 15;
+            const endY = toCenter.y - unitY * 15;
+
+            // Draw arrow line
+            trajectoryGroup
+              .append("line")
+              .attr("x1", startX)
+              .attr("y1", startY)
+              .attr("x2", endX)
+              .attr("y2", endY)
+              .attr("stroke", "#FF6B35")
+              .attr("stroke-width", 4)
+              .attr("opacity", 0.8)
+              .attr("marker-end", "url(#arrowhead)");
+
+            // Create arrowhead marker if it doesn't exist
+            let defs = svg.select("defs");
+            if (defs.empty()) {
+              defs = svg.append("defs");
+            }
+            
+            if (defs.select("#arrowhead").empty()) {
+              defs.append("marker")
+                .attr("id", "arrowhead")
+                .attr("viewBox", "0 -5 10 10")
+                .attr("refX", 8)
+                .attr("refY", 0)
+                .attr("markerWidth", 6)
+                .attr("markerHeight", 6)
+                .attr("orient", "auto")
+                .append("path")
+                .attr("d", "M0,-5L10,0L0,5")
+                .attr("fill", "#FF6B35");
+            }
+          }
+        }
+      }
+    }
   }, [
     data,
     dimensions,
@@ -439,6 +571,9 @@ export const ScatterplotUmap = ({
     title,
     margin,
     hoveredCluster,
+    hoveredTrajectory,
+    adata_umap_title,
+    sampleId,
   ]);
 
   return (
