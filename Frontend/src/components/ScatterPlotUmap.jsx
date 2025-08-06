@@ -67,11 +67,8 @@ export const ScatterplotUmap = ({
   const fetchPseudotimeData = async ( sampleId, cellIds ) => {
     // Check if data for this adata_umap_title already exists
     if (pseudotimeDataSetsRef.current[adata_umap_title]) {
-      console.log(`Pseudotime data for "${adata_umap_title}" already exists - skipping fetch`);
       return pseudotimeDataSetsRef.current[adata_umap_title];
     }
-
-    console.log(`Fetching new pseudotime data for "${adata_umap_title}"`);
 
     // Parse parameters from adata_umap_title
     // Format: ${formattedName}_${sampleId}_${editNeighbors}_${editNPcas}_${editResolutions}
@@ -340,7 +337,6 @@ export const ScatterplotUmap = ({
         const cellIds = currentCellIds.length > 0 
           ? currentCellIds 
           : data.map(d => d.id || d.cell_id).filter(Boolean);
-        console.log(cellIds, "cellIds for pseudotime analysis");
         fetchPseudotimeData(sampleId, cellIds);
       });
 

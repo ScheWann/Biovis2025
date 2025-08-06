@@ -99,15 +99,7 @@ export const PseudotimeGlyphComponent = ({
             newSelected.delete(glyphIndex);
         }
         setSelectedGlyphs(newSelected);
-        console.log('Selected glyphs:', Array.from(newSelected));
     };
-    
-    // Debug selected genes changes
-    useEffect(() => {
-        if (selectedGenes.length > 0) {
-            console.log('Selected genes:', selectedGenes);
-        }
-    }, [selectedGenes]);
     
     // Handle confirmation button click
     const handleAnalyzeGeneExpression = async () => {
@@ -187,15 +179,6 @@ export const PseudotimeGlyphComponent = ({
             }
             
             setGeneExpressionData(analysisResults);
-
-            // Show success message with the results
-            if (analysisResults.length > 0) {
-                console.log(`Successfully analyzed ${analysisResults.length} trajectory(ies) for genes ${geneNames.join(', ')}`);
-                // The results are now stored in geneExpressionData state and logged to console
-                // Each result has the structure: { sample_id, genes, adata_umap_title, trajectory_id, trajectory_path, gene_expression_data }
-                // where gene_expression_data contains: [{ gene: "SOX2", timePoints: [0.0, 0.4, 0.7, 1.0], expressions: [0.8, 0.6, 0.3, 0.2] }, ...]
-            }
-            
         } catch (error) {
             console.error('Error during gene expression analysis:', error);
         } finally {
@@ -340,13 +323,20 @@ export const PseudotimeGlyphComponent = ({
                                 Loading {trajectoryData.source_title}...
                             </div>
                         ) : (
-                            <PseudotimeGlyph
-                                adata_umap_title={trajectoryData.display_title || `${adata_umap_title} - Trajectory ${index + 1}`}
-                                pseudotimeData={[trajectoryData]}
-                                pseudotimeLoading={trajectoryData.isLoading}
-                                isSelected={selectedGlyphs.has(index)}
-                                onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
-                            />
+                            (() => {
+                                const geneDataForGlyph = geneExpressionData.find(data => data.trajectory_id === index)?.gene_expression_data || null;
+                                console.log(`Glyph ${index}: Passing gene data:`, geneDataForGlyph);
+                                return (
+                                    <PseudotimeGlyph
+                                        adata_umap_title={trajectoryData.display_title || `${adata_umap_title} - Trajectory ${index + 1}`}
+                                        pseudotimeData={[trajectoryData]}
+                                        pseudotimeLoading={trajectoryData.isLoading}
+                                        isSelected={selectedGlyphs.has(index)}
+                                        onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
+                                        geneExpressionData={geneDataForGlyph}
+                                    />
+                                );
+                            })()
                         )}
                     </div>
                 ))}
