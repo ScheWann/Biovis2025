@@ -1,6 +1,47 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import { Empty, Spin, Checkbox } from 'antd';
+
+// Custom hook for debounced trajectory hovering
+const useDebounceTrajectoryHover = (setHoveredTrajectory, delay = 100) => {
+    const timeoutRef = useRef();
+    const lastHoverRef = useRef(null);
+    
+    const debouncedSetHover = useCallback((trajectoryData) => {
+        // Check if the trajectory data is the same to avoid unnecessary updates
+        const currentKey = trajectoryData ? `${trajectoryData.adata_umap_title}_${JSON.stringify(trajectoryData.path)}_${trajectoryData.trajectoryIndex}` : null;
+        const lastKey = lastHoverRef.current ? `${lastHoverRef.current.adata_umap_title}_${JSON.stringify(lastHoverRef.current.path)}_${lastHoverRef.current.trajectoryIndex}` : null;
+        
+        if (currentKey === lastKey) {
+            return; // Same trajectory, no need to update
+        }
+        
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+            setHoveredTrajectory(trajectoryData);
+            lastHoverRef.current = trajectoryData;
+        }, delay);
+    }, [setHoveredTrajectory, delay]);
+    
+    const clearHover = useCallback(() => {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+            setHoveredTrajectory(null);
+            lastHoverRef.current = null;
+        }, 50); // Shorter delay for clearing
+    }, [setHoveredTrajectory]);
+    
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
+    
+    return { debouncedSetHover, clearHover };
+};
 
 const PseudotimeGlyph = ({
     adata_umap_title,
@@ -19,6 +60,9 @@ const PseudotimeGlyph = ({
     const svgRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 300, height: 300 });
     const [selectedTrajectory, setSelectedTrajectory] = useState(null);
+    
+    // Use the debounced hover hook
+    const { debouncedSetHover, clearHover } = useDebounceTrajectoryHover(setHoveredTrajectory);
     
     // Generate a unique ID for this component instance
     const [componentId] = useState(() => `pseudotime-glyph-${Math.random().toString(36).substr(2, 9)}`);
@@ -536,15 +580,17 @@ const PseudotimeGlyph = ({
                             `${cluster} (t=${parseFloat(trajectory.pseudotimes[idx]).toFixed(2)})`
                         ).join(' → ');
 
-                        // Emit trajectory hover event to parent components
+                        // Emit trajectory hover event to parent components with debouncing
                         if (trajectory && source_title) {
-                            setHoveredTrajectory({
+                            const currentTrajectory = {
                                 path: trajectory.path,
                                 adata_umap_title: source_title,
                                 // sampleId: sampleId,
                                 pseudotimes: trajectory.pseudotimes,
                                 trajectoryIndex: trajectoryIndex
-                            });
+                            };
+                            
+                            debouncedSetHover(currentTrajectory);
                         }
 
                         tooltip.style("visibility", "visible")
@@ -565,8 +611,8 @@ const PseudotimeGlyph = ({
                             .attr("opacity", opacity);
                         tooltip.style("visibility", "hidden");
 
-                        // Clear trajectory hover event
-                        setHoveredTrajectory(null);
+                        // Clear trajectory hover event with debouncing
+                        clearHover();
                     });
             }
         });

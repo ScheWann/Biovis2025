@@ -226,6 +226,13 @@ export const ScatterplotUmap = ({
 
     // Group data by cluster and compute hulls
     const clusterGroups = d3.group(data, clusterAccessor);
+    
+    // Check if trajectory is being hovered for this UMAP
+    const isTrajectoryHovered = hoveredTrajectory && 
+        hoveredTrajectory.adata_umap_title === adata_umap_title && 
+        hoveredTrajectory.path && 
+        hoveredTrajectory.path.length > 1;
+    
     clusterGroups.forEach((points, cluster) => {
       if (points.length < 3) return;
 
@@ -236,7 +243,7 @@ export const ScatterplotUmap = ({
 
       const hull = d3.polygonHull(coords);
 
-      if (hull && hull.length >= 3) {
+      if (hull && hull.length >= 3 && !isTrajectoryHovered) {
         // Create path for the hull with smoother curves
         const line = d3
           .line()
@@ -253,7 +260,7 @@ export const ScatterplotUmap = ({
           .attr("stroke-width", hoveredCluster?.cluster === cluster ? 3.5 : 2.5)
           .attr(
             "stroke-opacity",
-            hoveredCluster?.cluster === cluster ? 0.8 : 0.6
+            hoveredCluster?.cluster === cluster ? 0.8 : 0.3
           )
           .style("cursor", "pointer")
           .style("pointer-events", "visibleFill")
@@ -466,7 +473,7 @@ export const ScatterplotUmap = ({
           const starPoints = [];
           const outerRadius = 12;
           const innerRadius = 6;
-          const numPoints = 5;
+          const numPoints = 2;
           
           for (let i = 0; i < numPoints * 2; i++) {
             const angle = (i * Math.PI) / numPoints;
@@ -479,13 +486,10 @@ export const ScatterplotUmap = ({
           trajectoryGroup
             .append("polygon")
             .attr("points", starPoints.map(p => p.join(",")).join(" "))
-            .attr("fill", "#FFD700")
-            // .attr("stroke", "#FFA500")
-            .attr("stroke-width", 2)
-            .attr("opacity", 0.9)
-            .style("filter", "drop-shadow(2px 2px 4px rgba(0,0,0,0.3))")
-            .style("z-index", 100000)
-            ;
+            .attr("fill", "#4F46E5")
+            .attr("stroke", "#312E81")
+            .attr("stroke-width", 1)
+            .attr("opacity", 0.95);
 
           // Add cluster label on the star
           trajectoryGroup
@@ -495,7 +499,10 @@ export const ScatterplotUmap = ({
             .attr("text-anchor", "middle")
             .attr("font-size", "10px")
             .attr("font-weight", "bold")
-            .attr("fill", "#333")
+            .attr("fill", "#FFFFFF")
+            .attr("stroke", "#312E81")
+            .attr("stroke-width", "0.5")
+            .style("paint-order", "stroke")
             .text(index + 1); // Show trajectory order number
         }
       });
@@ -533,9 +540,9 @@ export const ScatterplotUmap = ({
               .attr("y1", startY)
               .attr("x2", endX)
               .attr("y2", endY)
-              .attr("stroke", "#FF6B35")
-              .attr("stroke-width", 4)
-              .attr("opacity", 0.8)
+              .attr("stroke", "#6366F1")
+              .attr("stroke-width", 3)
+              .attr("opacity", 0.9)
               .attr("marker-end", "url(#arrowhead)");
 
             // Create arrowhead marker if it doesn't exist
@@ -547,15 +554,16 @@ export const ScatterplotUmap = ({
             if (defs.select("#arrowhead").empty()) {
               defs.append("marker")
                 .attr("id", "arrowhead")
-                .attr("viewBox", "0 -5 10 10")
-                .attr("refX", 8)
+                .attr("viewBox", "0 -2 4 4")
+                .attr("refX", 3)
                 .attr("refY", 0)
-                .attr("markerWidth", 6)
-                .attr("markerHeight", 6)
+                .attr("markerWidth", 3)
+                .attr("markerHeight", 3)
                 .attr("orient", "auto")
                 .append("path")
-                .attr("d", "M0,-5L10,0L0,5")
-                .attr("fill", "#FF6B35");
+                .attr("d", "M0,-2L4,0L0,2")
+                .attr("fill", "#4F46E5")
+                .style("filter", "drop-shadow(1px 1px 2px rgba(79, 70, 229, 0.4))");
             }
           }
         }
