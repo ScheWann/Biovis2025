@@ -655,7 +655,7 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
                     
                     # Get the trajectory number
                     traj_num = traj_key.split("_")[-1] if "_" in traj_key else traj_key
-                    pseudotime_col = f"slingshot_pseudotime_{traj_num}"
+                    pseudotime_col = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
                     
                     # Calculate pseudotime for each cluster in the path
                     path_pseudotimes = []
@@ -790,7 +790,7 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
     
     # Get the trajectory number for pseudotime column
     traj_num = matching_trajectory.split("_")[-1] if "_" in matching_trajectory else matching_trajectory
-    pseudotime_col = f"slingshot_pseudotime_{traj_num}"
+    pseudotime_col = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
     
     if pseudotime_col not in adata.obs.columns:
         raise ValueError(f"Pseudotime data not found for trajectory {traj_num}")
@@ -799,7 +799,9 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
     gene_results = analyze_gene_expression_along_trajectories(
         adata, 
         available_genes, 
-        {matching_trajectory: trajectory_analysis[matching_trajectory]}
+        {matching_trajectory: trajectory_analysis[matching_trajectory]},
+        use_merged=True,
+        embedding_key=f"X_umap_{adata_umap_title}"
     )
     
     # Convert to the expected format
