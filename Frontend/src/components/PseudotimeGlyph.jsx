@@ -515,10 +515,8 @@ const PseudotimeGlyph = ({
                             //     <div><em>Click to ${selectedTrajectory === edge.trajectory ? 'deselect' : 'select'} this trajectory</em></div>
                             // `);
                             .html(`
-                                <div><strong>Cell State Transition</strong></div>
                                 <div>From: Cluster ${fromCluster} (t=${fromTime})</div>
                                 <div>To: Cluster ${toCluster} (t=${toTime})</div>
-                                <div>Trajectory: ${edge.trajectory + 1}</div>
                             `);
                         positionTooltip(event, tooltip);
                     })
@@ -687,7 +685,6 @@ const PseudotimeGlyph = ({
                                 <div>Time span: ${timeSpan}</div>
                                 <div>Expression range: ${minExpression.toFixed(2)} - ${maxExpression.toFixed(2)}</div>
                                 <div>Average expression: ${avgExpression}</div>
-                                <div>Gene regulation along pseudotime</div>
                             `);
                         positionTooltip(event, tooltip);
                     })
