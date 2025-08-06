@@ -510,7 +510,7 @@ export const ScatterplotUmap = ({
             .attr("stroke", "#312E81")
             .attr("stroke-width", "0.5")
             .style("paint-order", "stroke")
-            .text(index + 1); // Show trajectory order number
+            .text(hoveredTrajectory.path[index]);
         }
       });
 
