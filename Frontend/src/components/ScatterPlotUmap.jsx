@@ -480,7 +480,7 @@ export const ScatterplotUmap = ({
             .append("polygon")
             .attr("points", starPoints.map(p => p.join(",")).join(" "))
             .attr("fill", "#FFD700")
-            .attr("stroke", "#FFA500")
+            // .attr("stroke", "#FFA500")
             .attr("stroke-width", 2)
             .attr("opacity", 0.9)
             .style("filter", "drop-shadow(2px 2px 4px rgba(0,0,0,0.3))")

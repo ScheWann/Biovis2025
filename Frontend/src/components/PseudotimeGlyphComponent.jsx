@@ -1,6 +1,6 @@
 import PseudotimeGlyph from './PseudotimeGlyph';
 import { Empty, Spin, Select, Button } from 'antd';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 
 export const PseudotimeGlyphComponent = ({
     adata_umap_title,
@@ -25,44 +25,67 @@ export const PseudotimeGlyphComponent = ({
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [componentError, setComponentError] = useState(null);
     
-    // Load highly variable genes on component mount
+    // Ref to track if genes have been fetched for current sample IDs
+    const fetchedSampleIdsRef = useRef(new Set());
+    
+    // Memoize the sample IDs to prevent unnecessary re-fetching
+    const memoizedSampleIds = useMemo(() => {
+        return [...relatedSampleIds].sort(); // Sort for consistent comparison
+    }, [relatedSampleIds]);
+    
+    // Load highly variable genes only when sample IDs actually change
     useEffect(() => {
         const fetchHighVariableGenes = async () => {
+            // Create a key from current sample IDs to check if we need to fetch
+            const currentSampleKey = memoizedSampleIds.join(',');
+            
+            // Only fetch if sample IDs are different from what we've already fetched
+            if (memoizedSampleIds.length === 0) {
+                setHighVariableGenes([]);
+                fetchedSampleIdsRef.current.clear();
+                return;
+            }
+            
+            // Check if we've already fetched for these exact sample IDs
+            if (fetchedSampleIdsRef.current.has(currentSampleKey)) {
+                return; // Skip fetching, we already have the data
+            }
+            
             try {
-                if (relatedSampleIds.length > 0) {
-                    const response = await fetch("/api/get_highly_variable_genes", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            sample_ids: relatedSampleIds,
-                            top_n: 20
-                        }),
-                    });
+                console.trace('API call stack trace'); // This will help identify what triggered the call
+                
+                const response = await fetch("/api/get_highly_variable_genes", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        sample_ids: memoizedSampleIds,
+                        top_n: 20
+                    }),
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
                     
-                    if (response.ok) {
-                        const data = await response.json();
-                        
-                        // Convert the response to the format expected by the select component
-                        const geneList = [];
-                        Object.entries(data).forEach(([sampleId, genes]) => {
-                            genes.forEach(gene => {
-                                geneList.push({
-                                    value: `${sampleId}_${gene}`,
-                                    label: gene,
-                                    sampleId: sampleId
-                                });
+                    // Convert the response to the format expected by the select component
+                    const geneList = [];
+                    Object.entries(data).forEach(([sampleId, genes]) => {
+                        genes.forEach(gene => {
+                            geneList.push({
+                                value: `${sampleId}_${gene}`,
+                                label: gene,
+                                sampleId: sampleId
                             });
                         });
-                        
-                        setHighVariableGenes(geneList);
-                    } else {
-                        console.error("Failed to fetch highly variable genes");
-                        // Fallback to mock data
-                        setHighVariableGenes([]);
-                    }
+                    });
+                    
+                    setHighVariableGenes(geneList);
+                    
+                    // Mark these sample IDs as fetched
+                    fetchedSampleIdsRef.current.add(currentSampleKey);
                 } else {
+                    console.error("Failed to fetch highly variable genes");
                     setHighVariableGenes([]);
                 }
             } catch (error) {
@@ -71,10 +94,8 @@ export const PseudotimeGlyphComponent = ({
             }
         };
         
-        if (Object.keys(pseudotimeDataSets).length > 0) {
-            fetchHighVariableGenes();
-        }
-    }, [pseudotimeDataSets, relatedSampleIds]);
+        fetchHighVariableGenes();
+    }, [memoizedSampleIds]);
 
     // Group genes by sample ID for the select options
     const geneOptions = highVariableGenes.reduce((groups, gene) => {
