@@ -14,6 +14,9 @@ const PseudotimeGlyph = ({
     const svgRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 300, height: 300 });
     const [selectedTrajectory, setSelectedTrajectory] = useState(null);
+    
+    // Generate a unique ID for this component instance
+    const [componentId] = useState(() => `pseudotime-glyph-${Math.random().toString(36).substr(2, 9)}`);
 
     // Detect container size changes
     useEffect(() => {
@@ -54,9 +57,41 @@ const PseudotimeGlyph = ({
     // Cleanup tooltip on unmount
     useEffect(() => {
         return () => {
-            d3.select("body").selectAll(".pseudotime-tooltip").remove();
+            d3.select("body").selectAll(`.pseudotime-tooltip-${componentId}`).remove();
         };
-    }, []);
+    }, [componentId]);
+
+    // Helper function to position tooltip within viewport
+    const positionTooltip = (event, tooltip) => {
+        const tooltipWidth = 300; // max-width set in CSS
+        const tooltipHeight = 100; // estimated height
+        
+        let left = event.clientX + 15;
+        let top = event.clientY - 10;
+        
+        // Check right boundary
+        if (left + tooltipWidth > window.innerWidth) {
+            left = event.clientX - tooltipWidth - 15;
+        }
+        
+        // Check bottom boundary
+        if (top + tooltipHeight > window.innerHeight) {
+            top = event.clientY - tooltipHeight - 15;
+        }
+        
+        // Check top boundary
+        if (top < 0) {
+            top = 10;
+        }
+        
+        // Check left boundary
+        if (left < 0) {
+            left = 10;
+        }
+        
+        tooltip.style("left", left + "px")
+               .style("top", top + "px");
+    };
 
     const createGlyph = (dataToUse) => {
         const svg = d3.select(svgRef.current);
@@ -79,19 +114,22 @@ const PseudotimeGlyph = ({
             .attr("transform", `translate(${margin.left}, ${margin.top})`);
 
         // Create tooltip (remove existing ones first to avoid duplicates)
-        d3.select("body").selectAll(".pseudotime-tooltip").remove();
+        d3.select("body").selectAll(`.pseudotime-tooltip-${componentId}`).remove();
         const tooltip = d3.select("body")
             .append("div")
-            .attr("class", "pseudotime-tooltip")
-            .style("position", "absolute")
+            .attr("class", `pseudotime-tooltip-${componentId}`)
+            .style("position", "fixed")
             .style("visibility", "hidden")
-            .style("background", "rgba(0, 0, 0, 0.8)")
+            .style("background", "rgba(0, 0, 0, 0.9)")
             .style("color", "white")
-            .style("padding", "8px")
-            .style("border-radius", "4px")
+            .style("padding", "10px")
+            .style("border-radius", "6px")
             .style("font-size", "12px")
             .style("pointer-events", "none")
-            .style("z-index", "1000");
+            .style("z-index", "9999")
+            .style("max-width", "300px")
+            .style("box-shadow", "0 4px 8px rgba(0,0,0,0.3)")
+            .style("border", "1px solid rgba(255,255,255,0.2)");
 
         // Draw horizontal dividing line between gene expression (top) and cell trajectories (bottom)
         const axisLength = Math.min(innerWidth, innerHeight) * 0.98;
@@ -169,11 +207,11 @@ const PseudotimeGlyph = ({
             .attr("opacity", 0.3)
             .attr("stroke", "none")
             .style("cursor", "pointer")
-            .on("click", function (event) {
-                // Deselect trajectory when clicking on background
-                event.stopPropagation();
-                setSelectedTrajectory(null);
-            });
+            // .on("click", function (event) {
+            //     // Deselect trajectory when clicking on background
+            //     event.stopPropagation();
+            //     setSelectedTrajectory(null);
+            // });
 
         // Scale for converting pseudotime to radial distance
         const radiusScale = d3.scaleLinear()
@@ -439,18 +477,19 @@ const PseudotimeGlyph = ({
                     .attr("x2", toPos.x)
                     .attr("y2", toPos.y)
                     .attr("stroke", color)
-                    .attr("stroke-width", strokeWidth)
+                    .attr("stroke-width", Math.max(strokeWidth, 3)) // Minimum width for hover
                     .attr("opacity", opacity)
+                    .attr("stroke-linecap", "round")
                     .style("cursor", "pointer")
-                    .on("click", function (event) {
-                        event.stopPropagation();
-                        // Toggle selection: if clicking on the same trajectory, deselect it
-                        if (selectedTrajectory === edge.trajectory) {
-                            setSelectedTrajectory(null);
-                        } else {
-                            setSelectedTrajectory(edge.trajectory);
-                        }
-                    })
+                    // .on("click", function (event) {
+                    //     event.stopPropagation();
+                    //     // Toggle selection: if clicking on the same trajectory, deselect it
+                    //     if (selectedTrajectory === edge.trajectory) {
+                    //         setSelectedTrajectory(null);
+                    //     } else {
+                    //         setSelectedTrajectory(edge.trajectory);
+                    //     }
+                    // })
                     .on("mouseover", function (event) {
                         // Only enhance hover effect if this trajectory is not grayed out
                         if (isSelected) {
@@ -467,24 +506,28 @@ const PseudotimeGlyph = ({
                         const toTime = toNode ? toNode.pseudotime.toFixed(2) : "0.00";
 
                         tooltip.style("visibility", "visible")
+                            // .html(`
+                            //     <div><strong>Cell State Transition</strong></div>
+                            //     <div>From: Cluster ${fromCluster} (t=${fromTime})</div>
+                            //     <div>To: Cluster ${toCluster} (t=${toTime})</div>
+                            //     <div>Trajectory: ${edge.trajectory + 1}</div>
+                            //     <div>Cell differentiation pathway</div>
+                            //     <div><em>Click to ${selectedTrajectory === edge.trajectory ? 'deselect' : 'select'} this trajectory</em></div>
+                            // `);
                             .html(`
                                 <div><strong>Cell State Transition</strong></div>
                                 <div>From: Cluster ${fromCluster} (t=${fromTime})</div>
                                 <div>To: Cluster ${toCluster} (t=${toTime})</div>
                                 <div>Trajectory: ${edge.trajectory + 1}</div>
-                                <div>Cell differentiation pathway</div>
-                                <div><em>Click to ${selectedTrajectory === edge.trajectory ? 'deselect' : 'select'} this trajectory</em></div>
-                            `)
-                            .style("left", (event.pageX + 10) + "px")
-                            .style("top", (event.pageY - 10) + "px");
+                            `);
+                        positionTooltip(event, tooltip);
                     })
                     .on("mousemove", function (event) {
-                        tooltip.style("left", (event.pageX + 10) + "px")
-                            .style("top", (event.pageY - 10) + "px");
+                        positionTooltip(event, tooltip);
                     })
                     .on("mouseout", function () {
                         d3.select(this)
-                            .attr("stroke-width", strokeWidth)
+                            .attr("stroke-width", Math.max(strokeWidth, 3))
                             .attr("opacity", opacity);
                         tooltip.style("visibility", "hidden");
                     });
@@ -622,9 +665,11 @@ const PseudotimeGlyph = ({
                     .datum(curvePoints)
                     .attr("d", line)
                     .attr("stroke", color)
-                    .attr("stroke-width", 2)
+                    .attr("stroke-width", 3)
                     .attr("fill", "none")
                     .attr("opacity", 0.6)
+                    .attr("stroke-linecap", "round")
+                    .attr("stroke-linejoin", "round")
                     .style("cursor", "pointer")
                     .on("mouseover", function (event) {
                         d3.select(this)
@@ -643,17 +688,15 @@ const PseudotimeGlyph = ({
                                 <div>Expression range: ${minExpression.toFixed(2)} - ${maxExpression.toFixed(2)}</div>
                                 <div>Average expression: ${avgExpression}</div>
                                 <div>Gene regulation along pseudotime</div>
-                            `)
-                            .style("left", (event.pageX + 10) + "px")
-                            .style("top", (event.pageY - 10) + "px");
+                            `);
+                        positionTooltip(event, tooltip);
                     })
                     .on("mousemove", function (event) {
-                        tooltip.style("left", (event.pageX + 10) + "px")
-                            .style("top", (event.pageY - 10) + "px");
+                        positionTooltip(event, tooltip);
                     })
                     .on("mouseout", function () {
                         d3.select(this)
-                            .attr("stroke-width", 2)
+                            .attr("stroke-width", 3)
                             .attr("opacity", 0.6);
                         tooltip.style("visibility", "hidden");
                     });
@@ -667,7 +710,31 @@ const PseudotimeGlyph = ({
                     .attr("r", 3)
                     .attr("fill", color)
                     .attr("stroke", "#fff")
-                    .attr("opacity", 0.9);
+                    .attr("opacity", 0.9)
+                    .style("cursor", "pointer")
+                    .on("mouseover", function (event) {
+                        d3.select(this)
+                            .attr("r", 5)
+                            .attr("opacity", 1);
+
+                        tooltip.style("visibility", "visible")
+                            .html(`
+                                <div><strong>Gene Expression Point</strong></div>
+                                <div>Gene: ${geneInfo.gene}</div>
+                                <div>Time: ${point.timePoint.toFixed(2)}</div>
+                                <div>Expression: ${point.expression.toFixed(3)}</div>
+                            `);
+                        positionTooltip(event, tooltip);
+                    })
+                    .on("mousemove", function (event) {
+                        positionTooltip(event, tooltip);
+                    })
+                    .on("mouseout", function () {
+                        d3.select(this)
+                            .attr("r", 3)
+                            .attr("opacity", 0.9);
+                        tooltip.style("visibility", "hidden");
+                    });
             });
         });
 
