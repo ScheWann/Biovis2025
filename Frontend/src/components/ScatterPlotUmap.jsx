@@ -19,7 +19,8 @@ export const ScatterplotUmap = ({
   sampleId,
   setCellName,
   setPseudotimeDataSets,
-  setPseudotimeLoadingStates
+  setPseudotimeLoadingStates,
+  setClusterColorMappings 
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -27,14 +28,6 @@ export const ScatterplotUmap = ({
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
   const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
   const [currentCellIds, setCurrentCellIds] = useState([]);
-  
-  // Keep ref updated with current pseudotimeDataSets
-  useEffect(() => {
-    setPseudotimeDataSets(prevDataSets => {
-      pseudotimeDataSetsRef.current = prevDataSets;
-      return prevDataSets;
-    });
-  });
   
   // Local GO analysis state for this ScatterPlotUmap instance
   const [GOAnalysisData, setGOAnalysisData] = useState(null);
@@ -155,6 +148,45 @@ export const ScatterplotUmap = ({
     resizeObserver.observe(container);
     return () => resizeObserver.disconnect();
   }, []);
+
+  // Separate useEffect for cluster color mapping to prevent infinite loops
+  useEffect(() => {
+    if (!data || data.length === 0 || !setClusterColorMappings) return;
+
+    // Color by cluster - sort clusters numerically for consistent ordering
+    const clusters = Array.from(new Set(data.map(clusterAccessor))).sort((a, b) => {
+      // Extract numeric part from cluster names (e.g., "Cluster 1" -> 1)
+      const numA = parseInt(a.toString().replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.toString().replace(/\D/g, '')) || 0;
+      return numA - numB;
+    });
+    const color = d3.scaleOrdinal().domain(clusters).range(COLORS);
+
+    // Create cluster color mapping and pass to parent
+    const colorMapping = {
+      sample_id: sampleId,
+      name: adata_umap_title,
+      clusters: {}
+    };
+    
+    clusters.forEach(cluster => {
+      // Extract numeric part from cluster name (e.g., "Cluster 4" -> "4")
+      const clusterNumber = cluster.toString().replace(/\D/g, '') || cluster;
+      colorMapping.clusters[clusterNumber] = color(cluster);
+    });
+    
+    setClusterColorMappings(prevMappings => {
+      // Only update if the mapping has changed
+      if (!prevMappings[adata_umap_title] || 
+          JSON.stringify(prevMappings[adata_umap_title].clusters) !== JSON.stringify(colorMapping.clusters)) {
+        const newMappings = { ...prevMappings };
+        newMappings[adata_umap_title] = colorMapping;
+        return newMappings;
+      }
+      
+      return prevMappings;
+    });
+  }, [data, clusterAccessor, sampleId, adata_umap_title, setClusterColorMappings]);
 
   useEffect(() => {
     if (!data || data.length === 0) return;

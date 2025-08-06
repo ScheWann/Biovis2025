@@ -7,6 +7,7 @@ export const PseudotimeGlyphComponent = ({
     pseudotimeDataSets,
     pseudotimeLoadingStates,
     relatedSampleIds,
+    clusterColorMappings,
 }) => {
     // State for tracking selected glyphs
     const [selectedGlyphs, setSelectedGlyphs] = useState(new Set());
@@ -370,6 +371,26 @@ export const PseudotimeGlyphComponent = ({
                                 (() => {
                                     try {
                                         const geneDataForGlyph = geneExpressionData.find(data => data.trajectory_id === index)?.gene_expression_data || null;
+                                        
+                                        // Get cluster color mapping for this trajectory data
+                                        // Try different key formats to find the correct mapping
+                                        let clusterColors = null;
+                                        if (clusterColorMappings) {
+                                            // Try the source_title first
+                                            clusterColors = clusterColorMappings[trajectoryData.source_title]?.clusters;
+                                            
+                                            // If not found, try the adata_umap_title
+                                            if (!clusterColors && adata_umap_title) {
+                                                clusterColors = clusterColorMappings[adata_umap_title]?.clusters;
+                                            }
+                                            
+                                            // If still not found, try with sample_id prefix
+                                            if (!clusterColors && trajectoryData.sampleId) {
+                                                const keyWithSample = `${trajectoryData.sampleId}_${trajectoryData.source_title || adata_umap_title}`;
+                                                clusterColors = clusterColorMappings[keyWithSample]?.clusters;
+                                            }
+                                        }
+                                        
                                         return (
                                             <PseudotimeGlyph
                                                 adata_umap_title={trajectoryData.display_title || `${adata_umap_title} - Trajectory ${index + 1}`}
@@ -378,6 +399,7 @@ export const PseudotimeGlyphComponent = ({
                                                 isSelected={selectedGlyphs.has(index)}
                                                 onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
                                                 geneExpressionData={geneDataForGlyph}
+                                                clusterColors={clusterColors}
                                             />
                                         );
                                     } catch (error) {

@@ -8,7 +8,8 @@ const PseudotimeGlyph = ({
     pseudotimeLoading,
     isSelected = false,
     onSelectionChange,
-    geneExpressionData = null
+    geneExpressionData = null,
+    clusterColors = null
 }) => {
     const containerRef = useRef();
     const svgRef = useRef(null);
@@ -52,7 +53,7 @@ const PseudotimeGlyph = ({
         if (pseudotimeData && pseudotimeData.length > 0 && dimensions.width > 0 && dimensions.height > 0) {
             createGlyph(pseudotimeData);
         }
-    }, [pseudotimeData, dimensions, geneExpressionData]);
+    }, [pseudotimeData, dimensions, geneExpressionData, clusterColors]);
 
     // Cleanup tooltip on unmount
     useEffect(() => {
@@ -149,8 +150,29 @@ const PseudotimeGlyph = ({
 
         // Color scale for different cell states/clusters
         const allClusters = [...new Set(dataToUse.flatMap(traj => traj.path))];
-        const clusterColorScale = d3.scaleOrdinal(d3.schemeCategory10)
-            .domain(allClusters);
+        
+        // Use cluster colors from UMAP if available, otherwise use default colors
+        let clusterColorScale;
+        if (clusterColors) {
+            // Create a color scale using the colors from the UMAP
+            // Handle both full cluster names and numeric keys
+            const colorRange = allClusters.map(cluster => {
+                // Try the full cluster name first
+                if (clusterColors[cluster]) {
+                    return clusterColors[cluster];
+                }
+                // If not found, try extracting numeric part and use that as key
+                const clusterNumber = cluster.toString().replace(/\D/g, '');
+                return clusterColors[clusterNumber] || "#999";
+            });
+            clusterColorScale = d3.scaleOrdinal()
+                .domain(allClusters)
+                .range(colorRange);
+        } else {
+            // Fallback to default color scheme
+            clusterColorScale = d3.scaleOrdinal(d3.schemeCategory10)
+                .domain(allClusters);
+        }
 
         // Add time point 0 circle at center
         g.append("circle")

@@ -40,6 +40,9 @@ function App() {
   const [pseudotimeDataSets, setPseudotimeDataSets] = useState({}); // Object keyed by adata_umap_title
   const [pseudotimeLoadingStates, setPseudotimeLoadingStates] = useState({}); // Object keyed by adata_umap_title
 
+  // Cluster color mapping state
+  const [clusterColorMappings, setClusterColorMappings] = useState({}); // Object keyed by "${sampleId}_${adata_umap_title}"
+
   // Cell Name state
   const [cellName, setCellName] = useState(null);
 
@@ -413,6 +416,7 @@ function App() {
                                     setCellName={setCellName}
                                     setPseudotimeDataSets={setPseudotimeDataSets}
                                     setPseudotimeLoadingStates={setPseudotimeLoadingStates}
+                                    setClusterColorMappings={setClusterColorMappings}
                                   />
                                 </div>
                               );
@@ -427,6 +431,7 @@ function App() {
                             relatedSampleIds={umapDataSets.length > 0 ? [...new Set(umapDataSets.map(d => d.sampleId))] : []}
                             pseudotimeDataSets={pseudotimeDataSets}
                             pseudotimeLoadingStates={pseudotimeLoadingStates}
+                            clusterColorMappings={clusterColorMappings}
                           />
                     </Splitter.Panel>
                   </Splitter>
