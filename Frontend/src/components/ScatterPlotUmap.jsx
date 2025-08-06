@@ -262,12 +262,12 @@ export const ScatterplotUmap = ({
           .datum(hull)
           .attr("d", line)
           .attr("fill", color(cluster))
-          .attr("fill-opacity", hoveredCluster?.cluster === cluster ? 0.4 : 0.2)
+          .attr("fill-opacity", (hoveredCluster?.cluster === cluster && hoveredCluster?.umapId === umapId) ? 0.4 : 0.2)
           .attr("stroke", color(cluster))
-          .attr("stroke-width", hoveredCluster?.cluster === cluster ? 3.5 : 2.5)
+          .attr("stroke-width", (hoveredCluster?.cluster === cluster && hoveredCluster?.umapId === umapId) ? 3.5 : 2.5)
           .attr(
             "stroke-opacity",
-            hoveredCluster?.cluster === cluster ? 0.8 : 0.3
+            (hoveredCluster?.cluster === cluster && hoveredCluster?.umapId === umapId) ? 0.8 : 0.3
           )
           .style("cursor", "pointer")
           .style("pointer-events", "visibleFill")
@@ -290,7 +290,7 @@ export const ScatterplotUmap = ({
               .map((d) => d.id || d.cell_id)
               .filter(Boolean);
 
-            if (!hoveredCluster || hoveredCluster.cluster !== cluster) {
+            if (!hoveredCluster || hoveredCluster.cluster !== cluster || hoveredCluster.umapId !== umapId) {
               setHoveredCluster({
                 cluster: cluster,
                 cellIds: cellIds,
@@ -306,7 +306,7 @@ export const ScatterplotUmap = ({
                 .attr("stroke-width", 2.5)
                 .attr("stroke-opacity", 0.6);
 
-              if (hoveredCluster && hoveredCluster.cluster === cluster) {
+              if (hoveredCluster && hoveredCluster.cluster === cluster && hoveredCluster.umapId === umapId) {
                 setHoveredCluster(null);
               }
           });
@@ -323,15 +323,15 @@ export const ScatterplotUmap = ({
       .attr("r", pointSize)
       .attr("fill", (d) => color(clusterAccessor(d)))
       .attr("opacity", (d) => {
-        if (!hoveredCluster) return 0.5;
+        if (!hoveredCluster || hoveredCluster.umapId !== umapId) return 0.5;
         return hoveredCluster.cluster === clusterAccessor(d) ? 0.8 : 0.05;
       })
       .attr("stroke", (d) => {
-        if (!hoveredCluster) return "none";
+        if (!hoveredCluster || hoveredCluster.umapId !== umapId) return "none";
         return hoveredCluster.cluster === clusterAccessor(d) ? "#fff" : "none";
       })
       .attr("stroke-width", (d) => {
-        if (!hoveredCluster) return 0;
+        if (!hoveredCluster || hoveredCluster.umapId !== umapId) return 0;
         return hoveredCluster.cluster === clusterAccessor(d) ? 1 : 0;
       })
       .style("cursor", "pointer")
@@ -345,7 +345,7 @@ export const ScatterplotUmap = ({
           .map((p) => p.id || p.cell_id)
           .filter(Boolean);
 
-        if (!hoveredCluster || hoveredCluster.cluster !== cluster) {
+        if (!hoveredCluster || hoveredCluster.cluster !== cluster || hoveredCluster.umapId !== umapId) {
           setHoveredCluster({
             cluster: cluster,
             cellIds: cellIds,
@@ -357,7 +357,7 @@ export const ScatterplotUmap = ({
       })
       .on("mouseleave", (event, d) => {
         const cluster = clusterAccessor(d);
-        if (hoveredCluster && hoveredCluster.cluster === cluster) {
+        if (hoveredCluster && hoveredCluster.cluster === cluster && hoveredCluster.umapId === umapId) {
           setHoveredCluster(null);
         }
       });
@@ -407,7 +407,7 @@ export const ScatterplotUmap = ({
             .map((p) => p.id || p.cell_id)
             .filter(Boolean);
 
-          if (!hoveredCluster || hoveredCluster.cluster !== cl) {
+          if (!hoveredCluster || hoveredCluster.cluster !== cl || hoveredCluster.umapId !== umapId) {
             setHoveredCluster({
               cluster: cl,
               cellIds: cellIds,
@@ -418,7 +418,7 @@ export const ScatterplotUmap = ({
           }
         })
         .on("mouseleave", () => {
-          if (hoveredCluster && hoveredCluster.cluster === cl) {
+          if (hoveredCluster && hoveredCluster.cluster === cl && hoveredCluster.umapId === umapId) {
             setHoveredCluster(null);
           }
         });
@@ -431,7 +431,7 @@ export const ScatterplotUmap = ({
         .attr("fill", color(cl))
         .attr(
           "opacity",
-          !hoveredCluster || hoveredCluster.cluster === cl ? 1 : 0.3
+          (!hoveredCluster || hoveredCluster.umapId !== umapId) || hoveredCluster.cluster === cl ? 1 : 0.3
         );
       legendGroup
         .append("text")
@@ -441,7 +441,7 @@ export const ScatterplotUmap = ({
         .attr("font-size", 9)
         .attr(
           "opacity",
-          !hoveredCluster || hoveredCluster.cluster === cl ? 1 : 0.3
+          (!hoveredCluster || hoveredCluster.umapId !== umapId) || hoveredCluster.cluster === cl ? 1 : 0.3
         );
     });
 
