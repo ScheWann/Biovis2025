@@ -13,6 +13,8 @@ from scipy import sparse
 import warnings
 import rpy2.robjects as ro
 from rpy2.robjects.packages import importr
+from rpy2.robjects import pandas2ri
+from rpy2.robjects.conversion import localconverter
 import tempfile
 import os
 from scipy import stats
@@ -49,120 +51,122 @@ def run_slingshot_via_rpy2_improved(
         Updated adata with pseudotime and weight information
     """
     try:
-        # Import R packages
-        base = importr("base")
-        utils = importr("utils")
+        # Ensure conversion context is properly set
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            # Import R packages
+            base = importr("base")
+            utils = importr("utils")
 
-        # Create temporary directory for data exchange
-        with tempfile.TemporaryDirectory() as temp_dir:
-            print("Creating temporary files...")
+            # Create temporary directory for data exchange
+            with tempfile.TemporaryDirectory() as temp_dir:
+                print("Creating temporary files...")
 
-            # Export data to CSV files
-            if sparse.issparse(adata.X):
-                expr_df = pd.DataFrame(adata.X.toarray())
-            else:
-                expr_df = pd.DataFrame(adata.X)
+                # Export data to CSV files
+                if sparse.issparse(adata.X):
+                    expr_df = pd.DataFrame(adata.X.toarray())
+                else:
+                    expr_df = pd.DataFrame(adata.X)
 
-            umap_df = pd.DataFrame(
-                adata.obsm[embedding_key], columns=["UMAP1", "UMAP2"]
-            )
-            clusters_df = pd.DataFrame({"clusters": adata.obs[cluster_key].astype(str)})
-
-            expr_file = os.path.join(temp_dir, "expr.csv")
-            umap_file = os.path.join(temp_dir, "umap.csv")
-            clusters_file = os.path.join(temp_dir, "clusters.csv")
-
-            expr_df.to_csv(expr_file, index=False)
-            umap_df.to_csv(umap_file, index=False)
-            clusters_df.to_csv(clusters_file, index=False)
-
-            print("Reading data and running analysis in R...")
-
-            # Build R command
-            r_cmd = f"""
-            # Import and load packages
-            if (!requireNamespace("BiocManager", quietly = TRUE))
-                install.packages("BiocManager")
-            
-            required_packages <- c("slingshot", "SingleCellExperiment")
-            for (pkg in required_packages) {{
-                if (!requireNamespace(pkg, quietly = TRUE)) {{
-                    BiocManager::install(pkg)
-                }}
-            }}
-            
-            library(slingshot)
-            library(SingleCellExperiment)
-            
-            # Load data
-            expr_matrix <- as.matrix(read.csv("{expr_file}"))
-            umap_coords <- as.matrix(read.csv("{umap_file}"))
-            clusters <- read.csv("{clusters_file}")$clusters
-            
-            # Transpose gene expression matrix (gene x cell)
-            expr_matrix <- t(expr_matrix)
-
-            # Create SingleCellExperiment object
-            sce <- SingleCellExperiment(
-                assays = list(counts = expr_matrix)
-            )
-            
-            # Add UMAP and cluster info
-            reducedDims(sce) <- list(UMAP = umap_coords)
-            colData(sce)$clusters <- clusters
-            
-            # Run Slingshot
-            """
-
-            # Add start and end cluster parameters if provided
-            if start_cluster is not None:
-                r_cmd += f'start_clus <- "{start_cluster}"\n'
-                r_cmd += 'sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP", start.clus = start_clus)\n'
-            else:
-                r_cmd += 'sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP")\n'
-
-            r_cmd += f"""
-
-            # Get results
-            pseudotimes <- slingPseudotime(sce)
-            weights <- slingCurveWeights(sce)
-
-            write.csv(pseudotimes, "{temp_dir}/pseudotimes.csv")
-            write.csv(weights, "{temp_dir}/weights.csv")
-            
-            # Return number of trajectories
-            n_lineages <- ncol(pseudotimes)
-            cat("Found", n_lineages, "trajectories\\n")
-            """
-
-            # Execute R command
-            ro.r(r_cmd)
-
-            print("Reading results...")
-
-            pseudotimes_file = os.path.join(temp_dir, "pseudotimes.csv")
-            weights_file = os.path.join(temp_dir, "weights.csv")
-
-            if os.path.exists(pseudotimes_file):
-                pseudotimes_df = pd.read_csv(pseudotimes_file, index_col=0)
-                weights_df = pd.read_csv(weights_file, index_col=0)
-
-                # Add results to adata
-                for i, col in enumerate(pseudotimes_df.columns):
-                    adata.obs[f"slingshot_pseudotime_{i+1}"] = pseudotimes_df.iloc[
-                        :, i
-                    ].values
-
-                for i, col in enumerate(weights_df.columns):
-                    adata.obs[f"slingshot_weight_{i+1}"] = weights_df.iloc[:, i].values
-
-                print(
-                    f"Slingshot analysis completed! Found {len(pseudotimes_df.columns)} trajectories"
+                umap_df = pd.DataFrame(
+                    adata.obsm[embedding_key], columns=["UMAP1", "UMAP2"]
                 )
-                return adata
-            else:
-                print("Could not find result files")
-                return None
+                clusters_df = pd.DataFrame({"clusters": adata.obs[cluster_key].astype(str)})
+
+                expr_file = os.path.join(temp_dir, "expr.csv")
+                umap_file = os.path.join(temp_dir, "umap.csv")
+                clusters_file = os.path.join(temp_dir, "clusters.csv")
+
+                expr_df.to_csv(expr_file, index=False)
+                umap_df.to_csv(umap_file, index=False)
+                clusters_df.to_csv(clusters_file, index=False)
+
+                print("Reading data and running analysis in R...")
+
+                # Build R command
+                r_cmd = f"""
+                # Import and load packages
+                if (!requireNamespace("BiocManager", quietly = TRUE))
+                    install.packages("BiocManager")
+                
+                required_packages <- c("slingshot", "SingleCellExperiment")
+                for (pkg in required_packages) {{
+                    if (!requireNamespace(pkg, quietly = TRUE)) {{
+                        BiocManager::install(pkg)
+                    }}
+                }}
+                
+                library(slingshot)
+                library(SingleCellExperiment)
+                
+                # Load data
+                expr_matrix <- as.matrix(read.csv("{expr_file}"))
+                umap_coords <- as.matrix(read.csv("{umap_file}"))
+                clusters <- read.csv("{clusters_file}")$clusters
+                
+                # Transpose gene expression matrix (gene x cell)
+                expr_matrix <- t(expr_matrix)
+
+                # Create SingleCellExperiment object
+                sce <- SingleCellExperiment(
+                    assays = list(counts = expr_matrix)
+                )
+                
+                # Add UMAP and cluster info
+                reducedDims(sce) <- list(UMAP = umap_coords)
+                colData(sce)$clusters <- clusters
+                
+                # Run Slingshot
+                """
+
+                # Add start and end cluster parameters if provided
+                if start_cluster is not None:
+                    r_cmd += f'start_clus <- "{start_cluster}"\n'
+                    r_cmd += 'sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP", start.clus = start_clus)\n'
+                else:
+                    r_cmd += 'sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP")\n'
+
+                r_cmd += f"""
+
+                # Get results
+                pseudotimes <- slingPseudotime(sce)
+                weights <- slingCurveWeights(sce)
+
+                write.csv(pseudotimes, "{temp_dir}/pseudotimes.csv")
+                write.csv(weights, "{temp_dir}/weights.csv")
+                
+                # Return number of trajectories
+                n_lineages <- ncol(pseudotimes)
+                cat("Found", n_lineages, "trajectories\\n")
+                """
+
+                # Execute R command
+                ro.r(r_cmd)
+
+                print("Reading results...")
+
+                pseudotimes_file = os.path.join(temp_dir, "pseudotimes.csv")
+                weights_file = os.path.join(temp_dir, "weights.csv")
+
+                if os.path.exists(pseudotimes_file):
+                    pseudotimes_df = pd.read_csv(pseudotimes_file, index_col=0)
+                    weights_df = pd.read_csv(weights_file, index_col=0)
+
+                    # Add results to adata
+                    for i, col in enumerate(pseudotimes_df.columns):
+                        adata.obs[f"slingshot_pseudotime_{i+1}"] = pseudotimes_df.iloc[
+                            :, i
+                        ].values
+
+                    for i, col in enumerate(weights_df.columns):
+                        adata.obs[f"slingshot_weight_{i+1}"] = weights_df.iloc[:, i].values
+
+                    print(
+                        f"Slingshot analysis completed! Found {len(pseudotimes_df.columns)} trajectories"
+                    )
+                    return adata
+                else:
+                    print("Could not find result files")
+                    return None
 
     except ImportError:
         print("Error: Please install rpy2 package")
@@ -517,7 +521,7 @@ def merge_subset_trajectories(
         if merge_strategy == "keep_longer":
             # Keep the longer trajectory and remove the shorter one
             print(
-                f"  Strategy: Keep complete trajectory {longer_num}, remove subset trajectory {shorter_num}"
+                f"Strategy: Keep complete trajectory {longer_num}, remove subset trajectory {shorter_num}"
             )
             del merged_analysis[shorter_key]
 
@@ -537,7 +541,7 @@ def merge_subset_trajectories(
         elif merge_strategy == "keep_shorter":
             # Keep the shorter trajectory as the main path and mark the longer trajectory as an extension
             print(
-                f"  Strategy: Keep main trajectory {shorter_num}, mark trajectory {longer_num} as extension"
+                f"Strategy: Keep main trajectory {shorter_num}, mark trajectory {longer_num} as extension"
             )
             merged_analysis[shorter_key]["extension_info"] = {
                 "extended_in": longer_key,
