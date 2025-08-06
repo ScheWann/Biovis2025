@@ -28,6 +28,11 @@ function App() {
   // Cell coordinates data state
   const [coordinatesData, setCoordinatesData] = useState({}); // each sample's cell type directory(e.g. {"skin_TXK6Z4X_A1": [{"cell_type": "cd19+cd20+ b","cell_x": 3526, "cell_y": 3780, "id": "ID_1}, ...}])'
 
+  // Cell types data state
+  const [cellTypesData, setCellTypesData] = useState([]); // Available cell types with counts
+  const [selectedCellTypes, setSelectedCellTypes] = useState([]); // Currently selected cell types
+  const [cellTypeColors, setCellTypeColors] = useState({}); // Color mapping for cell types
+
   // Data upload form state
   const [uploadFormVisible, setUploadFormVisible] = useState(false); // Upload form visibility
 
@@ -72,13 +77,48 @@ function App() {
 
   // get cell coordinates for selected samples(cell or dot)
   const fetchCoordinates = async (sampleIds) => {
-    const response = await fetch("/api/get_coordinates", {
+    const coordinatesResponse = await fetch("/api/get_coordinates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sample_ids: sampleIds }),
     });
-    const data = await response.json();
-    setCoordinatesData(data);
+    const coordinatesData = await coordinatesResponse.json();
+    setCoordinatesData(coordinatesData);
+
+    // Fetch cell types data at the same time
+    try {
+      const cellTypesResponse = await fetch("/api/get_cell_types", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sample_ids: sampleIds }),
+      });
+      
+      if (cellTypesResponse.ok) {
+        const cellTypesData = await cellTypesResponse.json();
+        const cellTypesArray = cellTypesData.combined || [];
+        setCellTypesData(cellTypesArray);
+        
+        // Set default colors for cell types
+        const defaultColors = [
+          '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+          '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+          '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
+          '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
+        ];
+        
+        const newColors = {};
+        cellTypesArray.forEach(({ name }, index) => {
+          newColors[name] = defaultColors[index % defaultColors.length];
+        });
+        setCellTypeColors(newColors);
+      } else {
+        console.error('Failed to fetch cell types data');
+        setCellTypesData([]);
+      }
+    } catch (error) {
+      console.error('Error fetching cell types data:', error);
+      setCellTypesData([]);
+    }
   };
 
   // Clear AnnData cache
@@ -88,6 +128,10 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
+      // Clear cell types data when clearing cache
+      setCellTypesData([]);
+      setSelectedCellTypes([]);
+      setCellTypeColors({});
     } catch (error) {
       console.error("Error clearing cache:", error);
     }
@@ -304,6 +348,11 @@ function App() {
                   <SampleViewer
                     selectedSamples={selectedSamples}
                     coordinatesData={coordinatesData}
+                    cellTypesData={cellTypesData}
+                    selectedCellTypes={selectedCellTypes}
+                    setSelectedCellTypes={setSelectedCellTypes}
+                    cellTypeColors={cellTypeColors}
+                    setCellTypeColors={setCellTypeColors}
                     setUmapDataSets={setUmapDataSets}
                     umapLoading={umapLoading}
                     setUmapLoading={setUmapLoading}

@@ -8,6 +8,7 @@ from process import (
     get_hires_image_size,
     get_coordinates,
     get_gene_list,
+    get_cell_types_data,
     get_kosara_data,
     get_selected_region_data,
     get_umap_data,
@@ -220,6 +221,23 @@ def get_gene_name_search():
     matching_genes = [gene for gene in gene_list if pattern.search(gene)]
 
     return jsonify(matching_genes)
+
+
+@app.route("/api/get_cell_types", methods=["POST"])
+def get_cell_types():
+    """
+    Get cell types and their counts from adata.obs['predicted_labels'].value_counts()
+    """
+    sample_ids = request.json["sample_ids"]
+    
+    if not sample_ids:
+        return jsonify({"error": "No sample IDs provided"}), 400
+    
+    try:
+        cell_types_data = get_cell_types_data(sample_ids)
+        return jsonify(cell_types_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/get_hires_image", methods=["POST"])

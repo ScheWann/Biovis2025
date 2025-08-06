@@ -160,8 +160,23 @@ def get_coordinates(sample_ids):
                         print(f"Warning: No spatial coordinates found for sample {sample_id}")
                         coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'])
                     
-                    # Add ID column and reset index
+                    # Add ID column and cell type information
                     coords_df = coords_df.reset_index().rename(columns={'index': 'id'})
+                    
+                    # Add cell type information if available
+                    if 'predicted_labels' in adata.obs.columns:
+                        coords_df['cell_type'] = adata.obs['predicted_labels'].values
+                    elif 'cell_type' in adata.obs.columns:
+                        coords_df['cell_type'] = adata.obs['cell_type'].values
+                    else:
+                        # Look for leiden clustering columns
+                        leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
+                        if leiden_cols:
+                            leiden_col = leiden_cols[0]
+                            coords_df['cell_type'] = [f'Cluster {val}' for val in adata.obs[leiden_col].values]
+                        else:
+                            coords_df['cell_type'] = 'Unknown'
+                    
                     cell_coordinate_result[sample_id] = coords_df.to_dict(orient="records")
                     
                 except Exception as e:
@@ -197,6 +212,63 @@ def get_gene_list(sample_ids):
                 sample_gene_dict[sample_id] = []
 
     return sample_gene_dict
+
+
+def get_cell_types_data(sample_ids):
+    """
+    Get cell types and their counts from adata.obs['predicted_labels'].value_counts()
+    for the given sample IDs. Returns a combined unique list of cell types.
+    """
+    # Dictionary to accumulate counts across all samples
+    combined_cell_types = {}
+
+    for sample_id in sample_ids:
+        if sample_id in SAMPLES:
+            sample_info = SAMPLES[sample_id]
+            
+            if "adata_path" in sample_info:
+                try:
+                    adata = get_cached_adata(sample_id)
+                    
+                    # Try to get predicted_labels first, then fall back to cell_type or leiden clustering
+                    if 'predicted_labels' in adata.obs.columns:
+                        cell_type_counts = adata.obs['predicted_labels'].value_counts()
+                    elif 'cell_type' in adata.obs.columns:
+                        cell_type_counts = adata.obs['cell_type'].value_counts()
+                    else:
+                        # Look for leiden clustering columns
+                        leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
+                        if leiden_cols:
+                            # Use the first leiden clustering column found
+                            leiden_col = leiden_cols[0]
+                            cell_type_counts = adata.obs[leiden_col].value_counts()
+                            # Rename the clusters to be more descriptive
+                            cell_type_counts.index = [f'Cluster {idx}' for idx in cell_type_counts.index]
+                        else:
+                            # No cell type information available
+                            cell_type_counts = pd.Series([], dtype='int64')
+                    
+                    # Add counts to combined dictionary
+                    for cell_type, count in cell_type_counts.items():
+                        cell_type_str = str(cell_type)
+                        if cell_type_str in combined_cell_types:
+                            combined_cell_types[cell_type_str] += int(count)
+                        else:
+                            combined_cell_types[cell_type_str] = int(count)
+                    
+                except Exception as e:
+                    print(f"Error loading cell types for sample {sample_id}: {e}")
+            else:
+                print(f"Warning: No adata available for sample {sample_id}")
+
+    # Convert to list format sorted by count (descending)
+    cell_types_list = [
+        {'name': cell_type, 'count': count} 
+        for cell_type, count in sorted(combined_cell_types.items(), key=lambda x: x[1], reverse=True)
+    ]
+    
+    # Return as a single combined list instead of per-sample dictionary
+    return {'combined': cell_types_list}
 
 
 # get kosara data

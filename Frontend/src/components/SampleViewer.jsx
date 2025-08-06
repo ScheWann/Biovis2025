@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
+import { CellSettings } from './CellList';
 import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Checkbox } from "antd";
 import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined, DeleteOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
@@ -10,6 +11,11 @@ import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl
 export const SampleViewer = ({
     selectedSamples,
     coordinatesData,
+    cellTypesData,
+    selectedCellTypes,
+    setSelectedCellTypes,
+    cellTypeColors,
+    setCellTypeColors,
     setUmapDataSets,
     umapLoading,
     setUmapLoading,
@@ -72,10 +78,6 @@ export const SampleViewer = ({
 
     // Add state for preloaded cell boundary images
     // const [cellBoundaryImages, setCellBoundaryImages] = useState({}); // { sampleId: imageUrl }
-
-    // Cell name selection and coloring state
-    const [selectedCellNames, setSelectedCellNames] = useState(new Set()); // Set of selected cell names
-    const [cellNameColors, setCellNameColors] = useState({}); // { cellName: color }
 
     const radioOptions = [
         {
@@ -829,100 +831,13 @@ export const SampleViewer = ({
                 />
 
                 {radioCellGeneModes[sample.id] === 'cellTypes' ? (
-                    <>
-                        {cellName && Object.keys(cellName).length > 0 ? (
-                            <>
-                                {/* Get unique cell names from cellName object */}
-                                {Array.from(new Set(Object.values(cellName))).map(name => (
-                                    <div key={name} style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        paddingBottom: '5px',
-                                        borderBottom: '1px solid #e8e8e8',
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            <Checkbox
-                                                checked={selectedCellNames.has(name)}
-                                                onChange={(e) => {
-                                                    const newSelected = new Set(selectedCellNames);
-                                                    if (e.target.checked) {
-                                                        newSelected.add(name);
-                                                        // Set default color if not exists
-                                                        if (!cellNameColors[name]) {
-                                                            setCellNameColors(prev => ({
-                                                                ...prev,
-                                                                [name]: '#f03b20'
-                                                            }));
-                                                        }
-                                                    } else {
-                                                        newSelected.delete(name);
-                                                    }
-                                                    setSelectedCellNames(newSelected);
-                                                }}
-                                                style={{ marginRight: '8px' }}
-                                            />
-                                            <span style={{
-                                                flex: 1,
-                                                fontSize: '12px',
-                                                fontWeight: selectedCellNames.has(name) ? 'bold' : 'normal'
-                                            }}>
-                                                {name}
-                                            </span>
-                                            <ColorPicker
-                                                size="small"
-                                                value={cellNameColors[name] || '#f03b20'}
-                                                onChange={(color) => {
-                                                    setCellNameColors(prev => ({
-                                                        ...prev,
-                                                        [name]: color.toHexString()
-                                                    }));
-                                                }}
-                                                style={{ marginLeft: '8px' }}
-                                            />
-                                        </div>
-                                        <Button
-                                            type="text"
-                                            size="small"
-                                            icon={<DeleteOutlined />}
-                                            onClick={() => {
-                                                // Remove all cellIds with this name from cellName
-                                                const updatedCellName = { ...cellName };
-                                                Object.keys(updatedCellName).forEach(cellId => {
-                                                    if (updatedCellName[cellId] === name) {
-                                                        delete updatedCellName[cellId];
-                                                    }
-                                                });
-                                                setCellName(updatedCellName);
-
-                                                // Remove from selected cell names
-                                                const newSelected = new Set(selectedCellNames);
-                                                newSelected.delete(name);
-                                                setSelectedCellNames(newSelected);
-
-                                                // Remove color mapping
-                                                const newColors = { ...cellNameColors };
-                                                delete newColors[name];
-                                                setCellNameColors(newColors);
-                                            }}
-                                            style={{
-                                                marginLeft: '8px',
-                                                color: '#666666',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                padding: '0 4px'
-                                            }}
-                                            title={`Remove cell name "${name}"`}
-                                        />
-                                    </div>
-                                ))}
-                            </>
-                        ) : (
-                            <div style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>
-                                No cell names available. Click on clusters in UMAP to assign names.
-                            </div>
-                        )}
-                    </>
+                    <CellSettings
+                        cellTypesData={cellTypesData}
+                        selectedCellTypes={selectedCellTypes}
+                        setSelectedCellTypes={setSelectedCellTypes}
+                        cellTypeColors={cellTypeColors}
+                        setCellTypeColors={setCellTypeColors}
+                    />
                 ) : (
                     <GeneSettings
                         sampleId={sample.id}
@@ -1120,10 +1035,10 @@ export const SampleViewer = ({
                     return dynamicRadius;
                 },
                 getFillColor: d => {
-                    // Check if this cell has a named cell type that is selected
-                    const cellNameForThisCell = cellName && cellName[d.id];
-                    if (cellNameForThisCell && selectedCellNames.has(cellNameForThisCell)) {
-                        const color = cellNameColors[cellNameForThisCell];
+                    // Check if this cell has a cell type that is selected
+                    const cellType = d.cell_type;
+                    if (cellType && selectedCellTypes.includes(cellType)) {
+                        const color = cellTypeColors[cellType];
                         if (color) {
                             // Convert hex color to RGB array
                             const rgb = color.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [100, 100, 100];
@@ -1139,7 +1054,7 @@ export const SampleViewer = ({
                         return [150, 150, 150, 50];
                     }
 
-                    // Default: transparent if no cell name or not selected
+                    // Default: transparent if no cell type or not selected
                     return [0, 0, 0, 0];
                 },
                 getLineColor: d => {
@@ -1161,16 +1076,16 @@ export const SampleViewer = ({
                 pickable: true,
                 radiusUnits: 'pixels',
                 stroked: true,
-                filled: (hoveredCluster && hoveredCluster.sampleId === sample.id) || selectedCellNames.size > 0, // Fill when hovering or when cell names are selected
+                filled: (hoveredCluster && hoveredCluster.sampleId === sample.id) || selectedCellTypes.length > 0, // Fill when hovering or when cell types are selected
                 updateTriggers: {
-                    getFillColor: [hoveredCluster, cellName, selectedCellNames, cellNameColors],
+                    getFillColor: [hoveredCluster, selectedCellTypes, cellTypeColors],
                     getLineColor: [hoveredCluster],
                     getRadius: [hoveredCluster, mainViewState?.zoom],
                     getLineWidth: [hoveredCluster],
                 }
             });
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, mainViewState, hoveredCluster, cellName, selectedCellNames, cellNameColors]);
+    }, [selectedSamples, filteredCellData, mainViewState, hoveredCluster, selectedCellTypes, cellTypeColors]);
 
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {
