@@ -9,6 +9,7 @@ from PIL import Image
 import gseapy as gp
 from scipy.sparse import issparse
 import networkx as nx
+import random
 from slingshot import (
     run_slingshot_via_rpy2_improved,
     analyze_trajectory_cluster_transitions,
@@ -25,6 +26,11 @@ ADATA_CACHE = {}
 
 # Global cache for processed trajectory data
 PROCESSED_ADATA_CACHE = {}
+
+# Set random seed for reproducibility
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
 
 JSON_PATH = "./samples_list.json"
 """
@@ -422,7 +428,7 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
                 'id': cell_ids_filtered[i],
                 'x': float(embedding[i, 0]),
                 'y': float(embedding[i, 1]),
-                'cluster': f'Cluster {cluster_labels[i] + 1}'
+                'cluster': f'Cluster {cluster_labels[i]}'
             })
 
         # Add cluster information back to the original cached AnnData for GO analysis
