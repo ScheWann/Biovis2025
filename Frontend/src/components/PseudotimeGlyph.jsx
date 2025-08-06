@@ -56,7 +56,6 @@ const PseudotimeGlyph = ({
     // sampleId,
     source_title
 }) => {
-    console.log(source_title, "source_title in PseudotimeGlyph");
     const containerRef = useRef();
     const svgRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 300, height: 300 });
