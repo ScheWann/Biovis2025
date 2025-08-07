@@ -846,6 +846,32 @@ export const PseudotimeGlyph = ({
                     const currentNormalized = normalizeAngle(currentAngle);
                     const nextNormalized = normalizeAngle(nextAngle);
                     
+                    // Checkpoint: Check if current and next points are on the same side of vertical diameter
+                    // The vertical diameter divides the circle at x = centerX (angles π/2 and 3π/2)
+                    const isCurrentOnLeftSide = (currentNormalized > Math.PI / 2 && currentNormalized < 3 * Math.PI / 2);
+                    const isNextOnLeftSide = (nextNormalized > Math.PI / 2 && nextNormalized < 3 * Math.PI / 2);
+                    
+                    // If both points are on the same side, use a simple curve without complex control point logic
+                    if (isCurrentOnLeftSide === isNextOnLeftSide) {
+                        // Create a simple control point by slightly extending the midpoint outward from center
+                        const midX = (currentPoint.x + nextPoint.x) / 2;
+                        const midY = (currentPoint.y + nextPoint.y) / 2;
+                        
+                        // Calculate direction from center to midpoint
+                        const dirX = midX - centerX;
+                        const dirY = midY - centerY;
+                        const distance = Math.sqrt(dirX * dirX + dirY * dirY);
+                        
+                        // Extend the midpoint outward by a small amount for a gentle curve
+                        const extensionFactor = 1.2; // 10% extension for subtle curve
+                        const controlX = centerX + (dirX / distance) * distance * extensionFactor;
+                        const controlY = centerY + (dirY / distance) * distance * extensionFactor;
+                        
+                        // Use quadratic Bezier curve with simple control point
+                        pathData += ` Q ${controlX} ${controlY} ${nextPoint.x} ${nextPoint.y}`;
+                        continue;
+                    }
+                    
                     // Calculate angular difference considering wraparound
                     let angularDiff = Math.abs(nextNormalized - currentNormalized);
                     if (angularDiff > Math.PI) {
