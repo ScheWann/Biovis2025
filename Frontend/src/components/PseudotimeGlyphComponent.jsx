@@ -1,4 +1,4 @@
-import PseudotimeGlyph from './PseudotimeGlyph';
+import { PseudotimeGlyph } from './PseudotimeGlyph';
 import { Empty, Spin, Select, Button } from 'antd';
 import { useState, useEffect, useRef, useMemo } from 'react';
 
