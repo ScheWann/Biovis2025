@@ -786,8 +786,8 @@ export const PseudotimeGlyph = ({
             .domain([0, 1])
             .range([Math.PI, 2 * Math.PI]); // From left side (180°) to right side (360°) through upper half
 
-        // Gene colors
-        const geneColors = ['#ff6b6b', '#4ecdc4', '#45b7d1'];
+        // Gene colors using D3's category10 color scheme
+        const geneColors = d3.schemeCategory10;
 
         geneData.forEach((geneInfo, geneIndex) => {
             const color = geneColors[geneIndex % geneColors.length];
