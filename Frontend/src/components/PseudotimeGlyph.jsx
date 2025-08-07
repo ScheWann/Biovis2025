@@ -637,7 +637,23 @@ export const PseudotimeGlyph = ({
                 // Add tooltip functionality to star
                 star.style("cursor", "pointer")
                     .on("mouseover", function (event) {
-                        // Get all trajectories this node belongs to
+                        // Get the first trajectory this node belongs to for hover emission
+                        const firstTrajectoryIndex = Array.from(node.trajectories)[0];
+                        const firstTrajectory = trajectoryData[firstTrajectoryIndex];
+                        
+                        // Emit trajectory hover event to parent components with debouncing
+                        if (firstTrajectory && source_title) {
+                            const currentTrajectory = {
+                                path: firstTrajectory.path,
+                                adata_umap_title: source_title,
+                                pseudotimes: firstTrajectory.pseudotimes,
+                                trajectoryIndex: trajectoryIndex
+                            };
+
+                            debouncedSetHover(currentTrajectory);
+                        }
+
+                        // Get all trajectories this node belongs to for tooltip display
                         const trajectoryInfo = Array.from(node.trajectories).map(trajIndex => {
                             const trajectory = trajectoryData[trajIndex];
                             const trajectorySequence = trajectory.path.map((cluster, idx) =>
@@ -648,9 +664,8 @@ export const PseudotimeGlyph = ({
 
                         tooltip.style("visibility", "visible")
                             .html(`
-                                <div><strong>Endpoint - Cluster ${node.cluster}</strong></div>
-                                <div>Time: ${node.pseudotime.toFixed(2)}</div>
-                                <div style="margin-top: 8px;"><strong>Belongs to trajectory(ies):</strong></div>
+                                <div><strong>Endpoint at time ${node.pseudotime.toFixed(2)}</strong></div>
+                                <div style="margin-top: 8px;"><strong>Trajectory sequence(s):</strong></div>
                                 ${trajectoryInfo}
                             `);
                         positionTooltip(event, tooltip);
@@ -660,6 +675,9 @@ export const PseudotimeGlyph = ({
                     })
                     .on("mouseout", function () {
                         tooltip.style("visibility", "hidden");
+                        
+                        // Clear trajectory hover event with debouncing
+                        clearHover();
                     });
             } else {
                 const circle = bottomSection.append("circle")
@@ -672,7 +690,23 @@ export const PseudotimeGlyph = ({
                     .attr("opacity", nodeOpacity)
                     .style("cursor", "pointer")
                     .on("mouseover", function (event) {
-                        // Get all trajectories this node belongs to
+                        // Get the first trajectory this node belongs to for hover emission
+                        const firstTrajectoryIndex = Array.from(node.trajectories)[0];
+                        const firstTrajectory = trajectoryData[firstTrajectoryIndex];
+                        
+                        // Emit trajectory hover event to parent components with debouncing
+                        if (firstTrajectory && source_title) {
+                            const currentTrajectory = {
+                                path: firstTrajectory.path,
+                                adata_umap_title: source_title,
+                                pseudotimes: firstTrajectory.pseudotimes,
+                                trajectoryIndex: trajectoryIndex
+                            };
+
+                            debouncedSetHover(currentTrajectory);
+                        }
+
+                        // Get all trajectories this node belongs to for tooltip display
                         const trajectoryInfo = Array.from(node.trajectories).map(trajIndex => {
                             const trajectory = trajectoryData[trajIndex];
                             const trajectorySequence = trajectory.path.map((cluster, idx) =>
@@ -683,9 +717,8 @@ export const PseudotimeGlyph = ({
 
                         tooltip.style("visibility", "visible")
                             .html(`
-                                <div><strong>Cluster ${node.cluster}</strong></div>
-                                <div>Time: ${node.pseudotime.toFixed(2)}</div>
-                                <div style="margin-top: 8px;"><strong>Belongs to trajectory(ies):</strong></div>
+                                <div><strong>Node at time ${node.pseudotime.toFixed(2)}</strong></div>
+                                <div style="margin-top: 8px;"><strong>Trajectory sequence(s):</strong></div>
                                 ${trajectoryInfo}
                             `);
                         positionTooltip(event, tooltip);
@@ -695,6 +728,9 @@ export const PseudotimeGlyph = ({
                     })
                     .on("mouseout", function () {
                         tooltip.style("visibility", "hidden");
+                        
+                        // Clear trajectory hover event with debouncing
+                        clearHover();
                     });
             }
         });
