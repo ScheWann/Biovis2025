@@ -6,23 +6,23 @@ import { Empty, Spin, Checkbox } from 'antd';
 const useDebounceTrajectoryHover = (setHoveredTrajectory, delay = 100) => {
     const timeoutRef = useRef();
     const lastHoverRef = useRef(null);
-    
+
     const debouncedSetHover = useCallback((trajectoryData) => {
         // Check if the trajectory data is the same to avoid unnecessary updates
         const currentKey = trajectoryData ? `${trajectoryData.adata_umap_title}_${JSON.stringify(trajectoryData.path)}_${trajectoryData.trajectoryIndex}` : null;
         const lastKey = lastHoverRef.current ? `${lastHoverRef.current.adata_umap_title}_${JSON.stringify(lastHoverRef.current.path)}_${lastHoverRef.current.trajectoryIndex}` : null;
-        
+
         if (currentKey === lastKey) {
             return; // Same trajectory, no need to update
         }
-        
+
         clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
             setHoveredTrajectory(trajectoryData);
             lastHoverRef.current = trajectoryData;
         }, delay);
     }, [setHoveredTrajectory, delay]);
-    
+
     const clearHover = useCallback(() => {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
@@ -30,7 +30,7 @@ const useDebounceTrajectoryHover = (setHoveredTrajectory, delay = 100) => {
             lastHoverRef.current = null;
         }, 50); // Shorter delay for clearing
     }, [setHoveredTrajectory]);
-    
+
     // Cleanup timeout on unmount
     useEffect(() => {
         return () => {
@@ -39,7 +39,7 @@ const useDebounceTrajectoryHover = (setHoveredTrajectory, delay = 100) => {
             }
         };
     }, []);
-    
+
     return { debouncedSetHover, clearHover };
 };
 
@@ -60,10 +60,10 @@ const PseudotimeGlyph = ({
     const svgRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 300, height: 300 });
     const [selectedTrajectory, setSelectedTrajectory] = useState(null);
-    
+
     // Use the debounced hover hook
     const { debouncedSetHover, clearHover } = useDebounceTrajectoryHover(setHoveredTrajectory);
-    
+
     // Generate a unique ID for this component instance
     const [componentId] = useState(() => `pseudotime-glyph-${Math.random().toString(36).substr(2, 9)}`);
 
@@ -114,32 +114,32 @@ const PseudotimeGlyph = ({
     const positionTooltip = (event, tooltip) => {
         const tooltipWidth = 300; // max-width set in CSS
         const tooltipHeight = 100; // estimated height
-        
+
         let left = event.clientX + 15;
         let top = event.clientY - 10;
-        
+
         // Check right boundary
         if (left + tooltipWidth > window.innerWidth) {
             left = event.clientX - tooltipWidth - 15;
         }
-        
+
         // Check bottom boundary
         if (top + tooltipHeight > window.innerHeight) {
             top = event.clientY - tooltipHeight - 15;
         }
-        
+
         // Check top boundary
         if (top < 0) {
             top = 10;
         }
-        
+
         // Check left boundary
         if (left < 0) {
             left = 10;
         }
-        
+
         tooltip.style("left", left + "px")
-               .style("top", top + "px");
+            .style("top", top + "px");
     };
 
     const createGlyph = (dataToUse) => {
@@ -198,7 +198,7 @@ const PseudotimeGlyph = ({
 
         // Color scale for different cell states/clusters
         const allClusters = [...new Set(dataToUse.flatMap(traj => traj.path))];
-        
+
         // Use cluster colors from UMAP if available, otherwise use default colors
         let clusterColorScale;
         if (clusterColors) {
@@ -277,11 +277,11 @@ const PseudotimeGlyph = ({
             .attr("opacity", 0.3)
             .attr("stroke", "none")
             .style("cursor", "pointer")
-            // .on("click", function (event) {
-            //     // Deselect trajectory when clicking on background
-            //     event.stopPropagation();
-            //     setSelectedTrajectory(null);
-            // });
+        // .on("click", function (event) {
+        //     // Deselect trajectory when clicking on background
+        //     event.stopPropagation();
+        //     setSelectedTrajectory(null);
+        // });
 
         // Scale for converting pseudotime to radial distance
         const radiusScale = d3.scaleLinear()
@@ -576,7 +576,7 @@ const PseudotimeGlyph = ({
 
                         // Get the complete trajectory sequence
                         const trajectory = trajectoryData[edge.trajectory];
-                        const trajectorySequence = trajectory.path.map((cluster, idx) => 
+                        const trajectorySequence = trajectory.path.map((cluster, idx) =>
                             `${cluster} (t=${parseFloat(trajectory.pseudotimes[idx]).toFixed(2)})`
                         ).join(' → ');
 
@@ -589,7 +589,7 @@ const PseudotimeGlyph = ({
                                 pseudotimes: trajectory.pseudotimes,
                                 trajectoryIndex: trajectoryIndex
                             };
-                            
+
                             debouncedSetHover(currentTrajectory);
                         }
 
@@ -640,7 +640,7 @@ const PseudotimeGlyph = ({
                         // Get all trajectories this node belongs to
                         const trajectoryInfo = Array.from(node.trajectories).map(trajIndex => {
                             const trajectory = trajectoryData[trajIndex];
-                            const trajectorySequence = trajectory.path.map((cluster, idx) => 
+                            const trajectorySequence = trajectory.path.map((cluster, idx) =>
                                 `${cluster} (t=${parseFloat(trajectory.pseudotimes[idx]).toFixed(2)})`
                             ).join(' → ');
                             return `<div><strong>Trajectory ${trajIndex + 1}:</strong> ${trajectorySequence}</div>`;
@@ -675,7 +675,7 @@ const PseudotimeGlyph = ({
                         // Get all trajectories this node belongs to
                         const trajectoryInfo = Array.from(node.trajectories).map(trajIndex => {
                             const trajectory = trajectoryData[trajIndex];
-                            const trajectorySequence = trajectory.path.map((cluster, idx) => 
+                            const trajectorySequence = trajectory.path.map((cluster, idx) =>
                                 `${cluster} (t=${parseFloat(trajectory.pseudotimes[idx]).toFixed(2)})`
                             ).join(' → ');
                             return `<div><strong>Trajectory ${trajIndex + 1}:</strong> ${trajectorySequence}</div>`;
@@ -915,33 +915,33 @@ const PseudotimeGlyph = ({
     return (
         <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }}>
             {/* Checkbox in upper left corner */}
-            <div style={{ 
-                position: 'absolute', 
-                top: '5px', 
-                left: '5px', 
+            <div style={{
+                position: 'absolute',
+                top: '5px',
+                left: '5px',
                 zIndex: 1000,
                 backgroundColor: 'rgba(255, 255, 255, 0.8)',
                 borderRadius: '4px',
                 padding: '2px'
             }}>
-                <Checkbox 
+                <Checkbox
                     checked={isSelected}
                     onChange={(e) => onSelectionChange && onSelectionChange(e.target.checked)}
                     size="small"
                 />
             </div>
             {pseudotimeLoading && (
-                <div style={{ 
-                    position: 'absolute', 
-                    top: '50%', 
-                    left: '50%', 
-                    transform: 'translate(-50%, -50%)' 
+                <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)'
                 }}>
                     <Spin size="large" />
                 </div>
             )}
             {!pseudotimeLoading && (!pseudotimeData || pseudotimeData.length === 0) ? (
-                <div style={{ 
+                <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -954,13 +954,13 @@ const PseudotimeGlyph = ({
                     />
                 </div>
             ) : (
-                <svg 
-                    ref={svgRef} 
-                    width={dimensions.width} 
+                <svg
+                    ref={svgRef}
+                    width={dimensions.width}
                     height={dimensions.height}
                     viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
-                    style={{ 
-                        width: '100%', 
+                    style={{
+                        width: '100%',
                         height: '100%',
                         display: 'block',
                         border: '1px solid #ddd',
