@@ -812,188 +812,73 @@ export const PseudotimeGlyph = ({
             // Customizable curve generation function for handling angular wraparound
             const generateCustomCurve = (points, options = {}) => {
                 if (points.length < 2) return null;
-                
-                // Configuration options
-                const config = {
-                    angularThreshold: options.angularThreshold || Math.PI / 3, // 60 degrees default
-                    convexMultiplier: options.convexMultiplier || 1.2,        // How much to extend convex curves
-                    minConvexExtension: options.minConvexExtension || 30,      // Minimum extension for convex curves
-                    normalCurveMultiplier: options.normalCurveMultiplier || 1.1, // Normal curve extension
-                    useShortestPath: options.useShortestPath !== false,        // Whether to use shortest angular path
-                    ...options
+
+                const settings = {
+                    samplesPerSegment: options.samplesPerSegment || 24,
+                    bulgeFactor: options.bulgeFactor ?? 0.18, // 0..1 of radial gap
                 };
-                
+
+                // Helpers
+                const normalizeAngle = (angle) => {
+                    let a = angle;
+                    while (a < 0) a += 2 * Math.PI;
+                    while (a >= 2 * Math.PI) a -= 2 * Math.PI;
+                    return a;
+                };
+
+                const unwrapToShortestUpperHalf = (from, to) => {
+                    // Keep path across the shortest angular distance
+                    let a0 = normalizeAngle(from);
+                    let a1 = normalizeAngle(to);
+                    let diff = a1 - a0;
+                    if (diff > Math.PI) a1 -= 2 * Math.PI;
+                    else if (diff < -Math.PI) a1 += 2 * Math.PI;
+                    return { a0, a1 };
+                };
+
                 let pathData = `M ${points[0].x} ${points[0].y}`;
-                
-                // Track previous control points to avoid intersections
-                const previousControlPoints = [];
-                
+
                 for (let i = 1; i < points.length; i++) {
                     const currentPoint = points[i - 1];
                     const nextPoint = points[i];
-                    
-                    // Calculate angular difference
-                    const currentAngle = Math.atan2(currentPoint.y - centerY, currentPoint.x - centerX);
-                    const nextAngle = Math.atan2(nextPoint.y - centerY, nextPoint.x - centerX);
-                    
-                    // Normalize angles to [0, 2π]
-                    const normalizeAngle = (angle) => {
-                        while (angle < 0) angle += 2 * Math.PI;
-                        while (angle >= 2 * Math.PI) angle -= 2 * Math.PI;
-                        return angle;
-                    };
-                    
-                    const currentNormalized = normalizeAngle(currentAngle);
-                    const nextNormalized = normalizeAngle(nextAngle);
-                    
-                    // Checkpoint: Check if current and next points are on the same side of vertical diameter
-                    // The vertical diameter divides the circle at x = centerX (angles π/2 and 3π/2)
-                    const isCurrentOnLeftSide = (currentNormalized > Math.PI / 2 && currentNormalized < 3 * Math.PI / 2);
-                    const isNextOnLeftSide = (nextNormalized > Math.PI / 2 && nextNormalized < 3 * Math.PI / 2);
-                    
-                    // If both points are on the same side, use a simple curve without complex control point logic
-                    if (isCurrentOnLeftSide === isNextOnLeftSide) {
-                        // Create a simple control point by slightly extending the midpoint outward from center
-                        const midX = (currentPoint.x + nextPoint.x) / 2;
-                        const midY = (currentPoint.y + nextPoint.y) / 2;
-                        
-                        // Calculate direction from center to midpoint
-                        const dirX = midX - centerX;
-                        const dirY = midY - centerY;
-                        const distance = Math.sqrt(dirX * dirX + dirY * dirY);
-                        
-                        // Extend the midpoint outward by a small amount for a gentle curve
-                        const extensionFactor = 1.2; // 10% extension for subtle curve
-                        const controlX = centerX + (dirX / distance) * distance * extensionFactor;
-                        const controlY = centerY + (dirY / distance) * distance * extensionFactor;
-                        
-                        // Use quadratic Bezier curve with simple control point
-                        pathData += ` Q ${controlX} ${controlY} ${nextPoint.x} ${nextPoint.y}`;
-                        continue;
+
+                    // Radii for concentric bounds
+                    const rCurrent = Math.hypot(currentPoint.x - centerX, currentPoint.y - centerY);
+                    const rNext = Math.hypot(nextPoint.x - centerX, nextPoint.y - centerY);
+                    const rMin = Math.min(rCurrent, rNext);
+                    const rMax = Math.max(rCurrent, rNext);
+
+                    // Angles, constrained to the upper half [π, 2π]
+                    const angCurrent = Math.atan2(currentPoint.y - centerY, currentPoint.x - centerX);
+                    const angNext = Math.atan2(nextPoint.y - centerY, nextPoint.x - centerX);
+                    const { a0, a1 } = unwrapToShortestUpperHalf(angCurrent, angNext);
+
+                    // Generate interpolated points that stay between rMin..rMax and in upper half
+                    const n = Math.max(2, settings.samplesPerSegment);
+                    for (let s = 1; s < n; s++) {
+                        const t = s / n;
+
+                        // Interpolate angle along the shortest path
+                        let a = a0 + (a1 - a0) * t;
+                        let aNorm = normalizeAngle(a);
+                        // Force to upper half if numerical artifacts occur
+                        if (aNorm < Math.PI) aNorm = 2 * Math.PI - aNorm;
+
+                        // Interpolate radius with optional smooth bulge, then clamp to [rMin, rMax]
+                        const rLinear = rCurrent + (rNext - rCurrent) * t;
+                        const gap = rMax - rMin;
+                        const rBulge = rLinear + gap * settings.bulgeFactor * Math.sin(Math.PI * t);
+                        const r = Math.max(rMin, Math.min(rMax, rBulge));
+
+                        const x = centerX + Math.cos(aNorm) * r;
+                        const y = centerY + Math.sin(aNorm) * r; // sin(aNorm) <= 0 in [π, 2π]
+                        pathData += ` L ${x} ${y}`;
                     }
-                    
-                    // Calculate angular difference considering wraparound
-                    let angularDiff = Math.abs(nextNormalized - currentNormalized);
-                    if (angularDiff > Math.PI) {
-                        angularDiff = 2 * Math.PI - angularDiff;
-                    }
-                    
-                    // Distance from center for determining curve convexity
-                    const currentRadius = Math.sqrt(Math.pow(currentPoint.x - centerX, 2) + Math.pow(currentPoint.y - centerY, 2));
-                    const nextRadius = Math.sqrt(Math.pow(nextPoint.x - centerX, 2) + Math.pow(nextPoint.y - centerY, 2));
-                    const avgRadius = (currentRadius + nextRadius) / 2;
-                    
-                    // Find safe control point that doesn't intersect with previous curves
-                    const findSafeControlPoint = (baseRadius, baseAngle) => {
-                        let controlRadius = baseRadius;
-                        let controlAngle = baseAngle;
-                        
-                        // Ensure control point is in upper half
-                        if (controlAngle > 0 && controlAngle < Math.PI) {
-                            controlAngle = Math.PI + (Math.PI - controlAngle);
-                        }
-                        
-                        // Progressive adjustment to avoid intersections
-                        for (let attempt = 0; attempt < 5; attempt++) {
-                            const controlX = centerX + Math.cos(controlAngle) * controlRadius;
-                            const controlY = centerY + Math.sin(controlAngle) * controlRadius;
-                            
-                            // Check if this control point would cause intersection
-                            let hasIntersection = false;
-                            
-                            // Simple heuristic: ensure control point radius is monotonically increasing
-                            // and control angle progresses naturally
-                            if (previousControlPoints.length > 0) {
-                                const lastControl = previousControlPoints[previousControlPoints.length - 1];
-                                const lastControlRadius = Math.sqrt(Math.pow(lastControl.x - centerX, 2) + Math.pow(lastControl.y - centerY, 2));
-                                const lastControlAngle = normalizeAngle(Math.atan2(lastControl.y - centerY, lastControl.x - centerX));
-                                
-                                // Avoid sudden radius decreases that could cause crossing
-                                if (controlRadius < lastControlRadius - 20) {
-                                    hasIntersection = true;
-                                }
-                                
-                                // Ensure angular progression is reasonable
-                                const angleDiff = Math.abs(controlAngle - lastControlAngle);
-                                const minAngleDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
-                                if (minAngleDiff > Math.PI / 2) {
-                                    hasIntersection = true;
-                                }
-                            }
-                            
-                            if (!hasIntersection) {
-                                return { x: controlX, y: controlY, radius: controlRadius, angle: controlAngle };
-                            }
-                            
-                            // Adjust for next attempt
-                            if (attempt < 2) {
-                                // Try increasing radius
-                                controlRadius += 15;
-                            } else {
-                                // Try adjusting angle slightly toward center of current-next arc
-                                const targetAngle = (currentNormalized + nextNormalized) / 2;
-                                if (targetAngle > 0 && targetAngle < Math.PI) {
-                                    controlAngle = Math.PI + (Math.PI - targetAngle);
-                                } else {
-                                    controlAngle = targetAngle;
-                                }
-                                controlRadius = baseRadius + (attempt * 10);
-                            }
-                        }
-                        
-                        // Fallback: return the last computed point
-                        return { 
-                            x: centerX + Math.cos(controlAngle) * controlRadius, 
-                            y: centerY + Math.sin(controlAngle) * controlRadius,
-                            radius: controlRadius,
-                            angle: controlAngle
-                        };
-                    };
-                    
-                    if (angularDiff > config.angularThreshold) {
-                        // Use convex arc for large angular differences
-                        const baseControlRadius = Math.max(
-                            avgRadius * config.convexMultiplier, 
-                            avgRadius + config.minConvexExtension
-                        );
-                        
-                        // Calculate base midpoint angle
-                        let baseMidAngle;
-                        if (config.useShortestPath) {
-                            if (Math.abs(nextNormalized - currentNormalized) <= Math.PI) {
-                                baseMidAngle = (currentNormalized + nextNormalized) / 2;
-                            } else {
-                                if (currentNormalized > nextNormalized) {
-                                    baseMidAngle = (currentNormalized + nextNormalized + 2 * Math.PI) / 2;
-                                } else {
-                                    baseMidAngle = (currentNormalized + nextNormalized - 2 * Math.PI) / 2;
-                                }
-                                if (baseMidAngle >= 2 * Math.PI) baseMidAngle -= 2 * Math.PI;
-                                if (baseMidAngle < 0) baseMidAngle += 2 * Math.PI;
-                            }
-                        } else {
-                            baseMidAngle = (currentNormalized + nextNormalized) / 2;
-                        }
-                        
-                        // Find safe control point
-                        const safeControl = findSafeControlPoint(baseControlRadius, baseMidAngle);
-                        previousControlPoints.push(safeControl);
-                        
-                        // Use quadratic Bezier curve
-                        pathData += ` Q ${safeControl.x} ${safeControl.y} ${nextPoint.x} ${nextPoint.y}`;
-                    } else {
-                        // Use smooth curve for small angular differences
-                        const baseControlRadius = avgRadius * config.normalCurveMultiplier;
-                        const baseMidAngle = (currentNormalized + nextNormalized) / 2;
-                        
-                        // Find safe control point
-                        const safeControl = findSafeControlPoint(baseControlRadius, baseMidAngle);
-                        previousControlPoints.push(safeControl);
-                        
-                        pathData += ` Q ${safeControl.x} ${safeControl.y} ${nextPoint.x} ${nextPoint.y}`;
-                    }
+
+                    // Ensure we land exactly on the next point
+                    pathData += ` L ${nextPoint.x} ${nextPoint.y}`;
                 }
-                
+
                 return pathData;
             };
 
