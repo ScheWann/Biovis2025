@@ -44,9 +44,27 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
         setSelectedGenes(selectedGenes.filter(gene => gene !== geneToRemove));
     };
 
-    // Function to confirm gene selection
-    const confirmGeneSelection = (sampleId) => {
-        console.log('Selected genes for sample', sampleId, ':', selectedGenes);
+    // Function to confirm gene selection and fetch Kosara data
+    const confirmGeneSelection = async (sampleId) => {
+        try {
+            const response = await fetch('/api/get_kosara_data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sample_ids: [sampleId],
+                    gene_list: selectedGenes
+                    // Intentionally omit cell_list -> backend defaults to all cells
+                })
+            });
+            if (!response.ok) {
+                console.error('Failed to fetch Kosara data:', response.status, response.statusText);
+                return;
+            }
+            const data = await response.json();
+            console.log('Kosara data:', data);
+        } catch (err) {
+            console.error('Error fetching Kosara data:', err);
+        }
     };
 
     // Debounced search function to avoid too many API calls

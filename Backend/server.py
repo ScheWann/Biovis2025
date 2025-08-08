@@ -108,7 +108,8 @@ def get_kosara_data_route():
     """
     sample_ids = request.json["sample_ids"]
     gene_list = request.json["gene_list"]
-    cell_list = request.json["cell_list"]
+    # Make cell_list optional; default to all cells when not provided
+    cell_list = request.json.get("cell_list", None)
     return jsonify(get_kosara_data(sample_ids, gene_list, cell_list))
 
 

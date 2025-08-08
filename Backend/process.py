@@ -412,10 +412,31 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
     def get_coordinates(sample_id):
         if sample_id in SAMPLES:
             adata = get_cached_adata(sample_id)
-            df = adata.obsm["spatial"].copy()
-            df["cell_type"] = adata.obs["cell_type"]
-            df["id"] = adata.obs.index
-            return df
+            # Build coordinate DataFrame with standard column names
+            if 'spatial_cropped_150_buffer' in adata.obsm:
+                coords_df = pd.DataFrame(
+                    adata.obsm['spatial_cropped_150_buffer'],
+                    columns=['cell_x', 'cell_y']
+                )
+            else:
+                coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'])
+
+            # Determine cell label column preference
+            if 'predicted_labels' in adata.obs.columns:
+                cell_labels = adata.obs['predicted_labels'].astype(str).values
+            elif 'cell_type' in adata.obs.columns:
+                cell_labels = adata.obs['cell_type'].astype(str).values
+            else:
+                leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
+                if leiden_cols:
+                    lc = leiden_cols[0]
+                    cell_labels = adata.obs[lc].astype(str).map(lambda v: f'Cluster {v}').values
+                else:
+                    cell_labels = np.array(['Unknown'] * adata.n_obs)
+
+            coords_df['cell_type'] = cell_labels
+            coords_df['id'] = adata.obs.index
+            return coords_df
 
     position_cell_ratios_dict = filter_and_merge(cell_list, gene_list, sample_ids)
     results = {}
