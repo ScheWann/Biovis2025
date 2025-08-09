@@ -691,14 +691,29 @@ export const SampleViewer = ({
         const viewportX = imageX / imageSize[0];
         const viewportY = imageY / imageSize[1];
 
-        const newViewport = {
+        const clampedViewport = {
             x: Math.max(0, Math.min(1, viewportX)),
             y: Math.max(0, Math.min(1, viewportY)),
             size: 200 // Fixed viewport size in magnifier pixels
         };
 
-        setMagnifierViewport(newViewport);
-        setMagnifierMousePos({ x: worldX, y: worldY });
+        // Only update if values actually changed to avoid render → hover → setState loops
+        setMagnifierViewport(prev => {
+            if (
+                prev &&
+                Math.abs(prev.x - clampedViewport.x) < 1e-4 &&
+                Math.abs(prev.y - clampedViewport.y) < 1e-4 &&
+                prev.size === clampedViewport.size
+            ) {
+                return prev;
+            }
+            return clampedViewport;
+        });
+
+        setMagnifierMousePos(prev => {
+            if (prev && prev.x === worldX && prev.y === worldY) return prev;
+            return { x: worldX, y: worldY };
+        });
     }, [sampleOffsets, imageSizes]);
 
     // Toggle drawing mode
@@ -1029,7 +1044,8 @@ export const SampleViewer = ({
                 setMousePosition(info.coordinate);
             }
         } else {
-            setMousePosition(null);
+            // Avoid redundant state updates
+            if (mousePosition !== null) setMousePosition(null);
 
             // Handle magnifier when key is pressed
             if (info.coordinate && magnifierVisible && !isAreaTooltipVisible && !isAreaEditPopupVisible) {
@@ -1044,7 +1060,7 @@ export const SampleViewer = ({
                 }
             }
         }
-    }, [isDrawing, magnifierVisible, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate, updateMagnifierViewport]);
+    }, [isDrawing, mousePosition, magnifierVisible, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate, updateMagnifierViewport]);
 
     // Create collapse items for each sample
     const collapseItems = selectedSamples.map((sample, index) => ({
@@ -1086,7 +1102,21 @@ export const SampleViewer = ({
 
     const handleViewStateChange = useCallback(({ viewState, viewId }) => {
         if (viewId === 'main') {
-            setMainViewState(viewState);
+            setMainViewState(prev => {
+                if (
+                    prev &&
+                    prev.zoom === viewState.zoom &&
+                    prev.maxZoom === viewState.maxZoom &&
+                    prev.minZoom === viewState.minZoom &&
+                    prev.target && viewState.target &&
+                    prev.target[0] === viewState.target[0] &&
+                    prev.target[1] === viewState.target[1] &&
+                    prev.target[2] === viewState.target[2]
+                ) {
+                    return prev;
+                }
+                return viewState;
+            });
         }
     }, []);
 
@@ -1695,12 +1725,12 @@ export const SampleViewer = ({
     // In handleMouseMove, update magnifier logic to use hiresImages
     useEffect(() => {
         if (!magnifierVisible || isDrawing || isAreaTooltipVisible || isAreaEditPopupVisible) {
-            setMagnifierData(null);
+            setMagnifierData(prev => (prev === null ? prev : null));
             return;
         }
 
         if (!magnifierMousePos || !selectedSamples.length) {
-            setMagnifierData(null);
+            setMagnifierData(prev => (prev === null ? prev : null));
             return;
         }
 
@@ -1708,17 +1738,31 @@ export const SampleViewer = ({
         const hoveredSample = getSampleAtCoordinate(worldX, worldY);
 
         if (hoveredSample && imageSizes[hoveredSample]) {
-            if (!hiresImages[hoveredSample]) {
-                setMagnifierData(null);
+            const imageUrl = hiresImages[hoveredSample];
+            const size = imageSizes[hoveredSample];
+            if (!imageUrl) {
+                setMagnifierData(prev => (prev === null ? prev : null));
             } else {
-                setMagnifierData({
-                    imageUrl: hiresImages[hoveredSample],
-                    sampleId: hoveredSample,
-                    imageSize: imageSizes[hoveredSample]
+                setMagnifierData(prev => {
+                    if (
+                        prev &&
+                        prev.sampleId === hoveredSample &&
+                        prev.imageUrl === imageUrl &&
+                        prev.imageSize && size &&
+                        prev.imageSize[0] === size[0] &&
+                        prev.imageSize[1] === size[1]
+                    ) {
+                        return prev;
+                    }
+                    return {
+                        imageUrl,
+                        sampleId: hoveredSample,
+                        imageSize: size
+                    };
                 });
             }
         } else {
-            setMagnifierData(null);
+            setMagnifierData(prev => (prev === null ? prev : null));
         }
     }, [magnifierVisible, magnifierMousePos, selectedSamples, hiresImages, imageSizes, isDrawing, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate]);
 
