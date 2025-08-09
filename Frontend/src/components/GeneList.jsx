@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Checkbox, AutoComplete } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
 
-export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes }) => {
+export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes, onKosaraData }) => {
     const [searchText, setSearchText] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -61,7 +61,11 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
                 return;
             }
             const data = await response.json();
-            console.log('Kosara data:', data);
+            // Notify parent with the array for this sample
+            // if (onKosaraData && data && data[sampleId]) {
+            //     onKosaraData(sampleId, data[sampleId]);
+            // }
+            console.log(data, 'data');
         } catch (err) {
             console.error('Error fetching Kosara data:', err);
         }

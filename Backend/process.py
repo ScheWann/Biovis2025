@@ -414,8 +414,10 @@ def get_kosara_data(sample_ids, gene_list, cell_list):
             adata = get_cached_adata(sample_id)
             # Build coordinate DataFrame with standard column names
             if 'spatial_cropped_150_buffer' in adata.obsm:
+                scalef = adata.uns['spatial'][sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
+                coords_array = adata.obsm['spatial_cropped_150_buffer'] * scalef
                 coords_df = pd.DataFrame(
-                    adata.obsm['spatial_cropped_150_buffer'],
+                    coords_array,
                     columns=['cell_x', 'cell_y']
                 )
             else:
