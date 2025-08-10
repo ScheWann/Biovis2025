@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
 import { CellSettings } from './CellList';
-import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Checkbox } from "antd";
+import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Checkbox, Spin } from "antd";
 import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined, DeleteOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
@@ -39,6 +39,9 @@ export const SampleViewer = ({
 
     // Kosara gene expression data per sample returned from backend
     const [kosaraDataBySample, setKosaraDataBySample] = useState({}); // { sampleId: [ { id, cell_x, cell_y, cell_type, total_expression, angles:{}, radius:{}, ratios:{} }, ... ] }
+    
+    // Loading state for gene mode switching
+    const [isKosaraLoading, setIsKosaraLoading] = useState(false);
 
     // Drawing state
     const [isDrawing, setIsDrawing] = useState(false);
@@ -153,9 +156,11 @@ export const SampleViewer = ({
 
     // Change cell/gene mode for a sample
     const changeCellGeneMode = (sampleId, e) => {
+        const newMode = e.target.value;
+        
         setRadioCellGeneModes(prev => ({
             ...prev,
-            [sampleId]: e.target.value
+            [sampleId]: newMode
         }));
     };
 
@@ -166,6 +171,17 @@ export const SampleViewer = ({
             [sampleId]: Array.isArray(dataArray) ? dataArray : []
         }));
         setRadioCellGeneModes(prev => ({ ...prev, [sampleId]: 'genes' }));
+        
+        // Ensure loading is shown for at least 500ms for better UX
+        // This will be the primary mechanism to turn off loading
+        setTimeout(() => {
+            setIsKosaraLoading(false);
+        }, 500);
+    }, []);
+
+    // Start loading when confirm button is clicked (before fetching data)
+    const handleKosaraLoadingStart = useCallback((sampleId) => {
+        setIsKosaraLoading(true);
     }, []);
 
     // Reset view to initial position and zoom
@@ -1110,6 +1126,7 @@ export const SampleViewer = ({
                         geneColorMap={geneColorMap}
                         setGeneColorMap={setGeneColorMap}
                         onKosaraData={handleKosaraData}
+                        onKosaraLoadingStart={handleKosaraLoadingStart}
                     />
                 )}
             </>
@@ -1340,6 +1357,33 @@ export const SampleViewer = ({
         });
         return result;
     }, [selectedSamples, radioCellGeneModes, selectedGenes, geneColorMap, kosaraDataBySample, sampleOffsets, generateKosaraPath]);
+
+    // Turn off loading when Kosara polygons are ready for rendering
+    useEffect(() => {
+        if (isKosaraLoading) {
+            // Check if any sample is in gene mode and has kosara polygons ready
+            const hasKosaraPolygonsReady = selectedSamples.some(sample => {
+                const sampleId = sample.id;
+                const mode = radioCellGeneModes[sampleId];
+                return mode === 'genes' && kosaraPolygonsBySample[sampleId]?.length > 0;
+            });
+            
+            // Also check if we're in gene mode but have no selected genes (should not load in this case)
+            const isInGeneModeWithNoGenes = selectedSamples.some(sample => {
+                const sampleId = sample.id;
+                const mode = radioCellGeneModes[sampleId];
+                return mode === 'genes' && selectedGenes.length === 0;
+            });
+            
+            if (hasKosaraPolygonsReady || isInGeneModeWithNoGenes) {
+                // Add a delay to ensure rendering is complete and loading is visible
+                const timeoutId = setTimeout(() => {
+                    setIsKosaraLoading(false);
+                }, hasKosaraPolygonsReady ? 600 : 0); // Increased timeout for better UX
+                return () => clearTimeout(timeoutId);
+            }
+        }
+    }, [isKosaraLoading, kosaraPolygonsBySample, radioCellGeneModes, selectedSamples, selectedGenes]);
 
     const generateCellLayers = useCallback(() => {
         return selectedSamples.flatMap(sample => {
@@ -1839,7 +1883,8 @@ export const SampleViewer = ({
     }, [magnifierVisible, magnifierMousePos, selectedSamples, hiresImages, imageSizes, isDrawing, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate]);
 
     return (
-        <div style={{ width: '100%', height: '100%' }}>
+        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            {/* Main content */}
             <div
                 ref={containerRef}
                 style={{
@@ -2676,6 +2721,29 @@ export const SampleViewer = ({
                     </>
                 )}
             </div>
+
+            {/* Loading overlay */}
+            {isKosaraLoading && (
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    flexDirection: 'column',
+                    gap: '16px'
+                }}>
+                    <Spin size="large" />
+                    <div style={{ fontSize: '16px', color: '#666' }}>
+                        Loading Kosara visualization...
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

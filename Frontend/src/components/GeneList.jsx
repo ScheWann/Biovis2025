@@ -3,7 +3,7 @@ import { Button, Checkbox, AutoComplete, ColorPicker } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
 import { GENE_COLOR_PALETTE } from './ColorUtils';
 
-export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes, geneColorMap, setGeneColorMap, onKosaraData }) => {
+export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes, geneColorMap, setGeneColorMap, onKosaraData, onKosaraLoadingStart }) => {
     const [searchText, setSearchText] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -48,6 +48,11 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
     // Function to confirm gene selection and fetch Kosara data
     const confirmGeneSelection = async (sampleId) => {
         try {
+            // Always start loading spinner when confirm is clicked
+            if (onKosaraLoadingStart) {
+                onKosaraLoadingStart(sampleId);
+            }
+            
             const response = await fetch('/api/get_kosara_data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -59,16 +64,27 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
             });
             if (!response.ok) {
                 console.error('Failed to fetch Kosara data:', response.status, response.statusText);
+                // On error, still call onKosaraData with empty array to stop loading
+                if (onKosaraData) {
+                    onKosaraData(sampleId, []);
+                }
                 return;
             }
             const data = await response.json();
             // Notify parent with the array for this sample
             if (onKosaraData && data && data[sampleId]) {
                 onKosaraData(sampleId, data[sampleId]);
+            } else if (onKosaraData) {
+                // If no data, pass empty array to stop loading
+                onKosaraData(sampleId, []);
             }
             // console.log(data, 'data');
         } catch (err) {
             console.error('Error fetching Kosara data:', err);
+            // On error, still call onKosaraData with empty array to stop loading
+            if (onKosaraData) {
+                onKosaraData(sampleId, []);
+            }
         }
     };
 
