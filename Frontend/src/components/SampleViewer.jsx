@@ -42,6 +42,12 @@ export const SampleViewer = ({
     
     // Loading state for gene mode switching
     const [isKosaraLoading, setIsKosaraLoading] = useState(false);
+    
+    // Track which samples currently have an in-flight kosara request
+    const [kosaraLoadingSamples, setKosaraLoadingSamples] = useState({}); // { sampleId: true }
+    const kosaraLoadingSamplesRef = useRef({});
+    useEffect(() => { kosaraLoadingSamplesRef.current = kosaraLoadingSamples; }, [kosaraLoadingSamples]);
+    const spinnerFallbackTimeoutRef = useRef(null);
 
     // Drawing state
     const [isDrawing, setIsDrawing] = useState(false);
@@ -162,6 +168,13 @@ export const SampleViewer = ({
         if (newMode === 'genes' && kosaraDataBySample[sampleId]?.length) {
             // Start spinner immediately so it can paint before heavy polygon generation
             setIsKosaraLoading(true);
+            // Provide a short fallback auto-hide ONLY if no real fetch starts (no sample in kosaraLoadingSamples)
+            if (spinnerFallbackTimeoutRef.current) clearTimeout(spinnerFallbackTimeoutRef.current);
+            spinnerFallbackTimeoutRef.current = setTimeout(() => {
+                if (Object.keys(kosaraLoadingSamplesRef.current).length === 0) {
+                    setIsKosaraLoading(false);
+                }
+            }, 400);
             // Defer the mode change to next animation frame (after spinner paints)
             const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
             schedule(() => {
@@ -180,16 +193,23 @@ export const SampleViewer = ({
             [sampleId]: Array.isArray(dataArray) ? dataArray : []
         }));
         setRadioCellGeneModes(prev => ({ ...prev, [sampleId]: 'genes' }));
-        
-        // Ensure loading is shown for at least 500ms for better UX
-        // This will be the primary mechanism to turn off loading
-        setTimeout(() => {
-            setIsKosaraLoading(false);
-        }, 500);
+        // Mark this sample's request complete
+        setKosaraLoadingSamples(prev => {
+            const next = { ...prev };
+            delete next[sampleId];
+            // If no more in-flight requests, stop spinner
+            if (Object.keys(next).length === 0) {
+                setIsKosaraLoading(false);
+            }
+            return next;
+        });
     }, []);
 
     // Start loading when confirm button is clicked (before fetching data)
     const handleKosaraLoadingStart = useCallback((sampleId) => {
+        // Clear any fallback hide for cached-mode switches
+        if (spinnerFallbackTimeoutRef.current) clearTimeout(spinnerFallbackTimeoutRef.current);
+        setKosaraLoadingSamples(prev => ({ ...prev, [sampleId]: true }));
         setIsKosaraLoading(true);
     }, []);
 
@@ -1367,17 +1387,7 @@ export const SampleViewer = ({
         return result;
     }, [selectedSamples, radioCellGeneModes, selectedGenes, geneColorMap, kosaraDataBySample, sampleOffsets, generateKosaraPath]);
 
-    // Hide spinner automatically once polygons for any genes-mode sample are ready
-    useEffect(() => {
-        if (!isKosaraLoading) return;
-        const polygonsReady = selectedSamples.some(sample => {
-            const sid = sample.id;
-            return radioCellGeneModes[sid] === 'genes' && kosaraPolygonsBySample[sid]?.length > 0;
-        });
-        if (!polygonsReady) return;
-        const timeout = setTimeout(() => setIsKosaraLoading(false), 150); // brief grace to avoid flash
-        return () => clearTimeout(timeout);
-    }, [isKosaraLoading, kosaraPolygonsBySample, radioCellGeneModes, selectedSamples]);
+    // Removed previous auto-hide logic; spinner now tied strictly to fetch lifecycle tracked in kosaraLoadingSamples.
 
     const generateCellLayers = useCallback(() => {
         return selectedSamples.flatMap(sample => {
