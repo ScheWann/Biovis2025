@@ -1115,30 +1115,41 @@ export const SampleViewer = ({
         )
     }));
 
+    const viewStatePendingRef = useRef(null);
+    const viewStateRafRef = useRef(null);
     const handleViewStateChange = useCallback(({ viewState, viewId }) => {
-        if (viewId === 'main') {
-            setMainViewState(prev => {
-                const nextState = {
-                    ...viewState,
-                    maxZoom: prev?.maxZoom ?? 2.5,
-                    minZoom: prev?.minZoom ?? -5
-                };
-                if (
-                    prev &&
-                    prev.zoom === nextState.zoom &&
-                    prev.maxZoom === nextState.maxZoom &&
-                    prev.minZoom === nextState.minZoom &&
-                    prev.target && nextState.target &&
-                    prev.target[0] === nextState.target[0] &&
-                    prev.target[1] === nextState.target[1] &&
-                    prev.target[2] === nextState.target[2]
-                ) {
-                    return prev;
-                }
-                return nextState;
+        if (viewId !== 'main') return;
+        // Throttle setState to animation frames to avoid flicker during zoom
+        const nextState = (prev => ({
+            ...viewState,
+            maxZoom: prev?.maxZoom ?? 2.5,
+            minZoom: prev?.minZoom ?? -5
+        }))(mainViewState);
+        viewStatePendingRef.current = nextState;
+        if (viewStateRafRef.current == null) {
+            viewStateRafRef.current = requestAnimationFrame(() => {
+                viewStateRafRef.current = null;
+                const pending = viewStatePendingRef.current;
+                viewStatePendingRef.current = null;
+                if (!pending) return;
+                setMainViewState(prev => {
+                    if (
+                        prev &&
+                        prev.zoom === pending.zoom &&
+                        prev.maxZoom === pending.maxZoom &&
+                        prev.minZoom === pending.minZoom &&
+                        prev.target && pending.target &&
+                        prev.target[0] === pending.target[0] &&
+                        prev.target[1] === pending.target[1] &&
+                        prev.target[2] === pending.target[2]
+                    ) {
+                        return prev;
+                    }
+                    return pending;
+                });
             });
         }
-    }, []);
+    }, [mainViewState]);
 
     const generateUmap = () => {
         if (!selectedAreaForEdit) return;
@@ -1762,6 +1773,11 @@ export const SampleViewer = ({
             // Object.values(cellBoundaryImages).forEach(url => {
             //     try { URL.revokeObjectURL(url); } catch (e) { }
             // });
+            if (viewStateRafRef.current) {
+                cancelAnimationFrame(viewStateRafRef.current);
+                viewStateRafRef.current = null;
+            }
+            viewStatePendingRef.current = null;
         };
     }, [hiresImages]);
 
