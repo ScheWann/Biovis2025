@@ -45,6 +45,7 @@ export const SampleViewer = ({
     const [customAreas, setCustomAreas] = useState([]);
     const [currentDrawingSample, setCurrentDrawingSample] = useState(null);
     const [mousePosition, setMousePosition] = useState(null);
+    const [hoveredCell, setHoveredCell] = useState(null);
 
     // Area customization tooltip state
     const [isAreaTooltipVisible, setIsAreaTooltipVisible] = useState(false);
@@ -1841,7 +1842,42 @@ export const SampleViewer = ({
                     viewState={deckViewState}
                     onViewStateChange={handleViewStateChange}
                     onClick={handleMapClick}
-                    onHover={handleMouseMove}
+                    onHover={(info) => {
+                        // Preserve existing mouse-move behavior
+                        handleMouseMove(info);
+
+                        // Show tooltip for cells and kosara polygons
+                        if (info && info.object && info.layer && info.layer.id) {
+                            const layerId = info.layer.id;
+                            if (layerId.startsWith('kosara-polygons-')) {
+                                const sampleId = layerId.replace('kosara-polygons-', '');
+                                const { id, cell_type, ratios, total_expression } = info.object || {};
+                                setHoveredCell({
+                                    id,
+                                    sampleId,
+                                    cell_type,
+                                    ratios,
+                                    total_expression,
+                                    x: info.x,
+                                    y: info.y
+                                });
+                            } else if (layerId.startsWith('cells-')) {
+                                const sampleId = layerId.split('-')[1];
+                                const { id, cell_type } = info.object || {};
+                                setHoveredCell({
+                                    id,
+                                    sampleId,
+                                    cell_type,
+                                    x: info.x,
+                                    y: info.y
+                                });
+                            } else {
+                                setHoveredCell(null);
+                            }
+                        } else {
+                            setHoveredCell(null);
+                        }
+                    }}
                     controller={deckController}
                     getCursor={({ isHovering, isDragging }) => {
                         if (isAreaTooltipVisible || isAreaEditPopupVisible) {
@@ -1856,6 +1892,42 @@ export const SampleViewer = ({
                         return isHovering ? 'pointer' : 'grab';
                     }}
                 />
+
+                {hoveredCell && (
+                    <div style={{
+                        position: 'absolute',
+                        left: hoveredCell.x,
+                        top: hoveredCell.y - 40,
+                        pointerEvents: 'none',
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        padding: 8,
+                        borderRadius: 4,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                        transform: 'translateX(-50%)',
+                        fontSize: 12,
+                        zIndex: 1000,
+                        textAlign: 'left'
+                    }}>
+                        {hoveredCell.id ? (
+                            <>
+                                <div><strong>Sample:</strong> {hoveredCell.sampleId}</div>
+                                <div><strong>Cell Type:</strong> {hoveredCell.cell_type}</div>
+                                {hoveredCell.total_expression !== undefined && (
+                                    <div><strong>Total Expression:</strong> {hoveredCell.total_expression}</div>
+                                )}
+                                {hoveredCell.ratios && Object.entries(hoveredCell.ratios).map(([gene, expression]) => (
+                                    // <div key={gene}><strong>{gene}:</strong> {Number(expression)?.toFixed?.(2) ?? expression}</div>
+                                    <div key={gene}><strong>{gene}:</strong> {Number(expression).toFixed(5) * 100}%</div>
+                                ))}
+                            </>
+                        ) : (
+                            <>
+                                <div>Sample: {hoveredCell.sampleId}</div>
+                                <div>Cell Type: {hoveredCell.cell_type}</div>
+                            </>
+                        )}
+                    </div>
+                )}
 
                 {/* Sample controls */}
                 <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 20 }}>
