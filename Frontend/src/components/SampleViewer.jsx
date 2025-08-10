@@ -1103,21 +1103,31 @@ export const SampleViewer = ({
                 setMousePosition(info.coordinate);
             }
         } else {
-            // Avoid redundant state updates
-            if (mousePosition !== null) setMousePosition(null);
+            // Always track mouse position for magnifier, but only set drawing mousePosition when drawing
+            if (info.coordinate) {
+                // Update mouse position for magnifier tracking
+                setMagnifierMousePos(prev => {
+                    const [worldX, worldY] = info.coordinate;
+                    if (prev && prev.x === worldX && prev.y === worldY) return prev;
+                    return { x: worldX, y: worldY };
+                });
 
-            // Handle magnifier when key is pressed
-            if (info.coordinate && magnifierVisible && !isAreaTooltipVisible && !isAreaEditPopupVisible) {
-                const [worldX, worldY] = info.coordinate;
+                // Handle magnifier when key is pressed
+                if (magnifierVisible && !isAreaTooltipVisible && !isAreaEditPopupVisible) {
+                    const [worldX, worldY] = info.coordinate;
 
-                // Determine which sample the mouse is over
-                const hoveredSample = getSampleAtCoordinate(worldX, worldY);
+                    // Determine which sample the mouse is over
+                    const hoveredSample = getSampleAtCoordinate(worldX, worldY);
 
-                if (hoveredSample) {
-                    // Update magnifier viewport and mouse position
-                    updateMagnifierViewport(worldX, worldY, hoveredSample);
+                    if (hoveredSample) {
+                        // Update magnifier viewport and mouse position
+                        updateMagnifierViewport(worldX, worldY, hoveredSample);
+                    }
                 }
             }
+            
+            // Clear drawing mousePosition when not drawing
+            if (mousePosition !== null) setMousePosition(null);
         }
     }, [isDrawing, mousePosition, magnifierVisible, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate, updateMagnifierViewport]);
 
@@ -1807,10 +1817,62 @@ export const SampleViewer = ({
         };
     }, [handleKeyPress, keyPressed, isDrawing]);
 
+    // Add native mouse event listener to ensure mouse position is always tracked
+    useEffect(() => {
+        const handleNativeMouseMove = (event) => {
+            if (!containerRef.current || !mainViewState) return;
+
+            const rect = containerRef.current.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            // Convert screen coordinates to world coordinates using DeckGL's viewport
+            try {
+                // Create a viewport from the current view state
+                const viewport = new OrthographicView({ id: 'main' }).makeViewport({
+                    width: rect.width,
+                    height: rect.height,
+                    viewState: mainViewState
+                });
+
+                const worldCoords = viewport.unproject([x, y]);
+                
+                if (worldCoords && worldCoords.length >= 2) {
+                    setMagnifierMousePos(prev => {
+                        if (prev && prev.x === worldCoords[0] && prev.y === worldCoords[1]) return prev;
+                        return { x: worldCoords[0], y: worldCoords[1] };
+                    });
+                }
+            } catch (error) {
+                // Silently ignore projection errors
+            }
+        };
+
+        // Only add listener when magnifier could be used
+        if (containerRef.current) {
+            containerRef.current.addEventListener('mousemove', handleNativeMouseMove);
+            return () => {
+                if (containerRef.current) {
+                    containerRef.current.removeEventListener('mousemove', handleNativeMouseMove);
+                }
+            };
+        }
+    }, [mainViewState]);
+
     // Initialize magnifier position when it becomes visible
     useEffect(() => {
         if (magnifierVisible && !isDrawing && mainViewState && selectedSamples.length > 0) {
-            // Initialize magnifier at the center of the first sample
+            // Try to use current mouse position first
+            if (magnifierMousePos && magnifierMousePos.x !== undefined && magnifierMousePos.y !== undefined) {
+                const hoveredSample = getSampleAtCoordinate(magnifierMousePos.x, magnifierMousePos.y);
+                if (hoveredSample) {
+                    // Use current mouse position
+                    updateMagnifierViewport(magnifierMousePos.x, magnifierMousePos.y, hoveredSample);
+                    return;
+                }
+            }
+            
+            // Fallback: Initialize magnifier at the center of the first sample only if no mouse position
             const firstSample = selectedSamples[0];
             const offset = sampleOffsets[firstSample.id] ?? [0, 0];
             const size = imageSizes[firstSample.id] ?? [0, 0];
@@ -1823,7 +1885,7 @@ export const SampleViewer = ({
                 updateMagnifierViewport(centerX, centerY, firstSample.id);
             }
         }
-    }, [magnifierVisible, isDrawing, mainViewState, selectedSamples, sampleOffsets, imageSizes, updateMagnifierViewport]);
+    }, [magnifierVisible, isDrawing, mainViewState, selectedSamples, sampleOffsets, imageSizes, updateMagnifierViewport, magnifierMousePos, getSampleAtCoordinate]);
 
     // Cleanup effect for magnifier and images
     useEffect(() => {
