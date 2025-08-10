@@ -1916,7 +1916,6 @@ export const SampleViewer = ({
                                     <div><strong>Total Expression:</strong> {hoveredCell.total_expression}</div>
                                 )}
                                 {hoveredCell.ratios && Object.entries(hoveredCell.ratios).map(([gene, expression]) => (
-                                    // <div key={gene}><strong>{gene}:</strong> {Number(expression)?.toFixed?.(2) ?? expression}</div>
                                     <div key={gene}><strong>{gene}:</strong> {Number(expression).toFixed(5) * 100}%</div>
                                 ))}
                             </>
