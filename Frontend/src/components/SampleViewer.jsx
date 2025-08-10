@@ -32,6 +32,7 @@ export const SampleViewer = ({
     const [imageSizes, setImageSizes] = useState({});
     const [availableGenes, setAvailableGenes] = useState([]); // All genes that have been added to the list
     const [selectedGenes, setSelectedGenes] = useState([]); // Currently selected (checked) genes
+    const [geneColorMap, setGeneColorMap] = useState({}); // { geneName: '#RRGGBB' }
     const [radioCellGeneModes, setRadioCellGeneModes] = useState(
         selectedSamples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {})
     );
@@ -291,10 +292,7 @@ export const SampleViewer = ({
             .slice(0, 9)
             .map(item => item[0]);
 
-        const cellColors = cellIndices.map(index => {
-            const positionInSelectedGenes = selectedGenes.indexOf(index);
-            return GENE_COLOR_PALETTE[positionInSelectedGenes % GENE_COLOR_PALETTE.length];
-        });
+        // we no longer compute colors here; defer to layer accessor using gene ids
         let cellAngles = cellIndices.map(index => angles.find(item => item[0] === index));
         let cellRadius = cellIndices.map(index => cal_radius.find(item => item[0] === index));
 
@@ -377,7 +375,7 @@ export const SampleViewer = ({
 
                 paths.push({
                     path: points,
-                    color: cellColors[index]
+                    gene: cellIndices[index]
                 });
 
                 lastCircleRadius = cal_cell_radius;
@@ -1109,6 +1107,8 @@ export const SampleViewer = ({
                         setAvailableGenes={setAvailableGenes}
                         selectedGenes={selectedGenes}
                         setSelectedGenes={setSelectedGenes}
+                        geneColorMap={geneColorMap}
+                        setGeneColorMap={setGeneColorMap}
                         onKosaraData={handleKosaraData}
                     />
                 )}
@@ -1330,6 +1330,7 @@ export const SampleViewer = ({
                         cell_type: d.cell_type,
                         points: path.path,
                         color: path.color,
+                        gene: path.gene,
                         total_expression: d.total_expression,
                         ratios: d.ratios,
                     }));
@@ -1338,7 +1339,7 @@ export const SampleViewer = ({
             }
         });
         return result;
-    }, [selectedSamples, radioCellGeneModes, selectedGenes, kosaraDataBySample, sampleOffsets, generateKosaraPath]);
+    }, [selectedSamples, radioCellGeneModes, selectedGenes, geneColorMap, kosaraDataBySample, sampleOffsets, generateKosaraPath]);
 
     const generateCellLayers = useCallback(() => {
         return selectedSamples.flatMap(sample => {
@@ -1353,13 +1354,23 @@ export const SampleViewer = ({
                     data: optimizedPathData,
                     getPolygon: d => d.points,
                     getFillColor: d => {
-                        const rgbColor = convertHEXToRGB(d.color);
+                        // if this polygon corresponds to a gene slice, color via map/palette; otherwise use fixed color
+                        if (d.gene) {
+                            const hex = geneColorMap[d.gene] || (() => {
+                                const pos = selectedGenes.indexOf(d.gene);
+                                const fallback = GENE_COLOR_PALETTE[(pos >= 0 ? pos : 0) % GENE_COLOR_PALETTE.length];
+                                return fallback;
+                            })();
+                            const rgbColor = convertHEXToRGB(hex);
+                            return [...rgbColor, 255];
+                        }
+                        const rgbColor = convertHEXToRGB(d.color || '#333333');
                         return [...rgbColor, 255];
                     },
                     pickable: true,
                     stroked: false,
                     parameters: { depthTest: false, blend: true },
-                    updateTriggers: { data: [kosaraPolygonsBySample[sampleId], sampleId] },
+                    updateTriggers: { data: [kosaraPolygonsBySample[sampleId], sampleId], getFillColor: [geneColorMap, selectedGenes] },
                     transitions: {
                         getPolygon: 0,
                         getFillColor: 0
@@ -1913,7 +1924,7 @@ export const SampleViewer = ({
                                 <div><strong>Sample:</strong> {hoveredCell.sampleId}</div>
                                 <div><strong>Cell Type:</strong> {hoveredCell.cell_type}</div>
                                 {hoveredCell.total_expression !== undefined && (
-                                    <div><strong>Total Expression:</strong> {hoveredCell.total_expression}</div>
+                                    <div><strong>Total Expression:</strong> {Number(hoveredCell.total_expression).toFixed(5)}</div>
                                 )}
                                 {hoveredCell.ratios && Object.entries(hoveredCell.ratios).map(([gene, expression]) => (
                                     <div key={gene}><strong>{gene}:</strong> {Number(expression).toFixed(5) * 100}%</div>

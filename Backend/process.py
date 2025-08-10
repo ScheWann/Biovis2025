@@ -272,7 +272,7 @@ def get_cell_types_data(sample_ids):
 
 
 # get kosara data
-def get_kosara_data(sample_ids, gene_list, cell_list):
+def get_kosara_data(sample_ids, gene_list, cell_list=None):
     radius = 5
     d = np.sqrt(2) * radius
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Checkbox, AutoComplete } from "antd";
+import { Button, Checkbox, AutoComplete, ColorPicker } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
+import { GENE_COLOR_PALETTE } from './ColorUtils';
 
-export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes, onKosaraData }) => {
+export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes, geneColorMap, setGeneColorMap, onKosaraData }) => {
     const [searchText, setSearchText] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -118,6 +119,27 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
         searchGenes(searchText);
     }, [searchText, searchGenes]);
 
+    // Initialize default colors for genes using GENE_COLOR_PALETTE
+    useEffect(() => {
+        setGeneColorMap(prev => {
+            const next = { ...prev };
+            // Add defaults for new genes
+            availableGenes.forEach((gene, idx) => {
+                if (!next[gene]) {
+                    const position = selectedGenes.includes(gene)
+                        ? selectedGenes.indexOf(gene)
+                        : idx;
+                    next[gene] = GENE_COLOR_PALETTE[position % GENE_COLOR_PALETTE.length];
+                }
+            });
+            // Remove entries for removed genes
+            Object.keys(next).forEach(g => {
+                if (!availableGenes.includes(g)) delete next[g];
+            });
+            return next;
+        });
+    }, [availableGenes, selectedGenes]);
+
     const handleGeneSelect = (gene) => {
         onVisibilityGeneChange(gene);
         setSearchText(''); // Clear search after selection
@@ -156,6 +178,15 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
                                 <Checkbox
                                     checked={selectedGenes.includes(gene)}
                                     onChange={() => toggleGeneSelection(gene)}
+                                    style={{ marginRight: 8 }}
+                                />
+                                <ColorPicker
+                                    size="small"
+                                    value={geneColorMap[gene]}
+                                    onChange={(color) => {
+                                        const hex = color.toHexString();
+                                        setGeneColorMap(prev => ({ ...prev, [gene]: hex }));
+                                    }}
                                     style={{ marginRight: 8 }}
                                 />
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
