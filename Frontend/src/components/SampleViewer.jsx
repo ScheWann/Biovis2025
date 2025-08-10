@@ -157,11 +157,20 @@ export const SampleViewer = ({
     // Change cell/gene mode for a sample
     const changeCellGeneMode = (sampleId, e) => {
         const newMode = e.target.value;
-        
-        setRadioCellGeneModes(prev => ({
-            ...prev,
-            [sampleId]: newMode
-        }));
+
+        // If switching TO genes with existing kosara data, show spinner first, then defer the expensive mode switch
+        if (newMode === 'genes' && kosaraDataBySample[sampleId]?.length) {
+            // Start spinner immediately so it can paint before heavy polygon generation
+            setIsKosaraLoading(true);
+            // Defer the mode change to next animation frame (after spinner paints)
+            const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
+            schedule(() => {
+                setRadioCellGeneModes(prev => ({ ...prev, [sampleId]: newMode }));
+            });
+        } else {
+            // Normal immediate mode change (cellTypes or genes without cached data)
+            setRadioCellGeneModes(prev => ({ ...prev, [sampleId]: newMode }));
+        }
     };
 
     // Receive kosara data from GeneList and store & switch to gene mode
@@ -1358,32 +1367,17 @@ export const SampleViewer = ({
         return result;
     }, [selectedSamples, radioCellGeneModes, selectedGenes, geneColorMap, kosaraDataBySample, sampleOffsets, generateKosaraPath]);
 
-    // Turn off loading when Kosara polygons are ready for rendering
+    // Hide spinner automatically once polygons for any genes-mode sample are ready
     useEffect(() => {
-        if (isKosaraLoading) {
-            // Check if any sample is in gene mode and has kosara polygons ready
-            const hasKosaraPolygonsReady = selectedSamples.some(sample => {
-                const sampleId = sample.id;
-                const mode = radioCellGeneModes[sampleId];
-                return mode === 'genes' && kosaraPolygonsBySample[sampleId]?.length > 0;
-            });
-            
-            // Also check if we're in gene mode but have no selected genes (should not load in this case)
-            const isInGeneModeWithNoGenes = selectedSamples.some(sample => {
-                const sampleId = sample.id;
-                const mode = radioCellGeneModes[sampleId];
-                return mode === 'genes' && selectedGenes.length === 0;
-            });
-            
-            if (hasKosaraPolygonsReady || isInGeneModeWithNoGenes) {
-                // Add a delay to ensure rendering is complete and loading is visible
-                const timeoutId = setTimeout(() => {
-                    setIsKosaraLoading(false);
-                }, hasKosaraPolygonsReady ? 600 : 0); // Increased timeout for better UX
-                return () => clearTimeout(timeoutId);
-            }
-        }
-    }, [isKosaraLoading, kosaraPolygonsBySample, radioCellGeneModes, selectedSamples, selectedGenes]);
+        if (!isKosaraLoading) return;
+        const polygonsReady = selectedSamples.some(sample => {
+            const sid = sample.id;
+            return radioCellGeneModes[sid] === 'genes' && kosaraPolygonsBySample[sid]?.length > 0;
+        });
+        if (!polygonsReady) return;
+        const timeout = setTimeout(() => setIsKosaraLoading(false), 150); // brief grace to avoid flash
+        return () => clearTimeout(timeout);
+    }, [isKosaraLoading, kosaraPolygonsBySample, radioCellGeneModes, selectedSamples]);
 
     const generateCellLayers = useCallback(() => {
         return selectedSamples.flatMap(sample => {
