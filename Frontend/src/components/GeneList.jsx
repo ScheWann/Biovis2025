@@ -62,10 +62,10 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
             }
             const data = await response.json();
             // Notify parent with the array for this sample
-            // if (onKosaraData && data && data[sampleId]) {
-            //     onKosaraData(sampleId, data[sampleId]);
-            // }
-            console.log(data, 'data');
+            if (onKosaraData && data && data[sampleId]) {
+                onKosaraData(sampleId, data[sampleId]);
+            }
+            // console.log(data, 'data');
         } catch (err) {
             console.error('Error fetching Kosara data:', err);
         }

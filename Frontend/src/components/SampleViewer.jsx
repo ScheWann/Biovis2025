@@ -6,7 +6,7 @@ import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Checkbox } f
 import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined, DeleteOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
-// import { convertHEXToRGB, GENE_COLOR_PALETTE } from './ColorUtils';
+import { convertHEXToRGB, GENE_COLOR_PALETTE } from './ColorUtils';
 
 
 export const SampleViewer = ({
@@ -96,10 +96,25 @@ export const SampleViewer = ({
     ];
 
     // Main view
-    const mainView = new OrthographicView({
+    const mainView = useMemo(() => new OrthographicView({
         id: 'main',
         controller: true
-    });
+    }), []);
+
+    // Stable controller instance to avoid re-initialization flashes
+    const deckController = useMemo(() => {
+        if (isAreaTooltipVisible || isAreaEditPopupVisible) return false;
+        if (!isDrawing) {
+            // Use DeckGL defaults to avoid controller re-inits that may cause flashes
+            return true;
+        }
+        return {
+            dragPan: false,
+            dragRotate: false,
+            doubleClickZoom: false,
+            scrollZoom: true
+        };
+    }, [isAreaTooltipVisible, isAreaEditPopupVisible, isDrawing]);
 
     // Calculate sample offsets based on image sizes
     const sampleOffsets = useMemo(() => {
@@ -174,220 +189,220 @@ export const SampleViewer = ({
     // =========================
     // Kosara path generation utilities (ported from MultiSampleViewer)
     // =========================
-    // const generateCirclePoints = useCallback((cx, cy, r, steps = 50) => {
-    //     const points = [];
-    //     const angleStep = (2 * Math.PI) / steps;
-    //     for (let i = 0; i < steps; i++) {
-    //         const theta = i * angleStep;
-    //         points.push([cx + r * Math.cos(theta), cy + r * Math.sin(theta)]);
-    //     }
-    //     points.push(points[0]);
-    //     return points;
-    // }, []);
+    const generateCirclePoints = useCallback((cx, cy, r, steps = 50) => {
+        const points = [];
+        const angleStep = (2 * Math.PI) / steps;
+        for (let i = 0; i < steps; i++) {
+            const theta = i * angleStep;
+            points.push([cx + r * Math.cos(theta), cy + r * Math.sin(theta)]);
+        }
+        points.push(points[0]);
+        return points;
+    }, []);
 
-    // const generateSingleArcPoints = useCallback((startX, startY, endX, endY, r, largeArcFlag, sweepFlag) => {
-    //     const dx = endX - startX;
-    //     const dy = endY - startY;
-    //     const d = Math.hypot(dx, dy);
-    //     if (d > 2 * r) {
-    //         return [];
-    //     }
+    const generateSingleArcPoints = useCallback((startX, startY, endX, endY, r, largeArcFlag, sweepFlag) => {
+        const dx = endX - startX;
+        const dy = endY - startY;
+        const d = Math.hypot(dx, dy);
+        if (d > 2 * r) {
+            return [];
+        }
 
-    //     const midX = (startX + endX) / 2;
-    //     const midY = (startY + endY) / 2;
-    //     const h = Math.sqrt(r * r - (d / 2) * (d / 2));
+        const midX = (startX + endX) / 2;
+        const midY = (startY + endY) / 2;
+        const h = Math.sqrt(r * r - (d / 2) * (d / 2));
 
-    //     const ux = -dy / d;
-    //     const uy = dx / d;
+        const ux = -dy / d;
+        const uy = dx / d;
 
-    //     const cx1 = midX + h * ux;
-    //     const cy1 = midY + h * uy;
-    //     const cx2 = midX - h * ux;
-    //     const cy2 = midY - h * uy;
+        const cx1 = midX + h * ux;
+        const cy1 = midY + h * uy;
+        const cx2 = midX - h * ux;
+        const cy2 = midY - h * uy;
 
-    //     const computeAngles = (cx, cy) => {
-    //         const startAngle = Math.atan2(startY - cy, startX - cx);
-    //         const endAngle = Math.atan2(endY - cy, endX - cx);
-    //         let delta = endAngle - startAngle;
-    //         delta = ((delta % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    //         return { startAngle, endAngle, delta };
-    //     };
+        const computeAngles = (cx, cy) => {
+            const startAngle = Math.atan2(startY - cy, startX - cx);
+            const endAngle = Math.atan2(endY - cy, endX - cx);
+            let delta = endAngle - startAngle;
+            delta = ((delta % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+            return { startAngle, endAngle, delta };
+        };
 
-    //     const cand1 = computeAngles(cx1, cy1);
-    //     const cand2 = computeAngles(cx2, cy2);
+        const cand1 = computeAngles(cx1, cy1);
+        const cand2 = computeAngles(cx2, cy2);
 
-    //     const effectiveDelta = candidate => (sweepFlag === 1 ? candidate.delta : (2 * Math.PI - candidate.delta));
-    //     const eff1 = effectiveDelta(cand1);
-    //     const eff2 = effectiveDelta(cand2);
+        const effectiveDelta = candidate => (sweepFlag === 1 ? candidate.delta : (2 * Math.PI - candidate.delta));
+        const eff1 = effectiveDelta(cand1);
+        const eff2 = effectiveDelta(cand2);
 
-    //     let chosen, cx, cy;
-    //     if (largeArcFlag === 0) {
-    //         if (eff1 <= Math.PI && eff2 > Math.PI) {
-    //             chosen = cand1; cx = cx1; cy = cy1;
-    //         } else if (eff2 <= Math.PI && eff1 > Math.PI) {
-    //             chosen = cand2; cx = cx2; cy = cy2;
-    //         } else {
-    //             chosen = cand1; cx = cx1; cy = cy1;
-    //         }
-    //     } else {
-    //         if (eff1 >= Math.PI && eff2 < Math.PI) {
-    //             chosen = cand1; cx = cx1; cy = cy1;
-    //         } else if (eff2 >= Math.PI && eff1 < Math.PI) {
-    //             chosen = cand2; cx = cx2; cy = cy2;
-    //         } else {
-    //             chosen = cand1; cx = cx1; cy = cy1;
-    //         }
-    //     }
+        let chosen, cx, cy;
+        if (largeArcFlag === 0) {
+            if (eff1 <= Math.PI && eff2 > Math.PI) {
+                chosen = cand1; cx = cx1; cy = cy1;
+            } else if (eff2 <= Math.PI && eff1 > Math.PI) {
+                chosen = cand2; cx = cx2; cy = cy2;
+            } else {
+                chosen = cand1; cx = cx1; cy = cy1;
+            }
+        } else {
+            if (eff1 >= Math.PI && eff2 < Math.PI) {
+                chosen = cand1; cx = cx1; cy = cy1;
+            } else if (eff2 >= Math.PI && eff1 < Math.PI) {
+                chosen = cand2; cx = cx2; cy = cy2;
+            } else {
+                chosen = cand1; cx = cx1; cy = cy1;
+            }
+        }
 
-    //     const deltaEffective = sweepFlag === 1 ? effectiveDelta(chosen) : -effectiveDelta(chosen);
+        const deltaEffective = sweepFlag === 1 ? effectiveDelta(chosen) : -effectiveDelta(chosen);
 
-    //     const steps = 20;
-    //     const points = [];
-    //     for (let i = 0; i <= steps; i++) {
-    //         const t = i / steps;
-    //         const theta = chosen.startAngle + t * deltaEffective;
-    //         const x = cx + r * Math.cos(theta);
-    //         const y = cy + r * Math.sin(theta);
-    //         points.push([x, y]);
-    //     }
-    //     return points;
-    // }, []);
+        const steps = 20;
+        const points = [];
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const theta = chosen.startAngle + t * deltaEffective;
+            const x = cx + r * Math.cos(theta);
+            const y = cy + r * Math.sin(theta);
+            points.push([x, y]);
+        }
+        return points;
+    }, []);
 
-    // const generateComplexArcPoints = useCallback((startX, startY, endX, endY, outerRadius, innerRadius, outerFlags = { large: 0, sweep: 1 }, innerFlags = { large: 0, sweep: 0 }) => {
-    //     const outerArc = generateSingleArcPoints(startX, startY, endX, endY, outerRadius, outerFlags.large, outerFlags.sweep);
-    //     const innerArc = generateSingleArcPoints(endX, endY, startX, startY, innerRadius, innerFlags.large, innerFlags.sweep);
-    //     return [...outerArc, ...innerArc];
-    // }, [generateSingleArcPoints]);
+    const generateComplexArcPoints = useCallback((startX, startY, endX, endY, outerRadius, innerRadius, outerFlags = { large: 0, sweep: 1 }, innerFlags = { large: 0, sweep: 0 }) => {
+        const outerArc = generateSingleArcPoints(startX, startY, endX, endY, outerRadius, outerFlags.large, outerFlags.sweep);
+        const innerArc = generateSingleArcPoints(endX, endY, startX, startY, innerRadius, innerFlags.large, innerFlags.sweep);
+        return [...outerArc, ...innerArc];
+    }, [generateSingleArcPoints]);
 
-    // const generateKosaraPath = useCallback((pointX, pointY, angles, ratios, cal_radius) => {
-    //     const baseRadius = 5;
-    //     const paths = [];
-    //     const cellTypes = selectedGenes;
+    const generateKosaraPath = useCallback((pointX, pointY, angles, ratios, cal_radius) => {
+        const baseRadius = 5;
+        const paths = [];
+        const cellTypes = selectedGenes;
 
-    //     let startpointX, startpointY, endpointX, endpointY;
-    //     let lastStartPointX, lastStartPointY, lastEndPointX, lastEndPointY, lastCircleRadius = 0;
-    //     const originalPointX = pointX - baseRadius * Math.cos(45 * Math.PI / 180);
-    //     const originalPointY = pointY + baseRadius * Math.sin(45 * Math.PI / 180);
+        let startpointX, startpointY, endpointX, endpointY;
+        let lastStartPointX, lastStartPointY, lastEndPointX, lastEndPointY, lastCircleRadius = 0;
+        const originalPointX = pointX - baseRadius * Math.cos(45 * Math.PI / 180);
+        const originalPointY = pointY + baseRadius * Math.sin(45 * Math.PI / 180);
 
-    //     const cellIndices = ratios
-    //         .filter(item => item[1] !== 0 && cellTypes.includes(item[0]))
-    //         .sort((a, b) => cellTypes.indexOf(a[0]) - cellTypes.indexOf(b[0]))
-    //         .slice(0, 9)
-    //         .map(item => item[0]);
+        const cellIndices = ratios
+            .filter(item => item[1] !== 0 && cellTypes.includes(item[0]))
+            .sort((a, b) => cellTypes.indexOf(a[0]) - cellTypes.indexOf(b[0]))
+            .slice(0, 9)
+            .map(item => item[0]);
 
-    //     const cellColors = cellIndices.map(index => {
-    //         const positionInSelectedGenes = selectedGenes.indexOf(index);
-    //         return GENE_COLOR_PALETTE[positionInSelectedGenes % GENE_COLOR_PALETTE.length];
-    //     });
-    //     let cellAngles = cellIndices.map(index => angles.find(item => item[0] === index));
-    //     let cellRadius = cellIndices.map(index => cal_radius.find(item => item[0] === index));
+        const cellColors = cellIndices.map(index => {
+            const positionInSelectedGenes = selectedGenes.indexOf(index);
+            return GENE_COLOR_PALETTE[positionInSelectedGenes % GENE_COLOR_PALETTE.length];
+        });
+        let cellAngles = cellIndices.map(index => angles.find(item => item[0] === index));
+        let cellRadius = cellIndices.map(index => cal_radius.find(item => item[0] === index));
 
-    //     const ratioSum = ratios.reduce((acc, item) => acc + item[1], 0);
+        const ratioSum = ratios.reduce((acc, item) => acc + item[1], 0);
 
-    //     if (cellAngles.length === 0) {
-    //         const circlePoints = generateCirclePoints(originalPointX, originalPointY, baseRadius, 50);
-    //         paths.push({ path: circlePoints, color: '#FFFFFF' });
-    //     } else {
-    //         cellAngles = cellAngles.map(angle => [angle[0], angle[1]]);
-    //         cellRadius = cellRadius.map(rad => [rad[0], rad[1]]);
+        if (cellAngles.length === 0) {
+            const circlePoints = generateCirclePoints(originalPointX, originalPointY, baseRadius, 50);
+            paths.push({ path: circlePoints, color: '#FFFFFF' });
+        } else {
+            cellAngles = cellAngles.map(angle => [angle[0], angle[1]]);
+            cellRadius = cellRadius.map(rad => [rad[0], rad[1]]);
 
-    //         cellAngles.forEach((angle, index) => {
-    //             const cal_cell_radius = cellRadius[index][1];
-    //             let points = [];
+            cellAngles.forEach((angle, index) => {
+                const cal_cell_radius = cellRadius[index][1];
+                let points = [];
 
-    //             startpointX = originalPointX + Math.abs(cal_cell_radius * Math.cos((angle[1] + 45) * Math.PI / 180));
-    //             startpointY = originalPointY - Math.abs(cal_cell_radius * Math.sin((angle[1] + 45) * Math.PI / 180));
-    //             endpointX = originalPointX + Math.abs(cal_cell_radius * Math.cos((angle[1] - 45) * Math.PI / 180));
-    //             endpointY = originalPointY - Math.abs(cal_cell_radius * Math.sin((angle[1] - 45) * Math.PI / 180));
+                startpointX = originalPointX + Math.abs(cal_cell_radius * Math.cos((angle[1] + 45) * Math.PI / 180));
+                startpointY = originalPointY - Math.abs(cal_cell_radius * Math.sin((angle[1] + 45) * Math.PI / 180));
+                endpointX = originalPointX + Math.abs(cal_cell_radius * Math.cos((angle[1] - 45) * Math.PI / 180));
+                endpointY = originalPointY - Math.abs(cal_cell_radius * Math.sin((angle[1] - 45) * Math.PI / 180));
 
-    //             if (index === 0) {
-    //                 const isLargeArcInner = cal_cell_radius > Math.sqrt(3) * baseRadius;
-    //                 points = generateComplexArcPoints(
-    //                     startpointX,
-    //                     startpointY,
-    //                     endpointX,
-    //                     endpointY,
-    //                     cal_cell_radius,
-    //                     baseRadius,
-    //                     { large: 0, sweep: 1 },
-    //                     { large: isLargeArcInner ? 1 : 0, sweep: 1 }
-    //                 );
-    //             } else if (index === cellAngles.length - 1 && ratioSum === 1) {
-    //                 const isLargeArcInner = lastCircleRadius <= Math.sqrt(3) * baseRadius;
-    //                 points = generateComplexArcPoints(
-    //                     lastStartPointX,
-    //                     lastStartPointY,
-    //                     lastEndPointX,
-    //                     lastEndPointY,
-    //                     lastCircleRadius,
-    //                     baseRadius,
-    //                     { large: 0, sweep: 1 },
-    //                     { large: isLargeArcInner ? 1 : 0, sweep: 0 }
-    //                 );
-    //             } else {
-    //                 const pointsSegment1 = generateSingleArcPoints(
-    //                     lastStartPointX, lastStartPointY,
-    //                     lastEndPointX, lastEndPointY,
-    //                     lastCircleRadius,
-    //                     0,
-    //                     1
-    //                 );
+                if (index === 0) {
+                    const isLargeArcInner = cal_cell_radius > Math.sqrt(3) * baseRadius;
+                    points = generateComplexArcPoints(
+                        startpointX,
+                        startpointY,
+                        endpointX,
+                        endpointY,
+                        cal_cell_radius,
+                        baseRadius,
+                        { large: 0, sweep: 1 },
+                        { large: isLargeArcInner ? 1 : 0, sweep: 1 }
+                    );
+                } else if (index === cellAngles.length - 1 && ratioSum === 1) {
+                    const isLargeArcInner = lastCircleRadius <= Math.sqrt(3) * baseRadius;
+                    points = generateComplexArcPoints(
+                        lastStartPointX,
+                        lastStartPointY,
+                        lastEndPointX,
+                        lastEndPointY,
+                        lastCircleRadius,
+                        baseRadius,
+                        { large: 0, sweep: 1 },
+                        { large: isLargeArcInner ? 1 : 0, sweep: 0 }
+                    );
+                } else {
+                    const pointsSegment1 = generateSingleArcPoints(
+                        lastStartPointX, lastStartPointY,
+                        lastEndPointX, lastEndPointY,
+                        lastCircleRadius,
+                        0,
+                        1
+                    );
 
-    //                 const pointsSegment2 = generateSingleArcPoints(
-    //                     lastEndPointX, lastEndPointY,
-    //                     endpointX, endpointY,
-    //                     baseRadius,
-    //                     0,
-    //                     0
-    //                 );
+                    const pointsSegment2 = generateSingleArcPoints(
+                        lastEndPointX, lastEndPointY,
+                        endpointX, endpointY,
+                        baseRadius,
+                        0,
+                        0
+                    );
 
-    //                 const pointsSegment3 = generateSingleArcPoints(
-    //                     endpointX, endpointY,
-    //                     startpointX, startpointY,
-    //                     cal_cell_radius,
-    //                     0,
-    //                     0
-    //                 );
+                    const pointsSegment3 = generateSingleArcPoints(
+                        endpointX, endpointY,
+                        startpointX, startpointY,
+                        cal_cell_radius,
+                        0,
+                        0
+                    );
 
-    //                 const pointsSegment4 = generateSingleArcPoints(
-    //                     startpointX, startpointY,
-    //                     lastStartPointX, lastStartPointY,
-    //                     baseRadius,
-    //                     0,
-    //                     0
-    //                 );
-    //                 points = [...pointsSegment1, ...pointsSegment2, ...pointsSegment3, ...pointsSegment4];
-    //             }
+                    const pointsSegment4 = generateSingleArcPoints(
+                        startpointX, startpointY,
+                        lastStartPointX, lastStartPointY,
+                        baseRadius,
+                        0,
+                        0
+                    );
+                    points = [...pointsSegment1, ...pointsSegment2, ...pointsSegment3, ...pointsSegment4];
+                }
 
-    //             paths.push({
-    //                 path: points,
-    //                 color: cellColors[index]
-    //             });
+                paths.push({
+                    path: points,
+                    color: cellColors[index]
+                });
 
-    //             lastCircleRadius = cal_cell_radius;
-    //             lastStartPointX = startpointX;
-    //             lastStartPointY = startpointY;
-    //             lastEndPointX = endpointX;
-    //             lastEndPointY = endpointY;
-    //         });
+                lastCircleRadius = cal_cell_radius;
+                lastStartPointX = startpointX;
+                lastStartPointY = startpointY;
+                lastEndPointX = endpointX;
+                lastEndPointY = endpointY;
+            });
 
-    //         if (ratioSum < 1) {
-    //             const isLargeArcInner = lastCircleRadius <= Math.sqrt(3) * baseRadius;
-    //             const points = generateComplexArcPoints(
-    //                 lastStartPointX,
-    //                 lastStartPointY,
-    //                 lastEndPointX,
-    //                 lastEndPointY,
-    //                 lastCircleRadius,
-    //                 baseRadius,
-    //                 { large: 0, sweep: 1 },
-    //                 { large: isLargeArcInner ? 1 : 0, sweep: 0 }
-    //             );
-    //             paths.push({ path: points, color: '#333333' });
-    //         }
-    //     }
-    //     return paths;
-    // }, [generateCirclePoints, generateComplexArcPoints, generateSingleArcPoints, selectedGenes]);
+            if (ratioSum < 1) {
+                const isLargeArcInner = lastCircleRadius <= Math.sqrt(3) * baseRadius;
+                const points = generateComplexArcPoints(
+                    lastStartPointX,
+                    lastStartPointY,
+                    lastEndPointX,
+                    lastEndPointY,
+                    lastCircleRadius,
+                    baseRadius,
+                    { large: 0, sweep: 1 },
+                    { large: isLargeArcInner ? 1 : 0, sweep: 0 }
+                );
+                paths.push({ path: points, color: '#333333' });
+            }
+        }
+        return paths;
+    }, [generateCirclePoints, generateComplexArcPoints, generateSingleArcPoints, selectedGenes]);
 
     // Find the rightmost point of a polygon for tooltip positioning
     const findRightmostPoint = (points) => {
@@ -1093,7 +1108,7 @@ export const SampleViewer = ({
                         setAvailableGenes={setAvailableGenes}
                         selectedGenes={selectedGenes}
                         setSelectedGenes={setSelectedGenes}
-                        // onKosaraData={handleKosaraData}
+                        onKosaraData={handleKosaraData}
                     />
                 )}
             </>
@@ -1103,19 +1118,24 @@ export const SampleViewer = ({
     const handleViewStateChange = useCallback(({ viewState, viewId }) => {
         if (viewId === 'main') {
             setMainViewState(prev => {
+                const nextState = {
+                    ...viewState,
+                    maxZoom: prev?.maxZoom ?? 2.5,
+                    minZoom: prev?.minZoom ?? -5
+                };
                 if (
                     prev &&
-                    prev.zoom === viewState.zoom &&
-                    prev.maxZoom === viewState.maxZoom &&
-                    prev.minZoom === viewState.minZoom &&
-                    prev.target && viewState.target &&
-                    prev.target[0] === viewState.target[0] &&
-                    prev.target[1] === viewState.target[1] &&
-                    prev.target[2] === viewState.target[2]
+                    prev.zoom === nextState.zoom &&
+                    prev.maxZoom === nextState.maxZoom &&
+                    prev.minZoom === nextState.minZoom &&
+                    prev.target && nextState.target &&
+                    prev.target[0] === nextState.target[0] &&
+                    prev.target[1] === nextState.target[1] &&
+                    prev.target[2] === nextState.target[2]
                 ) {
                     return prev;
                 }
-                return viewState;
+                return nextState;
             });
         }
     }, []);
@@ -1241,7 +1261,8 @@ export const SampleViewer = ({
                     offset[1]
                 ],
                 opacity: 0.8,
-                parameters: { depthTest: false }
+                parameters: { depthTest: false },
+                // Keep layer stable; no custom updateTriggers/transitions to avoid flicker on zoom
             });
             
             return layer;
@@ -1275,55 +1296,69 @@ export const SampleViewer = ({
     // }, [selectedSamples, imageSizes, sampleOffsets, cellBoundaryImages]);
 
     // Generate cell scatter layers and kosara polygons (gene mode)
+    const kosaraPolygonsBySample = useMemo(() => {
+        const result = {};
+        selectedSamples.forEach(sample => {
+            const sampleId = sample.id;
+            const mode = radioCellGeneModes[sampleId];
+            if (mode === 'genes' && selectedGenes.length > 0 && (kosaraDataBySample[sampleId]?.length > 0)) {
+                const offset = sampleOffsets[sampleId] || [0, 0];
+                const optimizedPathData = kosaraDataBySample[sampleId].flatMap(d => {
+                    const angles = Object.entries(d.angles || {});
+                    const ratios = Object.entries(d.ratios || {});
+                    const radius = Object.entries(d.radius || {});
+                    return generateKosaraPath(
+                        (d.cell_x || 0) + offset[0],
+                        (d.cell_y || 0) + offset[1],
+                        angles,
+                        ratios,
+                        radius
+                    ).map(path => ({
+                        id: d.id,
+                        cell_type: d.cell_type,
+                        points: path.path,
+                        color: path.color,
+                        total_expression: d.total_expression,
+                        ratios: d.ratios,
+                    }));
+                });
+                result[sampleId] = optimizedPathData;
+            }
+        });
+        return result;
+    }, [selectedSamples, radioCellGeneModes, selectedGenes, kosaraDataBySample, sampleOffsets, generateKosaraPath]);
+
     const generateCellLayers = useCallback(() => {
         return selectedSamples.flatMap(sample => {
             const sampleId = sample.id;
             const mode = radioCellGeneModes[sampleId];
 
             // If in gene mode and kosara data available, draw kosara polygons
-            // if (mode === 'genes' && selectedGenes.length > 0 && (kosaraDataBySample[sampleId]?.length > 0)) {
-            //     const offset = sampleOffsets[sampleId] || [0, 0];
-            //     const optimizedPathData = kosaraDataBySample[sampleId].flatMap(d => {
-            //         const angles = Object.entries(d.angles || {});
-            //         const ratios = Object.entries(d.ratios || {});
-            //         const radius = Object.entries(d.radius || {});
-
-            //         return generateKosaraPath(
-            //             (d.cell_x || 0) + offset[0],
-            //             (d.cell_y || 0) + offset[1],
-            //             angles,
-            //             ratios,
-            //             radius
-            //         ).map(path => ({
-            //             id: d.id,
-            //             cell_type: d.cell_type,
-            //             points: path.path,
-            //             color: path.color,
-            //             total_expression: d.total_expression,
-            //             ratios: d.ratios,
-            //         }));
-            //     });
-
-            //     return [new PolygonLayer({
-            //         id: `kosara-polygons-${sampleId}`,
-            //         data: optimizedPathData,
-            //         getPolygon: d => d.points,
-            //         getFillColor: d => {
-            //             const rgbColor = convertHEXToRGB(d.color);
-            //             return [...rgbColor, 255];
-            //         },
-            //         pickable: true,
-            //         stroked: false,
-            //         parameters: { depthTest: false, blend: true },
-            //         updateTriggers: { data: [kosaraDataBySample[sampleId], sampleOffsets, selectedGenes] }
-            //     })];
-            // }
+            if (mode === 'genes' && kosaraPolygonsBySample[sampleId]?.length > 0) {
+                const optimizedPathData = kosaraPolygonsBySample[sampleId];
+                return [new PolygonLayer({
+                    id: `kosara-polygons-${sampleId}`,
+                    data: optimizedPathData,
+                    getPolygon: d => d.points,
+                    getFillColor: d => {
+                        const rgbColor = convertHEXToRGB(d.color);
+                        return [...rgbColor, 255];
+                    },
+                    pickable: true,
+                    stroked: false,
+                    parameters: { depthTest: false, blend: true },
+                    updateTriggers: { data: [kosaraPolygonsBySample[sampleId], sampleId] },
+                    transitions: {
+                        getPolygon: 0,
+                        getFillColor: 0
+                    }
+                })];
+            }
 
             // Otherwise, default cell scatter for cell type highlighting
             const cellData = filteredCellData[sampleId] || [];
             const baseRadius = 5;
-            const zoomFactor = Math.pow(2, mainViewState?.zoom || 0);
-            const dynamicRadius = Math.max(1, Math.min(20, baseRadius * zoomFactor));
+            const dynamicRadius = baseRadius; // keep radius stable to avoid size snapping during zoom
 
             return [new ScatterplotLayer({
                 id: `cells-${sampleId}`,
@@ -1373,15 +1408,19 @@ export const SampleViewer = ({
                 stroked: true,
                 filled: (hoveredCluster && hoveredCluster.sampleId === sampleId) || selectedCellTypes.length > 0,
                 updateTriggers: {
-                    getFillColor: [hoveredCluster, selectedCellTypes, cellTypeColors],
-                    getLineColor: [hoveredCluster],
-                    getRadius: [hoveredCluster, mainViewState?.zoom],
-                    getLineWidth: [hoveredCluster],
+                    getFillColor: [hoveredCluster, selectedCellTypes, cellTypeColors, sampleId],
+                    getLineColor: [hoveredCluster, sampleId],
+                    getRadius: [sampleId],
+                    getLineWidth: [hoveredCluster, sampleId],
+                },
+                transitions: {
+                    getPosition: 0,
+                    getRadius: 0
                 }
             })];
         }).filter(Boolean);
-    // }, [selectedSamples, filteredCellData, mainViewState, hoveredCluster, selectedCellTypes, cellTypeColors, radioCellGeneModes, selectedGenes, kosaraDataBySample, sampleOffsets, generateKosaraPath]);
-}, [selectedSamples, filteredCellData, mainViewState, hoveredCluster, selectedCellTypes, cellTypeColors, radioCellGeneModes, selectedGenes, kosaraDataBySample, sampleOffsets]);
+    }, [selectedSamples, filteredCellData, hoveredCluster, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample]);
+// }, [selectedSamples, filteredCellData, mainViewState, hoveredCluster, selectedCellTypes, cellTypeColors, radioCellGeneModes, selectedGenes, kosaraDataBySample, sampleOffsets]);
 
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {
@@ -1575,12 +1614,16 @@ export const SampleViewer = ({
     }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst]);
 
     // Combine all layers
-    const layers = useMemo(() => [
-        ...generateImageLayers(),
-        // ...generateCellBoundaryLayers(),
-        ...generateCellLayers(),
-        ...generateCustomAreaLayers()
-    ], [generateImageLayers, generateCellLayers, generateCustomAreaLayers]);
+    const layers = useMemo(() => {
+        // Build layers in stable order to prevent reordering artifacts
+        const imgLayers = generateImageLayers();
+        const cellLayers = generateCellLayers();
+        const areaLayers = generateCustomAreaLayers();
+        return [...imgLayers, ...cellLayers, ...areaLayers];
+    }, [generateImageLayers, generateCellLayers, generateCustomAreaLayers]);
+
+    // Stable viewState wrapper to avoid creating a new object on every render
+    const deckViewState = useMemo(() => ({ main: mainViewState }), [mainViewState]);
 
     // Set container size
     useEffect(() => {
@@ -1779,16 +1822,11 @@ export const SampleViewer = ({
                 <DeckGL
                     layers={layers}
                     views={[mainView]}
-                    viewState={{
-                        main: mainViewState
-                    }}
+                    viewState={deckViewState}
                     onViewStateChange={handleViewStateChange}
                     onClick={handleMapClick}
                     onHover={handleMouseMove}
-                    controller={
-                        isAreaTooltipVisible || isAreaEditPopupVisible ? false :
-                            !isDrawing ? true : { dragPan: false, dragRotate: false, doubleClickZoom: false }
-                    }
+                    controller={deckController}
                     getCursor={({ isHovering, isDragging }) => {
                         if (isAreaTooltipVisible || isAreaEditPopupVisible) {
                             return 'default';
