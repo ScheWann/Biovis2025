@@ -1381,7 +1381,9 @@ export const SampleViewer = ({
             // Otherwise, default cell scatter for cell type highlighting
             const cellData = filteredCellData[sampleId] || [];
             const baseRadius = 5;
-            const dynamicRadius = baseRadius; // keep radius stable to avoid size snapping during zoom
+            // Make radius responsive to zoom: smaller when zoomed out, larger when zoomed in
+            const zoomFactor = mainViewState ? Math.pow(2, mainViewState.zoom * 0.8) : 1;
+            const dynamicRadius = baseRadius * zoomFactor;
 
             return [new ScatterplotLayer({
                 id: `cells-${sampleId}`,
@@ -1428,12 +1430,12 @@ export const SampleViewer = ({
                 lineWidthUnits: 'pixels',
                 pickable: true,
                 radiusUnits: 'pixels',
-                stroked: true,
+                stroked: false,
                 filled: (hoveredCluster && hoveredCluster.sampleId === sampleId) || selectedCellTypes.length > 0,
                 updateTriggers: {
                     getFillColor: [hoveredCluster, selectedCellTypes, cellTypeColors, sampleId],
                     getLineColor: [hoveredCluster, sampleId],
-                    getRadius: [sampleId],
+                    getRadius: [sampleId, mainViewState?.zoom],
                     getLineWidth: [hoveredCluster, sampleId],
                 },
                 transitions: {
@@ -1442,8 +1444,7 @@ export const SampleViewer = ({
                 }
             })];
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, hoveredCluster, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample]);
-// }, [selectedSamples, filteredCellData, mainViewState, hoveredCluster, selectedCellTypes, cellTypeColors, radioCellGeneModes, selectedGenes, kosaraDataBySample, sampleOffsets]);
+    }, [selectedSamples, filteredCellData, hoveredCluster, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, mainViewState]);
 
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {
