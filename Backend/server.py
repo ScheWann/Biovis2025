@@ -1,3 +1,35 @@
+"""
+Spatial Transcriptomics Analysis Server
+
+This server provides APIs for spatial transcriptomics data analysis with support for multiple scales.
+The system now supports both legacy format (single scale per sample) and new format (multiple scales per sample).
+
+Sample ID Format:
+- New format: "sample_id_scale" (e.g., "skin_TXK6Z4X_A1_2um", "skin_TXK6Z4X_A1_8um")
+- Legacy format: "sample_id" (e.g., "skin_TXK6Z4X_A1")
+
+API Endpoints:
+- GET /api/get_samples_option - Get available samples grouped by scale
+- POST /api/get_sample_info - Get detailed sample information including available scales
+- POST /api/get_available_scales - Get available scales for a sample
+- POST /api/validate_sample - Validate a sample ID and get metadata
+- POST /api/load_adata_cache - Load AnnData objects into cache
+- POST /api/get_hires_image - Get high-resolution image for a sample
+- POST /api/get_cell_boundary_image - Get cell boundary image for a sample
+- POST /api/get_coordinates - Get cell coordinates for samples
+- POST /api/get_gene_list - Get gene lists for samples
+- POST /api/get_highly_variable_genes - Get highly variable genes
+- POST /api/get_cell_types - Get cell type information
+- POST /api/get_kosara_data - Get Kosara visualization data
+- POST /api/get_umap_data - Generate UMAP data
+- POST /api/get_go_analysis - Perform GO analysis
+- POST /api/get_trajectory_gene_list - Get trajectory gene lists
+- POST /api/get_trajectory_data - Get trajectory expression data
+- POST /api/get_pseudotime_data - Generate pseudotime analysis
+- POST /api/get_trajectory_gene_expression - Get gene expression along trajectories
+- POST /api/upload_spaceranger - Upload Spaceranger output files
+"""
+
 from flask import Flask, request, jsonify, send_file
 from process import SAMPLES
 from flask_cors import CORS
@@ -30,12 +62,150 @@ UPLOAD_FOLDER = "../Uploaded_Data"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
+def validate_sample_id(sample_id):
+    """
+    Validate sample ID and return sample info and scale info.
+    Returns (base_sample_id, scale, sample_info, scale_info) or raises ValueError.
+    """
+    # Handle new format: sample_id_scale
+    if "_" in sample_id:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id not in SAMPLES:
+            raise ValueError(f"Sample {base_sample_id} not found")
+        
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" not in sample_info or scale not in sample_info["scales"]:
+            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+        
+        scale_info = sample_info["scales"][scale]
+        return base_sample_id, scale, sample_info, scale_info
+    # Handle legacy format
+    elif sample_id in SAMPLES:
+        sample_info = SAMPLES[sample_id]
+        scale_info = sample_info
+        return sample_id, None, sample_info, scale_info
+    else:
+        raise ValueError(f"Sample {sample_id} not found")
+
+
+def get_sample_scales(sample_id):
+    """
+    Get available scales for a given sample ID.
+    """
+    if sample_id in SAMPLES:
+        sample_info = SAMPLES[sample_id]
+        if "scales" in sample_info:
+            return list(sample_info["scales"].keys())
+        else:
+            # Legacy format - return the group as the scale
+            return [sample_info.get("group", "default")]
+    return []
+
+
 @app.route("/api/get_samples_option", methods=["GET"])
 def get_samples_option_route():
     """
     Get a list of available samples for the selector, grouped by cell scale(e.g., 2um, 8um)
     """
     return jsonify(get_samples_option())
+
+
+@app.route("/api/get_sample_info", methods=["POST"])
+def get_sample_info_route():
+    """
+    Get detailed information about a specific sample including available scales.
+    """
+    sample_id = request.json["sample_id"]
+    
+    try:
+        # Handle new format: sample_id_scale
+        if "_" in sample_id:
+            base_sample_id, scale = sample_id.rsplit("_", 1)
+            if base_sample_id not in SAMPLES:
+                return jsonify({"error": f"Sample {base_sample_id} not found"}), 404
+            
+            sample_info = SAMPLES[base_sample_id]
+            if "scales" not in sample_info or scale not in sample_info["scales"]:
+                return jsonify({"error": f"Scale {scale} not found for sample {base_sample_id}"}), 404
+            
+            available_scales = list(sample_info["scales"].keys())
+            scale_info = sample_info["scales"][scale]
+            
+            return jsonify({
+                "sample_id": base_sample_id,
+                "current_scale": scale,
+                "available_scales": available_scales,
+                "sample_name": sample_info["name"],
+                "scale_info": scale_info
+            })
+        # Handle legacy format
+        elif sample_id in SAMPLES:
+            sample_info = SAMPLES[sample_id]
+            return jsonify({
+                "sample_id": sample_id,
+                "current_scale": sample_info.get("group", "default"),
+                "available_scales": [sample_info.get("group", "default")],
+                "sample_name": sample_info["name"],
+                "scale_info": sample_info
+            })
+        else:
+            return jsonify({"error": f"Sample {sample_id} not found"}), 404
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/get_available_scales", methods=["POST"])
+def get_available_scales_route():
+    """
+    Get available scales for a given sample ID.
+    """
+    sample_id = request.json["sample_id"]
+    
+    try:
+        # Extract base sample ID if it's in the new format
+        if "_" in sample_id:
+            base_sample_id = sample_id.rsplit("_", 1)[0]
+        else:
+            base_sample_id = sample_id
+        
+        scales = get_sample_scales(base_sample_id)
+        return jsonify({
+            "sample_id": base_sample_id,
+            "available_scales": scales
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/validate_sample", methods=["POST"])
+def validate_sample_route():
+    """
+    Validate a sample ID and return information about it.
+    """
+    sample_id = request.json["sample_id"]
+    
+    try:
+        base_sample_id, scale, sample_info, scale_info = validate_sample_id(sample_id)
+        
+        return jsonify({
+            "valid": True,
+            "sample_id": base_sample_id,
+            "scale": scale,
+            "sample_name": sample_info["name"],
+            "has_adata": "adata_path" in scale_info,
+            "has_trajectory_data": any(key in scale_info for key in [
+                "horizontal_non_random_gene_trajectory_expression_path",
+                "vertical_non_random_gene_trajectory_expression_path"
+            ])
+        })
+    except ValueError as e:
+        return jsonify({
+            "valid": False,
+            "error": str(e)
+        }), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/load_adata_cache", methods=["POST"])
@@ -247,10 +417,23 @@ def get_hires_image_route():
     """
     sample_id = request.json["sample_id"]
 
-    if sample_id not in SAMPLES:
+    # Handle new format: sample_id_scale
+    if "_" in sample_id:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id not in SAMPLES:
+            return jsonify({"error": f"Sample {base_sample_id} not found"}), 404
+        
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" not in sample_info or scale not in sample_info["scales"]:
+            return jsonify({"error": f"Scale {scale} not found for sample {base_sample_id}"}), 404
+        
+        scale_info = sample_info["scales"][scale]
+        image_path = scale_info["image_jpeg_path"]
+    # Handle legacy format
+    elif sample_id in SAMPLES:
+        image_path = SAMPLES[sample_id]["image_jpeg_path"]
+    else:
         return jsonify({"error": f"Sample {sample_id} not found"}), 404
-
-    image_path = SAMPLES[sample_id]["image_jpeg_path"]
 
     return send_file(image_path, mimetype="image/jpeg", as_attachment=False)
 
@@ -262,10 +445,23 @@ def get_cell_boundary_image_route():
     """
     sample_id = request.json["sample_id"]
 
-    if sample_id not in SAMPLES:
+    # Handle new format: sample_id_scale
+    if "_" in sample_id:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id not in SAMPLES:
+            return jsonify({"error": f"Sample {base_sample_id} not found"}), 404
+        
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" not in sample_info or scale not in sample_info["scales"]:
+            return jsonify({"error": f"Scale {scale} not found for sample {base_sample_id}"}), 404
+        
+        scale_info = sample_info["scales"][scale]
+        cell_boundary_path = scale_info["cell_boundary_path"]
+    # Handle legacy format
+    elif sample_id in SAMPLES:
+        cell_boundary_path = SAMPLES[sample_id]["cell_boundary_path"]
+    else:
         return jsonify({"error": f"Sample {sample_id} not found"}), 404
-
-    cell_boundary_path = SAMPLES[sample_id]["cell_boundary_path"]
 
     return send_file(cell_boundary_path, mimetype="image/png", as_attachment=False)
 
@@ -285,6 +481,8 @@ def upload_spaceranger():
         re.compile(r"spatial/"),
     ]
 
+    uploaded_scales = set()  # Track which scales were uploaded
+
     for file in files:
         rel_path = file.filename
 
@@ -293,12 +491,14 @@ def upload_spaceranger():
             if pattern.search(rel_path):
                 if "binned_outputs/square_002um" in rel_path:
                     subdir = "binned_outputs/square_002um"
+                    uploaded_scales.add("2um")
                 elif "binned_outputs/square_008um" in rel_path:
                     subdir = "binned_outputs/square_008um"
+                    uploaded_scales.add("8um")
                 elif "binned_outputs/square_016um" in rel_path:
                     subdir = "binned_outputs/square_016um"
+                    uploaded_scales.add("16um")
                 elif "spatial/" in rel_path:
-
                     subdir = os.path.join(
                         "spatial", os.path.relpath(rel_path, start="spatial")
                     )
@@ -313,7 +513,11 @@ def upload_spaceranger():
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             file.save(save_path)
 
-    return jsonify({"status": "success"})
+    return jsonify({
+        "status": "success", 
+        "uploaded_scales": list(uploaded_scales),
+        "message": f"Uploaded data for scales: {', '.join(uploaded_scales)}"
+    })
 
 
 @app.route("/api/get_pseudotime_data", methods=["POST"])

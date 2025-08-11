@@ -48,7 +48,29 @@ def load_adata_to_cache(sample_ids):
     global ADATA_CACHE
     
     for sample_id in sample_ids:
-        if sample_id in SAMPLES and sample_id not in ADATA_CACHE:
+        # Handle new format: sample_id_scale
+        if "_" in sample_id:
+            base_sample_id, scale = sample_id.rsplit("_", 1)
+            if base_sample_id in SAMPLES and sample_id not in ADATA_CACHE:
+                sample_info = SAMPLES[base_sample_id]
+                if "scales" in sample_info and scale in sample_info["scales"]:
+                    scale_info = sample_info["scales"][scale]
+                    if "adata_path" in scale_info:
+                        try:
+                            adata = sc.read_h5ad(scale_info["adata_path"])
+                            ADATA_CACHE[sample_id] = adata
+                            print(f"Loaded AnnData for sample {sample_id}")
+                        except Exception as e:
+                            print(f"Error loading AnnData for sample {sample_id}: {e}")
+                            ADATA_CACHE[sample_id] = None
+                    else:
+                        print(f"No AnnData path found for sample {sample_id}")
+                        ADATA_CACHE[sample_id] = None
+                else:
+                    print(f"No scale {scale} found for sample {base_sample_id}")
+                    ADATA_CACHE[sample_id] = None
+        # Handle legacy format
+        elif sample_id in SAMPLES and sample_id not in ADATA_CACHE:
             sample_info = SAMPLES[sample_id]
             if "adata_path" in sample_info:
                 try:
@@ -100,15 +122,24 @@ def clear_processed_cache():
 
 def get_samples_option():
     """
-    Return a list of tissue samples for selector, group by example data and upload data.
+    Return a list of tissue samples for selector, group by scale.
     """
     groups = defaultdict(list)
 
-    for sample in SAMPLES.values():
-        cell_scale_group = sample.get("group", "default")
-        groups[cell_scale_group].append(
-            {"value": sample["id"], "label": sample["name"]}
-        )
+    for sample_id, sample in SAMPLES.items():
+        # Handle new structure with scales
+        if "scales" in sample:
+            for scale in sample["scales"].keys():
+                scale_key = f"{sample_id}_{scale}"
+                groups[scale].append(
+                    {"value": scale_key, "label": f"{sample['name']} ({scale})"}
+                )
+        # Handle legacy structure for backward compatibility
+        elif "group" in sample:
+            cell_scale_group = sample.get("group", "default")
+            groups[cell_scale_group].append(
+                {"value": sample["id"], "label": sample["name"]}
+            )
 
     return [
         {"label": group, "title": group, "options": options}
@@ -123,7 +154,29 @@ def get_hires_image_size(sample_ids):
     tissue_image_size = {}
 
     for sample_id in sample_ids:
-        if sample_id in SAMPLES:
+        # Handle new format: sample_id_scale
+        if "_" in sample_id:
+            base_sample_id, scale = sample_id.rsplit("_", 1)
+            if base_sample_id in SAMPLES:
+                sample_info = SAMPLES[base_sample_id]
+                if "scales" in sample_info and scale in sample_info["scales"]:
+                    scale_info = sample_info["scales"][scale]
+                    if "image_tif_path" in scale_info:
+                        try:
+                            image = Image.open(scale_info["image_tif_path"])
+                            tissue_image_size[sample_id] = image.size
+                            image.close()  # Close the image to free memory
+                        except Exception as e:
+                            print(f"Error loading image for sample {sample_id}: {e}")
+                            tissue_image_size[sample_id] = (0, 0)
+                    else:
+                        print(f"No image path found for sample {sample_id}")
+                        tissue_image_size[sample_id] = (0, 0)
+                else:
+                    print(f"No scale {scale} found for sample {base_sample_id}")
+                    tissue_image_size[sample_id] = (0, 0)
+        # Handle legacy format
+        elif sample_id in SAMPLES:
             try:
                 image = Image.open(SAMPLES[sample_id]["image_tif_path"])
                 tissue_image_size[sample_id] = image.size
@@ -142,7 +195,58 @@ def get_coordinates(sample_ids):
     cell_coordinate_result = {}
 
     for sample_id in sample_ids:
-        if sample_id in SAMPLES:
+        # Handle new format: sample_id_scale
+        if "_" in sample_id:
+            base_sample_id, scale = sample_id.rsplit("_", 1)
+            if base_sample_id in SAMPLES:
+                sample_info = SAMPLES[base_sample_id]
+                if "scales" in sample_info and scale in sample_info["scales"]:
+                    scale_info = sample_info["scales"][scale]
+                    if "adata_path" in scale_info:
+                        try:
+                            adata = get_cached_adata(sample_id)
+                            # Use base_sample_id for spatial data access
+                            scalef = adata.uns['spatial'][base_sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
+                            # Use array_row and array_col from obs metadata
+                            if 'array_row' in adata.obs and 'array_col' in adata.obs:
+                                coords_df = pd.DataFrame({
+                                    'cell_x': adata.obsm['spatial_cropped_150_buffer'][:, 0] * scalef,
+                                    'cell_y': adata.obsm['spatial_cropped_150_buffer'][:, 1] * scalef
+                                }, index=adata.obs_names)
+                            else:
+                                print(f"Warning: No spatial coordinates found for sample {sample_id}")
+                                coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'])
+                            
+                            # Add ID column and cell type information
+                            coords_df = coords_df.reset_index().rename(columns={'index': 'id'})
+                            
+                            # Add cell type information if available
+                            if 'predicted_labels' in adata.obs.columns:
+                                coords_df['cell_type'] = adata.obs['predicted_labels'].values
+                            elif 'cell_type' in adata.obs.columns:
+                                coords_df['cell_type'] = adata.obs['cell_type'].values
+                            else:
+                                # Look for leiden clustering columns
+                                leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
+                                if leiden_cols:
+                                    leiden_col = leiden_cols[0]
+                                    coords_df['cell_type'] = [f'Cluster {val}' for val in adata.obs[leiden_col].values]
+                                else:
+                                    coords_df['cell_type'] = 'Unknown'
+                            
+                            cell_coordinate_result[sample_id] = coords_df.to_dict(orient="records")
+                            
+                        except Exception as e:
+                            print(f"Error loading adata coordinates for sample {sample_id}: {e}")
+                            cell_coordinate_result[sample_id] = []
+                    else:
+                        print(f"Warning: No coordinate data available for sample {sample_id}")
+                        cell_coordinate_result[sample_id] = []
+                else:
+                    print(f"No scale {scale} found for sample {base_sample_id}")
+                    cell_coordinate_result[sample_id] = []
+        # Handle legacy format
+        elif sample_id in SAMPLES:
             sample_info = SAMPLES[sample_id]
             
             # Check if we have adata_path (new format)
@@ -196,7 +300,29 @@ def get_gene_list(sample_ids):
     sample_gene_dict = {}
 
     for sample_id in sample_ids:
-        if sample_id in SAMPLES:
+        # Handle new format: sample_id_scale
+        if "_" in sample_id:
+            base_sample_id, scale = sample_id.rsplit("_", 1)
+            if base_sample_id in SAMPLES:
+                sample_info = SAMPLES[base_sample_id]
+                if "scales" in sample_info and scale in sample_info["scales"]:
+                    scale_info = sample_info["scales"][scale]
+                    if "adata_path" in scale_info:
+                        try:
+                            adata = get_cached_adata(sample_id)
+                            gene_list = adata.var_names.tolist()
+                            sample_gene_dict[sample_id] = gene_list
+                        except Exception as e:
+                            print(f"Error loading adata gene list for sample {sample_id}: {e}")
+                            sample_gene_dict[sample_id] = []
+                    else:
+                        print(f"Warning: No gene list data available for sample {sample_id}")
+                        sample_gene_dict[sample_id] = []
+                else:
+                    print(f"No scale {scale} found for sample {base_sample_id}")
+                    sample_gene_dict[sample_id] = []
+        # Handle legacy format
+        elif sample_id in SAMPLES:
             sample_info = SAMPLES[sample_id]
             
             if "adata_path" in sample_info:
@@ -223,7 +349,51 @@ def get_cell_types_data(sample_ids):
     combined_cell_types = {}
 
     for sample_id in sample_ids:
-        if sample_id in SAMPLES:
+        # Handle new format: sample_id_scale
+        if "_" in sample_id:
+            base_sample_id, scale = sample_id.rsplit("_", 1)
+            if base_sample_id in SAMPLES:
+                sample_info = SAMPLES[base_sample_id]
+                if "scales" in sample_info and scale in sample_info["scales"]:
+                    scale_info = sample_info["scales"][scale]
+                    if "adata_path" in scale_info:
+                        try:
+                            adata = get_cached_adata(sample_id)
+                            
+                            # Try to get predicted_labels first, then fall back to cell_type or leiden clustering
+                            if 'predicted_labels' in adata.obs.columns:
+                                cell_type_counts = adata.obs['predicted_labels'].value_counts()
+                            elif 'cell_type' in adata.obs.columns:
+                                cell_type_counts = adata.obs['cell_type'].value_counts()
+                            else:
+                                # Look for leiden clustering columns
+                                leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
+                                if leiden_cols:
+                                    # Use the first leiden clustering column found
+                                    leiden_col = leiden_cols[0]
+                                    cell_type_counts = adata.obs[leiden_col].value_counts()
+                                    # Rename the clusters to be more descriptive
+                                    cell_type_counts.index = [f'Cluster {idx}' for idx in cell_type_counts.index]
+                                else:
+                                    # No cell type information available
+                                    cell_type_counts = pd.Series([], dtype='int64')
+                            
+                            # Add counts to combined dictionary
+                            for cell_type, count in cell_type_counts.items():
+                                cell_type_str = str(cell_type)
+                                if cell_type_str in combined_cell_types:
+                                    combined_cell_types[cell_type_str] += int(count)
+                                else:
+                                    combined_cell_types[cell_type_str] = int(count)
+                            
+                        except Exception as e:
+                            print(f"Error loading cell types for sample {sample_id}: {e}")
+                    else:
+                        print(f"Warning: No adata available for sample {sample_id}")
+                else:
+                    print(f"No scale {scale} found for sample {base_sample_id}")
+        # Handle legacy format
+        elif sample_id in SAMPLES:
             sample_info = SAMPLES[sample_id]
             
             if "adata_path" in sample_info:
@@ -346,10 +516,22 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
     def filter_and_merge(cell_ids, gene_names, sample_ids):
         results = {}
         for sample_id in sample_ids:
-            if sample_id not in SAMPLES:
-                raise ValueError("Sample not found.")
-            else:
+            # Handle new format: sample_id_scale
+            if "_" in sample_id:
+                base_sample_id, scale = sample_id.rsplit("_", 1)
+                if base_sample_id not in SAMPLES:
+                    raise ValueError(f"Sample {base_sample_id} not found.")
+                
+                sample_info = SAMPLES[base_sample_id]
+                if "scales" not in sample_info or scale not in sample_info["scales"]:
+                    raise ValueError(f"Scale {scale} not found for sample {base_sample_id}.")
+                
                 adata = get_cached_adata(sample_id)
+            # Handle legacy format
+            elif sample_id in SAMPLES:
+                adata = get_cached_adata(sample_id)
+            else:
+                raise ValueError(f"Sample {sample_id} not found.")
 
                 if not cell_ids:
                     valid_cell_ids = adata.obs_names.tolist()
@@ -410,7 +592,41 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
         return results
 
     def get_coordinates(sample_id):
-        if sample_id in SAMPLES:
+        # Handle new format: sample_id_scale
+        if "_" in sample_id:
+            base_sample_id, scale = sample_id.rsplit("_", 1)
+            if base_sample_id in SAMPLES:
+                adata = get_cached_adata(sample_id)
+                # Build coordinate DataFrame with standard column names
+                if 'spatial_cropped_150_buffer' in adata.obsm:
+                    # Use base_sample_id for spatial data access
+                    scalef = adata.uns['spatial'][base_sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
+                    coords_array = adata.obsm['spatial_cropped_150_buffer'] * scalef
+                    coords_df = pd.DataFrame(
+                        coords_array,
+                        columns=['cell_x', 'cell_y']
+                    )
+                else:
+                    coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'])
+
+                # Determine cell label column preference
+                if 'predicted_labels' in adata.obs.columns:
+                    cell_labels = adata.obs['predicted_labels'].astype(str).values
+                elif 'cell_type' in adata.obs.columns:
+                    cell_labels = adata.obs['cell_type'].astype(str).values
+                else:
+                    leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
+                    if leiden_cols:
+                        lc = leiden_cols[0]
+                        cell_labels = adata.obs[lc].astype(str).map(lambda v: f'Cluster {v}').values
+                    else:
+                        cell_labels = np.array(['Unknown'] * adata.n_obs)
+
+                coords_df['cell_type'] = cell_labels
+                coords_df['id'] = adata.obs.index
+                return coords_df
+        # Handle legacy format
+        elif sample_id in SAMPLES:
             adata = get_cached_adata(sample_id)
             # Build coordinate DataFrame with standard column names
             if 'spatial_cropped_150_buffer' in adata.obsm:
@@ -479,13 +695,26 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
     """
     Generate UMAP data from gene expression data.
     """
-    if sample_id not in SAMPLES:
+    # Handle new format: sample_id_scale
+    if "_" in sample_id:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id not in SAMPLES:
+            raise ValueError(f"Sample {base_sample_id} not found")
+        
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" not in sample_info or scale not in sample_info["scales"]:
+            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+        
+        scale_info = sample_info["scales"][scale]
+    # Handle legacy format
+    elif sample_id in SAMPLES:
+        sample_info = SAMPLES[sample_id]
+        scale_info = sample_info
+    else:
         raise ValueError(f"Sample {sample_id} not found")
     
-    sample_info = SAMPLES[sample_id]
-    
     # Check if we have adata_path (new format)
-    if "adata_path" in sample_info:
+    if "adata_path" in scale_info:
         # Get cached AnnData
         adata = get_cached_adata(sample_id)
         
@@ -552,12 +781,25 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
     """
     Perform GO analysis on the selected cluster cells and return top GO terms.
     """
-    if sample_id not in SAMPLES:
+    # Handle new format: sample_id_scale
+    if "_" in sample_id:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id not in SAMPLES:
+            raise ValueError(f"Sample {base_sample_id} not found")
+        
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" not in sample_info or scale not in sample_info["scales"]:
+            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+        
+        scale_info = sample_info["scales"][scale]
+    # Handle legacy format
+    elif sample_id in SAMPLES:
+        sample_info = SAMPLES[sample_id]
+        scale_info = sample_info
+    else:
         raise ValueError(f"Sample {sample_id} not found")
     
-    sample_info = SAMPLES[sample_id]
-    
-    if "adata_path" in sample_info:
+    if "adata_path" in scale_info:
         # Get cached AnnData
         adata = get_cached_adata(sample_id)
         
@@ -592,7 +834,21 @@ def get_trajectory_gene_list(sample_id, is_vertical=False):
     """
     Get list of available genes from trajectory data for the given sample ID.
     """
-    if sample_id not in SAMPLES:
+    # Handle new format: sample_id_scale
+    if "_" in sample_id:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id not in SAMPLES:
+            raise ValueError(f"Sample {base_sample_id} not found")
+        
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" not in sample_info or scale not in sample_info["scales"]:
+            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+        
+        scale_info = sample_info["scales"][scale]
+    # Handle legacy format
+    elif sample_id in SAMPLES:
+        scale_info = SAMPLES[sample_id]
+    else:
         raise ValueError(f"Sample {sample_id} not found")
     
     # Select the appropriate trajectory data path based on is_vertical flag
@@ -602,12 +858,12 @@ def get_trajectory_gene_list(sample_id, is_vertical=False):
         trajectory_key = "horizontal_non_random_gene_trajectory_expression_path"
     
     # Check if sample has the requested trajectory data
-    if trajectory_key not in SAMPLES[sample_id]:
+    if trajectory_key not in scale_info:
         data_type = "vertical" if is_vertical else "horizontal"
         raise ValueError(f"No {data_type} trajectory data available for sample {sample_id}")
     
     try:
-        trajectory_path = SAMPLES[sample_id][trajectory_key]
+        trajectory_path = scale_info[trajectory_key]
         df = pd.read_csv(trajectory_path, index_col=0)
         
         # Ensure variables column is string type
@@ -627,7 +883,21 @@ def get_trajectory_data(sample_id, selected_genes=None, is_vertical=False):
     """
     Get trajectory gene expression data for the given sample ID.
     """
-    if sample_id not in SAMPLES:
+    # Handle new format: sample_id_scale
+    if "_" in sample_id:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id not in SAMPLES:
+            raise ValueError(f"Sample {base_sample_id} not found")
+        
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" not in sample_info or scale not in sample_info["scales"]:
+            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+        
+        scale_info = sample_info["scales"][scale]
+    # Handle legacy format
+    elif sample_id in SAMPLES:
+        scale_info = SAMPLES[sample_id]
+    else:
         raise ValueError(f"Sample {sample_id} not found")
     
     # Select the appropriate trajectory data path based on is_vertical flag
@@ -637,12 +907,12 @@ def get_trajectory_data(sample_id, selected_genes=None, is_vertical=False):
         trajectory_key = "horizontal_non_random_gene_trajectory_expression_path"
     
     # Check if sample has the requested trajectory data
-    if trajectory_key not in SAMPLES[sample_id]:
+    if trajectory_key not in scale_info:
         data_type = "vertical" if is_vertical else "horizontal"
         raise ValueError(f"No {data_type} trajectory data available for sample {sample_id}")
     
     try:
-        trajectory_path = SAMPLES[sample_id][trajectory_key]
+        trajectory_path = scale_info[trajectory_key]
         df = pd.read_csv(trajectory_path, index_col=0)
         
         columns_to_drop = ["colour", "PANEL", "group", "fill", "linewidth", "linetype", "weight", "alpha", "flipped_aes"]
@@ -686,12 +956,25 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
     - n_pcas: Number of principal components to use (default: 30)
     - resolutions: Resolution parameter for Leiden clustering (default: 1)
     """
-    if sample_id not in SAMPLES:
+    # Handle new format: sample_id_scale
+    if "_" in sample_id:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id not in SAMPLES:
+            raise ValueError(f"Sample {base_sample_id} not found")
+        
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" not in sample_info or scale not in sample_info["scales"]:
+            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+        
+        scale_info = sample_info["scales"][scale]
+    # Handle legacy format
+    elif sample_id in SAMPLES:
+        sample_info = SAMPLES[sample_id]
+        scale_info = sample_info
+    else:
         raise ValueError(f"Sample {sample_id} not found")
     
-    sample_info = SAMPLES[sample_id]
-    
-    if "adata_path" in sample_info:
+    if "adata_path" in scale_info:
         adata = get_cached_adata(sample_id)
 
         if cell_ids is not None:
@@ -1010,12 +1293,24 @@ def get_highly_variable_genes(sample_ids, top_n=20):
     result = {}
     
     for sample_id in sample_ids:
-        if sample_id not in SAMPLES:
+        # Handle new format: sample_id_scale
+        if "_" in sample_id:
+            base_sample_id, scale = sample_id.rsplit("_", 1)
+            if base_sample_id not in SAMPLES:
+                continue
+                
+            sample_info = SAMPLES[base_sample_id]
+            if "scales" not in sample_info or scale not in sample_info["scales"]:
+                continue
+                
+            scale_info = sample_info["scales"][scale]
+        # Handle legacy format
+        elif sample_id in SAMPLES:
+            scale_info = SAMPLES[sample_id]
+        else:
             continue
-            
-        sample_info = SAMPLES[sample_id]
         
-        if "adata_path" in sample_info:
+        if "adata_path" in scale_info:
             try:
                 # Get cached AnnData
                 adata = get_cached_adata(sample_id)
