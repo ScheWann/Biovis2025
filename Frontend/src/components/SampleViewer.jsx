@@ -39,10 +39,10 @@ export const SampleViewer = ({
 
     // Kosara gene expression data per sample returned from backend
     const [kosaraDataBySample, setKosaraDataBySample] = useState({}); // { sampleId: [ { id, cell_x, cell_y, cell_type, total_expression, angles:{}, radius:{}, ratios:{} }, ... ] }
-    
+
     // Loading state for gene mode switching
     const [isKosaraLoading, setIsKosaraLoading] = useState(false);
-    
+
     // Track which samples currently have an in-flight kosara request
     const [kosaraLoadingSamples, setKosaraLoadingSamples] = useState({}); // { sampleId: true }
     const kosaraLoadingSamplesRef = useRef({});
@@ -86,6 +86,9 @@ export const SampleViewer = ({
     const [magnifierMousePos, setMagnifierMousePos] = useState({ x: 0, y: 0 });
     const [keyPressed, setKeyPressed] = useState(false);
     const magnifierRef = useRef(null);
+    // Track if current magnifier image has finished loading
+    const [magnifierImageLoaded, setMagnifierImageLoaded] = useState(false);
+    const magnifierLoadTimeoutRef = useRef(null);
 
     // Add state for preloaded high-res images
     const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
@@ -615,10 +618,10 @@ export const SampleViewer = ({
     // Preload high-res images for all selected samples
     useEffect(() => {
         let isMounted = true;
-        
+
         // Reset callback flag when samples change
         imagesLoadedCallbackCalled.current = false;
-        
+
         // Clean up images that are no longer needed
         setHiresImages(prev => {
             const currentSampleIds = new Set(selectedSamples.map(s => s.id));
@@ -633,7 +636,7 @@ export const SampleViewer = ({
             });
             return filteredImages;
         });
-        
+
         selectedSamples.forEach(sample => {
             // Check if image is already loaded or currently being fetched
             setHiresImages(prev => {
@@ -641,15 +644,15 @@ export const SampleViewer = ({
                 if (prev[sample.id]) {
                     return prev;
                 }
-                
+
                 // If already fetching this image, don't start another request
                 if (fetchingImages.current.has(sample.id)) {
                     return prev;
                 }
-                
+
                 // Mark as being fetched
                 fetchingImages.current.add(sample.id);
-                
+
                 // Start fetching asynchronously
                 fetch('/api/get_hires_image', {
                     method: 'POST',
@@ -678,14 +681,14 @@ export const SampleViewer = ({
                         // Remove from fetching set when done
                         fetchingImages.current.delete(sample.id);
                     });
-                
+
                 // Return current state immediately (fetch is async)
                 return prev;
             });
         });
-        
-        return () => { 
-            isMounted = false; 
+
+        return () => {
+            isMounted = false;
         };
     }, [selectedSamples]);
 
@@ -695,7 +698,7 @@ export const SampleViewer = ({
 
         const timeoutId = setTimeout(() => {
             const allImagesLoaded = selectedSamples.length > 0 && selectedSamples.every(sample => hiresImages[sample.id]);
-            
+
             if (allImagesLoaded) {
                 imagesLoadedCallbackCalled.current = true;
                 onImagesLoaded();
@@ -1125,7 +1128,7 @@ export const SampleViewer = ({
                     }
                 }
             }
-            
+
             // Clear drawing mousePosition when not drawing
             if (mousePosition !== null) setMousePosition(null);
         }
@@ -1332,10 +1335,10 @@ export const SampleViewer = ({
                 parameters: { depthTest: false },
                 // Keep layer stable; no custom updateTriggers/transitions to avoid flicker on zoom
             });
-            
+
             return layer;
         }).filter(Boolean);
-        
+
         return layers;
     }, [selectedSamples, imageSizes, sampleOffsets, hiresImages]);
 
@@ -1836,7 +1839,7 @@ export const SampleViewer = ({
                 });
 
                 const worldCoords = viewport.unproject([x, y]);
-                
+
                 if (worldCoords && worldCoords.length >= 2) {
                     setMagnifierMousePos(prev => {
                         if (prev && prev.x === worldCoords[0] && prev.y === worldCoords[1]) return prev;
@@ -1871,7 +1874,7 @@ export const SampleViewer = ({
                     return;
                 }
             }
-            
+
             // Fallback: Initialize magnifier at the center of the first sample only if no mouse position
             const firstSample = selectedSamples[0];
             const offset = sampleOffsets[firstSample.id] ?? [0, 0];
@@ -1947,6 +1950,41 @@ export const SampleViewer = ({
             setMagnifierData(prev => (prev === null ? prev : null));
         }
     }, [magnifierVisible, magnifierMousePos, selectedSamples, hiresImages, imageSizes, isDrawing, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate]);
+
+    // Track previous image URL to only reset loading state when it truly changes
+    const prevMagnifierUrlRef = useRef(null);
+    const [magnifierImageVersion, setMagnifierImageVersion] = useState(0); // force <img> remount when url changes
+
+    useEffect(() => {
+        const currentUrl = magnifierData?.imageUrl || null;
+        if (!magnifierVisible) {
+            // When hidden, clear loaded flag (spinner hidden by visibility anyway)
+            if (magnifierImageLoaded) setMagnifierImageLoaded(false);
+            prevMagnifierUrlRef.current = currentUrl; // store for next open
+            return;
+        }
+        // Visible: only reset if URL actually changed
+        if (prevMagnifierUrlRef.current !== currentUrl) {
+            prevMagnifierUrlRef.current = currentUrl;
+            if (currentUrl) {
+                setMagnifierImageLoaded(false);
+                setMagnifierImageVersion(v => v + 1); // trigger remount so onLoad always fires
+            }
+        }
+    }, [magnifierVisible, magnifierData?.imageUrl, magnifierImageLoaded]);
+
+    // Fallback initialize magnifierData if visible but not yet set (ensures spinner/image sequence shows)
+    useEffect(() => {
+        if (!magnifierVisible) return;
+        if (magnifierData) return;
+        if (!selectedSamples.length) return;
+        const firstSample = selectedSamples[0];
+        const imgUrl = hiresImages[firstSample.id];
+        const size = imageSizes[firstSample.id];
+        if (imgUrl && size) {
+            setMagnifierData({ imageUrl: imgUrl, sampleId: firstSample.id, imageSize: size });
+        }
+    }, [magnifierVisible, magnifierData, selectedSamples, hiresImages, imageSizes]);
 
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -2368,7 +2406,6 @@ export const SampleViewer = ({
                         {(() => {
                             const viewportBounds = getMinimapViewportBounds();
                             if (!viewportBounds) return null;
-
                             const left = viewportBounds.left * 100;
                             const top = viewportBounds.top * 100;
                             const width = (viewportBounds.right - viewportBounds.left) * 100;
@@ -2438,7 +2475,8 @@ export const SampleViewer = ({
                             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
                             overflow: 'hidden',
                             opacity: magnifierVisible ? 1 : 0,
-                            transition: 'opacity 0.2s ease-in-out'
+                            transition: 'opacity 0.2s ease-in-out',
+                            pointerEvents: 'none' // allow underlying map to keep receiving hover events
                         }}
                     >
                         {/* Header */}
@@ -2451,7 +2489,8 @@ export const SampleViewer = ({
                             backgroundColor: '#f0f8ff',
                             display: 'flex',
                             justifyContent: 'space-between',
-                            alignItems: 'center'
+                            alignItems: 'center',
+                            pointerEvents: 'auto' // header still interactive if needed
                         }}>
                             <span>Magnifier - {magnifierData?.sampleId || ''}</span>
                             <span style={{ fontSize: '9px', color: '#666' }}>
@@ -2465,86 +2504,99 @@ export const SampleViewer = ({
                             width: '100%',
                             height: 280,
                             overflow: 'hidden',
-                            backgroundColor: '#f5f5f5',
+                            backgroundColor: '#ffffff',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center'
                         }}>
-                            {(() => {
-                                if (!magnifierData) return null;
+                            {/* Image (hidden until loaded) */}
+                            {magnifierData && (
+                                <img
+                                    key={`magnifier-img-${magnifierImageVersion}`}
+                                    src={magnifierData.imageUrl}
+                                    alt="HD Magnifier"
+                                    style={{
+                                        position: 'absolute',
+                                        width: magnifierData.imageSize[0] * 2,
+                                        height: magnifierData.imageSize[1] * 2,
+                                        left: -(magnifierViewport.x * magnifierData.imageSize[0] * 2) + 150,
+                                        top: -(magnifierViewport.y * magnifierData.imageSize[1] * 2) + 140,
+                                        imageRendering: 'crisp-edges',
+                                        transition: 'left 0.1s ease-out, top 0.1s ease-out, opacity 0.2s',
+                                        opacity: magnifierImageLoaded ? 1 : 0
+                                    }}
+                                    draggable={false}
+                                    onLoad={() => setMagnifierImageLoaded(true)}
+                                    onError={() => setMagnifierImageLoaded(true)}
+                                />
+                            )}
 
-                                const { imageUrl, imageSize } = magnifierData;
-                                return (
-                                    <>
-                                        {/* Full HD Image */}
-                                        <img
-                                            src={imageUrl}
-                                            alt="HD Magnifier"
-                                            style={{
-                                                position: 'absolute',
-                                                width: imageSize[0] * 2, // 2x zoom
-                                                height: imageSize[1] * 2,
-                                                left: -(magnifierViewport.x * imageSize[0] * 2) + 150, // Center on viewport
-                                                top: -(magnifierViewport.y * imageSize[1] * 2) + 140,
-                                                imageRendering: 'crisp-edges',
-                                                transition: 'left 0.1s ease-out, top 0.1s ease-out'
-                                            }}
-                                            draggable={false}
-                                        />
-                                        {/* Crosshairs */}
-                                        <div style={{
-                                            position: 'absolute',
-                                            left: 150,
-                                            top: 0,
-                                            width: 1,
-                                            height: '100%',
-                                            backgroundColor: '#ff4d4f',
-                                            pointerEvents: 'none',
-                                            boxShadow: '0 0 2px rgba(0,0,0,0.5)',
-                                            zIndex: 2
-                                        }} />
-                                        <div style={{
-                                            position: 'absolute',
-                                            left: 0,
-                                            top: 140,
-                                            width: '100%',
-                                            height: 1,
-                                            backgroundColor: '#ff4d4f',
-                                            pointerEvents: 'none',
-                                            boxShadow: '0 0 2px rgba(0,0,0,0.5)',
-                                            zIndex: 2
-                                        }} />
-                                        {/* Center circle */}
-                                        <div style={{
-                                            position: 'absolute',
-                                            left: 147,
-                                            top: 137,
-                                            width: 6,
-                                            height: 6,
-                                            borderRadius: '50%',
-                                            backgroundColor: '#ff4d4f',
-                                            border: '1px solid white',
-                                            pointerEvents: 'none',
-                                            boxShadow: '0 0 4px rgba(0,0,0,0.5)',
-                                            zIndex: 3
-                                        }} />
-                                        {/* Viewport indicator */}
-                                        <div style={{
-                                            position: 'absolute',
-                                            bottom: 15,
-                                            right: 5,
-                                            padding: '2px 6px',
-                                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                                            color: 'white',
-                                            fontSize: '9px',
-                                            borderRadius: 3,
-                                            fontFamily: 'monospace'
-                                        }}>
-                                            X: {Math.round(magnifierMousePos?.x || 0)} Y: {Math.round(magnifierMousePos?.y || 0)}
-                                        </div>
-                                    </>
-                                );
-                            })()}
+                            {/* Spinner overlay while loading */}
+                            {magnifierVisible && !magnifierImageLoaded && (
+                                <div style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: 'rgba(255,255,255,0.8)',
+                                    zIndex: 9999,
+                                    pointerEvents: 'none'
+                                }}>
+                                    <Spin />
+                                </div>
+                            )}
+
+                            {/* Crosshairs always visible */}
+                            <div style={{
+                                position: 'absolute',
+                                left: 150,
+                                top: 0,
+                                width: 1,
+                                height: '100%',
+                                backgroundColor: '#ff4d4f',
+                                pointerEvents: 'none',
+                                boxShadow: '0 0 2px rgba(0,0,0,0.5)',
+                                zIndex: 4
+                            }} />
+                            <div style={{
+                                position: 'absolute',
+                                left: 0,
+                                top: 140,
+                                width: '100%',
+                                height: 1,
+                                backgroundColor: '#ff4d4f',
+                                pointerEvents: 'none',
+                                boxShadow: '0 0 2px rgba(0,0,0,0.5)',
+                                zIndex: 4
+                            }} />
+                            <div style={{
+                                position: 'absolute',
+                                left: 147,
+                                top: 137,
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                backgroundColor: '#ff4d4f',
+                                border: '1px solid white',
+                                pointerEvents: 'none',
+                                boxShadow: '0 0 4px rgba(0,0,0,0.5)',
+                                zIndex: 5
+                            }} />
+                            {/* Coordinates indicator */}
+                            <div style={{
+                                position: 'absolute',
+                                bottom: 15,
+                                right: 5,
+                                padding: '2px 6px',
+                                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                color: 'white',
+                                fontSize: '9px',
+                                borderRadius: 3,
+                                fontFamily: 'monospace'
+                            }}>
+                                X: {Math.round(magnifierMousePos?.x || 0)} Y: {Math.round(magnifierMousePos?.y || 0)}
+                            </div>
                         </div>
                     </div>
                 )}
