@@ -18,7 +18,8 @@ export const GOAnalysisWindow = ({
     selectedCellTypes,
     setSelectedCellTypes,
     cellTypeColors,
-    setCellTypeColors
+    setCellTypeColors,
+    sampleId // Add sampleId prop
 }) => {
     const tooltipRef = useRef();
     const svgRef = useRef();
@@ -95,8 +96,12 @@ export const GOAnalysisWindow = ({
 
             // Update selected cell types to include the new cell type if it doesn't exist
             setSelectedCellTypes(prevSelected => {
-                if (!prevSelected.includes(newCellTypeName)) {
-                    return [...prevSelected, newCellTypeName];
+                const sampleSelectedTypes = prevSelected[sampleId] || [];
+                if (!sampleSelectedTypes.includes(newCellTypeName)) {
+                    return {
+                        ...prevSelected,
+                        [sampleId]: [...sampleSelectedTypes, newCellTypeName]
+                    };
                 }
                 return prevSelected;
             });

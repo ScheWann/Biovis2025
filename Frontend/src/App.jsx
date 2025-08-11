@@ -29,9 +29,9 @@ function App() {
   const [coordinatesData, setCoordinatesData] = useState({}); // each sample's cell type directory(e.g. {"skin_TXK6Z4X_A1": [{"cell_type": "cd19+cd20+ b","cell_x": 3526, "cell_y": 3780, "id": "ID_1}, ...}])'
 
   // Cell types data state
-  const [cellTypesData, setCellTypesData] = useState([]); // Available cell types with counts
-  const [selectedCellTypes, setSelectedCellTypes] = useState([]); // Currently selected cell types
-  const [cellTypeColors, setCellTypeColors] = useState({}); // Color mapping for cell types
+  const [cellTypesData, setCellTypesData] = useState({}); // Per-sample cell types with counts {sampleId: [{name, count}, ...]}
+  const [selectedCellTypes, setSelectedCellTypes] = useState({}); // Per-sample selected cell types {sampleId: [cellTypeNames]}
+  const [cellTypeColors, setCellTypeColors] = useState({}); // Color mapping for cell types {cellTypeName: color}
 
   // Data upload form state
   const [uploadFormVisible, setUploadFormVisible] = useState(false); // Upload form visibility
@@ -100,33 +100,39 @@ function App() {
       
       if (cellTypesResponse.ok) {
         const cellTypesData = await cellTypesResponse.json();
-        const cellTypesArray = cellTypesData.combined || [];
-        setCellTypesData(cellTypesArray);
-        
-        // Set all cell types as selected by default
-        const allCellTypeNames = cellTypesArray.map(({ name }) => name);
-        setSelectedCellTypes(allCellTypeNames);
-        
-        // Set default colors for cell types
-        const defaultColors = [
-          '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
-          '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
-          '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
-          '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
-        ];
-        
-        const newColors = {};
-        cellTypesArray.forEach(({ name }, index) => {
-          newColors[name] = defaultColors[index % defaultColors.length];
+        const newCellTypesData = {};
+        const newSelectedCellTypes = {};
+        const newCellTypeColors = {};
+
+        sampleIds.forEach((sampleId) => {
+          newCellTypesData[sampleId] = cellTypesData[sampleId] || [];
+          newSelectedCellTypes[sampleId] = newCellTypesData[sampleId].map(({ name }) => name);
+          
+          const defaultColors = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+            '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
+            '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
+          ];
+
+          newCellTypesData[sampleId].forEach(({ name }, index) => {
+            newCellTypeColors[name] = defaultColors[index % defaultColors.length];
+          });
         });
-        setCellTypeColors(newColors);
+        setCellTypesData(newCellTypesData);
+        setSelectedCellTypes(newSelectedCellTypes);
+        setCellTypeColors(newCellTypeColors);
       } else {
         console.error('Failed to fetch cell types data');
-        setCellTypesData([]);
+        setCellTypesData({});
+        setSelectedCellTypes({});
+        setCellTypeColors({});
       }
     } catch (error) {
       console.error('Error fetching cell types data:', error);
-      setCellTypesData([]);
+      setCellTypesData({});
+      setSelectedCellTypes({});
+      setCellTypeColors({});
     }
   };
 
@@ -138,8 +144,8 @@ function App() {
         headers: { "Content-Type": "application/json" },
       });
       // Clear cell types data when clearing cache
-      setCellTypesData([]);
-      setSelectedCellTypes([]);
+      setCellTypesData({});
+      setSelectedCellTypes({});
       setCellTypeColors({});
     } catch (error) {
       console.error("Error clearing cache:", error);

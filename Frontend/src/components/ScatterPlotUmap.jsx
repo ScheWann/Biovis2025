@@ -652,6 +652,7 @@ export const ScatterplotUmap = ({
         setSelectedCellTypes={setSelectedCellTypes}
         cellTypeColors={cellTypeColors}
         setCellTypeColors={setCellTypeColors}
+        sampleId={sampleId}
       />
     </div>
   );

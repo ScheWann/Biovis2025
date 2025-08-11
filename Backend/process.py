@@ -343,10 +343,10 @@ def get_gene_list(sample_ids):
 def get_cell_types_data(sample_ids):
     """
     Get cell types and their counts from adata.obs['predicted_labels'].value_counts()
-    for the given sample IDs. Returns a combined unique list of cell types.
+    for the given sample IDs. Returns per-sample cell types instead of a combined list.
     """
-    # Dictionary to accumulate counts across all samples
-    combined_cell_types = {}
+    # Dictionary to store cell types for each sample
+    sample_cell_types = {}
 
     for sample_id in sample_ids:
         # Handle new format: sample_id_scale
@@ -378,20 +378,23 @@ def get_cell_types_data(sample_ids):
                                     # No cell type information available
                                     cell_type_counts = pd.Series([], dtype='int64')
                             
-                            # Add counts to combined dictionary
-                            for cell_type, count in cell_type_counts.items():
-                                cell_type_str = str(cell_type)
-                                if cell_type_str in combined_cell_types:
-                                    combined_cell_types[cell_type_str] += int(count)
-                                else:
-                                    combined_cell_types[cell_type_str] = int(count)
+                            # Convert to list format sorted by count (descending)
+                            cell_types_list = [
+                                {'name': str(cell_type), 'count': int(count)} 
+                                for cell_type, count in sorted(cell_type_counts.items(), key=lambda x: x[1], reverse=True)
+                            ]
+                            
+                            sample_cell_types[sample_id] = cell_types_list
                             
                         except Exception as e:
                             print(f"Error loading cell types for sample {sample_id}: {e}")
+                            sample_cell_types[sample_id] = []
                     else:
                         print(f"Warning: No adata available for sample {sample_id}")
+                        sample_cell_types[sample_id] = []
                 else:
                     print(f"No scale {scale} found for sample {base_sample_id}")
+                    sample_cell_types[sample_id] = []
         # Handle legacy format
         elif sample_id in SAMPLES:
             sample_info = SAMPLES[sample_id]
@@ -418,27 +421,25 @@ def get_cell_types_data(sample_ids):
                             # No cell type information available
                             cell_type_counts = pd.Series([], dtype='int64')
                     
-                    # Add counts to combined dictionary
-                    for cell_type, count in cell_type_counts.items():
-                        cell_type_str = str(cell_type)
-                        if cell_type_str in combined_cell_types:
-                            combined_cell_types[cell_type_str] += int(count)
-                        else:
-                            combined_cell_types[cell_type_str] = int(count)
+                    # Convert to list format sorted by count (descending)
+                    cell_types_list = [
+                        {'name': str(cell_type), 'count': int(count)} 
+                        for cell_type, count in sorted(cell_type_counts.items(), key=lambda x: x[1], reverse=True)
+                    ]
+                    
+                    sample_cell_types[sample_id] = cell_types_list
                     
                 except Exception as e:
                     print(f"Error loading cell types for sample {sample_id}: {e}")
+                    sample_cell_types[sample_id] = []
             else:
                 print(f"Warning: No adata available for sample {sample_id}")
+                sample_cell_types[sample_id] = []
+        else:
+            sample_cell_types[sample_id] = []
 
-    # Convert to list format sorted by count (descending)
-    cell_types_list = [
-        {'name': cell_type, 'count': count} 
-        for cell_type, count in sorted(combined_cell_types.items(), key=lambda x: x[1], reverse=True)
-    ]
-    
-    # Return as a single combined list instead of per-sample dictionary
-    return {'combined': cell_types_list}
+    # Return per-sample cell types
+    return sample_cell_types
 
 
 # get kosara data

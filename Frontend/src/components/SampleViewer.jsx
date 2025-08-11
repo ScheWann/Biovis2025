@@ -1152,9 +1152,14 @@ export const SampleViewer = ({
 
                 {radioCellGeneModes[sample.id] === 'cellTypes' ? (
                     <CellSettings
-                        cellTypesData={cellTypesData}
-                        selectedCellTypes={selectedCellTypes}
-                        setSelectedCellTypes={setSelectedCellTypes}
+                        cellTypesData={cellTypesData[sample.id] || []}
+                        selectedCellTypes={selectedCellTypes[sample.id] || []}
+                        setSelectedCellTypes={(newSelectedTypes) => {
+                            setSelectedCellTypes(prev => ({
+                                ...prev,
+                                [sample.id]: newSelectedTypes
+                            }));
+                        }}
                         cellTypeColors={cellTypeColors}
                         setCellTypeColors={setCellTypeColors}
                     />
@@ -1458,7 +1463,8 @@ export const SampleViewer = ({
                 },
                 getFillColor: d => {
                     const cellType = d.cell_type;
-                    if (cellType && selectedCellTypes.includes(cellType)) {
+                    const sampleSelectedCellTypes = selectedCellTypes[sampleId] || [];
+                    if (cellType && sampleSelectedCellTypes.includes(cellType)) {
                         const color = cellTypeColors[cellType];
                         if (color) {
                             const rgb = color.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [100, 100, 100];
@@ -1492,9 +1498,9 @@ export const SampleViewer = ({
                 pickable: true,
                 radiusUnits: 'pixels',
                 stroked: false,
-                filled: (hoveredCluster && hoveredCluster.sampleId === sampleId) || selectedCellTypes.length > 0,
+                filled: (hoveredCluster && hoveredCluster.sampleId === sampleId) || (selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
                 updateTriggers: {
-                    getFillColor: [hoveredCluster, selectedCellTypes, cellTypeColors, sampleId],
+                    getFillColor: [hoveredCluster, selectedCellTypes[sampleId], cellTypeColors, sampleId],
                     getLineColor: [hoveredCluster, sampleId],
                     getRadius: [sampleId, mainViewState?.zoom],
                     getLineWidth: [hoveredCluster, sampleId],
