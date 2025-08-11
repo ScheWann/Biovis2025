@@ -1,35 +1,3 @@
-"""
-Spatial Transcriptomics Analysis Server
-
-This server provides APIs for spatial transcriptomics data analysis with support for multiple scales.
-The system now supports both legacy format (single scale per sample) and new format (multiple scales per sample).
-
-Sample ID Format:
-- New format: "sample_id_scale" (e.g., "skin_TXK6Z4X_A1_2um", "skin_TXK6Z4X_A1_8um")
-- Legacy format: "sample_id" (e.g., "skin_TXK6Z4X_A1")
-
-API Endpoints:
-- GET /api/get_samples_option - Get available samples grouped by scale
-- POST /api/get_sample_info - Get detailed sample information including available scales
-- POST /api/get_available_scales - Get available scales for a sample
-- POST /api/validate_sample - Validate a sample ID and get metadata
-- POST /api/load_adata_cache - Load AnnData objects into cache
-- POST /api/get_hires_image - Get high-resolution image for a sample
-- POST /api/get_cell_boundary_image - Get cell boundary image for a sample
-- POST /api/get_coordinates - Get cell coordinates for samples
-- POST /api/get_gene_list - Get gene lists for samples
-- POST /api/get_highly_variable_genes - Get highly variable genes
-- POST /api/get_cell_types - Get cell type information
-- POST /api/get_kosara_data - Get Kosara visualization data
-- POST /api/get_umap_data - Generate UMAP data
-- POST /api/get_go_analysis - Perform GO analysis
-- POST /api/get_trajectory_gene_list - Get trajectory gene lists
-- POST /api/get_trajectory_data - Get trajectory expression data
-- POST /api/get_pseudotime_data - Generate pseudotime analysis
-- POST /api/get_trajectory_gene_expression - Get gene expression along trajectories
-- POST /api/upload_spaceranger - Upload Spaceranger output files
-"""
-
 from flask import Flask, request, jsonify, send_file
 from process import SAMPLES
 from flask_cors import CORS
