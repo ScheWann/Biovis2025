@@ -534,61 +534,61 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
             else:
                 raise ValueError(f"Sample {sample_id} not found.")
 
-                if not cell_ids:
-                    valid_cell_ids = adata.obs_names.tolist()
+            if not cell_ids:
+                valid_cell_ids = adata.obs_names.tolist()
+            else:
+                # Convert cell_ids to regular Python strings to avoid numpy string issues
+                if hasattr(cell_ids, '__iter__') and not isinstance(cell_ids, str):
+                    cell_ids = [str(cell_id) for cell_id in cell_ids]
                 else:
-                    # Convert cell_ids to regular Python strings to avoid numpy string issues
-                    if hasattr(cell_ids, '__iter__') and not isinstance(cell_ids, str):
-                        cell_ids = [str(cell_id) for cell_id in cell_ids]
-                    else:
-                        cell_ids = [str(cell_ids)]
-                    
-                    valid_cell_ids = [
-                        cell for cell in cell_ids if cell in adata.obs_names
-                    ]
-
-                valid_gene_names = [
-                    gene for gene in gene_names if gene in adata.var_names
+                    cell_ids = [str(cell_ids)]
+                
+                valid_cell_ids = [
+                    cell for cell in cell_ids if cell in adata.obs_names
                 ]
 
-                if valid_gene_names:
-                    filtered_adata = adata[valid_cell_ids, valid_gene_names].copy()
-                    if issparse(filtered_adata.X):
-                        expr_data = filtered_adata.X.toarray()
-                    else:
-                        expr_data = filtered_adata.X
-                    expr_df = pd.DataFrame(
-                        expr_data,
-                        index=filtered_adata.obs_names,
-                        columns=filtered_adata.var_names,
-                    )
+            valid_gene_names = [
+                gene for gene in gene_names if gene in adata.var_names
+            ]
+
+            if valid_gene_names:
+                filtered_adata = adata[valid_cell_ids, valid_gene_names].copy()
+                if issparse(filtered_adata.X):
+                    expr_data = filtered_adata.X.toarray()
                 else:
-                    expr_df = pd.DataFrame(index=valid_cell_ids)
+                    expr_data = filtered_adata.X
+                expr_df = pd.DataFrame(
+                    expr_data,
+                    index=filtered_adata.obs_names,
+                    columns=filtered_adata.var_names,
+                )
+            else:
+                expr_df = pd.DataFrame(index=valid_cell_ids)
 
-                expr_df = expr_df.reset_index().rename(columns={"index": "id"})
+            expr_df = expr_df.reset_index().rename(columns={"index": "id"})
 
-                missing_genes = [
-                    gene for gene in gene_names if gene not in expr_df.columns
-                ]
-                for gene in missing_genes:
-                    expr_df[gene] = 0
+            missing_genes = [
+                gene for gene in gene_names if gene not in expr_df.columns
+            ]
+            for gene in missing_genes:
+                expr_df[gene] = 0
 
-                expr_df = expr_df[["id"] + gene_names]
+            expr_df = expr_df[["id"] + gene_names]
 
-                coord_df = get_coordinates(sample_id).reset_index(drop=True)
+            coord_df = get_coordinates(sample_id).reset_index(drop=True)
 
-                merged_df = pd.merge(expr_df, coord_df, on="id", how="inner")
+            merged_df = pd.merge(expr_df, coord_df, on="id", how="inner")
 
-                merged_df["total_expression"] = adata[valid_cell_ids, :].X.sum(axis=1)
+            merged_df["total_expression"] = adata[valid_cell_ids, :].X.sum(axis=1)
 
-                for gene in gene_names:
-                    merged_df[f"{gene}_original_ratio"] = np.where(
-                        merged_df["total_expression"] == 0,
-                        0,
-                        merged_df[gene] / merged_df["total_expression"],
-                    )
+            for gene in gene_names:
+                merged_df[f"{gene}_original_ratio"] = np.where(
+                    merged_df["total_expression"] == 0,
+                    0,
+                    merged_df[gene] / merged_df["total_expression"],
+                )
 
-                results[sample_id] = merged_df
+            results[sample_id] = merged_df
 
         return results
 
@@ -626,6 +626,7 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
                 coords_df['cell_type'] = cell_labels
                 coords_df['id'] = adata.obs.index
                 return coords_df
+        
         # Handle legacy format
         elif sample_id in SAMPLES:
             adata = get_cached_adata(sample_id)
@@ -656,6 +657,9 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
             coords_df['cell_type'] = cell_labels
             coords_df['id'] = adata.obs.index
             return coords_df
+        else:
+            # Sample not found
+            return pd.DataFrame(columns=['cell_x', 'cell_y', 'cell_type', 'id'])
 
     position_cell_ratios_dict = filter_and_merge(cell_list, gene_list, sample_ids)
     results = {}
