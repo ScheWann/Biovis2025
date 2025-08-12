@@ -441,23 +441,16 @@ export const PseudotimeGlyphComponent = ({
                                                 data.trajectory_id && data.trajectory_id.toString().startsWith(`${index}_`)
                                             );
 
-                                            console.log(`Glyph ${index}: Found ${relatedGeneData.length} related gene data entries`, relatedGeneData);
-
                                             if (relatedGeneData.length > 0) {
-                                                // Merge gene expression data from all trajectories
-                                                // Use the first trajectory's data as the base structure
-                                                geneDataForGlyph = relatedGeneData[0].gene_expression_data;
-                                                console.log(`Glyph ${index}: Using gene data:`, geneDataForGlyph);
-
-                                                // If there are multiple trajectories, we might want to average or combine them
-                                                // For now, just use the first one - can be enhanced later
+                                                // Pass all related gene data so the glyph can select the appropriate one
+                                                geneDataForGlyph = relatedGeneData;
                                             }
                                         } else {
                                             // Single trajectory - find by exact match
-                                            geneDataForGlyph = geneExpressionData.find(data =>
+                                            const singleGeneData = geneExpressionData.find(data =>
                                                 data.trajectory_id === index || data.trajectory_id === index.toString()
-                                            )?.gene_expression_data || null;
-                                            console.log(`Glyph ${index}: Single trajectory gene data:`, geneDataForGlyph);
+                                            );
+                                            geneDataForGlyph = singleGeneData ? [singleGeneData] : null;
                                         }
 
                                         // Get cluster color mapping for this trajectory data

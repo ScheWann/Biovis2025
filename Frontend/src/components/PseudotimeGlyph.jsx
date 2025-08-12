@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Empty, Spin, Checkbox } from 'antd';
 
@@ -59,13 +59,60 @@ export const PseudotimeGlyph = ({
     const containerRef = useRef();
     const svgRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 300, height: 300 });
-    const [selectedTrajectory, setSelectedTrajectory] = useState(null);
+    const [selectedTrajectory, setSelectedTrajectory] = useState(0); // Default to first trajectory (index 0)
+
+    // Ensure selectedTrajectory is valid when pseudotimeData changes
+    useEffect(() => {
+        if (pseudotimeData && pseudotimeData.length > 0) {
+            if (selectedTrajectory >= pseudotimeData.length) {
+                setSelectedTrajectory(0); // Reset to first trajectory if current selection is out of bounds
+            }
+        }
+    }, [pseudotimeData, selectedTrajectory]);
 
     // Use the debounced hover hook
     const { debouncedSetHover, clearHover } = useDebounceTrajectoryHover(setHoveredTrajectory);
 
     // Generate a unique ID for this component instance
     const [componentId] = useState(() => `pseudotime-glyph-${Math.random().toString(36).substr(2, 9)}`);
+
+    // Get the gene expression data for the selected trajectory
+    const selectedGeneData = useMemo(() => {
+        if (!geneExpressionData || !Array.isArray(geneExpressionData)) {
+            return null;
+        }
+        
+        // Find the gene expression data for the selected trajectory
+        const selectedData = geneExpressionData.find(data => {
+            const dataTrajectoryId = data.trajectory_id;
+            
+            // Handle different trajectory ID formats
+            if (typeof dataTrajectoryId === 'string') {
+                if (dataTrajectoryId.includes('_')) {
+                    // Format: "glyphIndex_trajectoryIndex"
+                    const parts = dataTrajectoryId.split('_');
+                    const trajectoryIndexPart = parseInt(parts[parts.length - 1]);
+                    return trajectoryIndexPart === selectedTrajectory;
+                } else {
+                    // Simple string format
+                    return parseInt(dataTrajectoryId) === selectedTrajectory;
+                }
+            } else {
+                // Numeric trajectory ID
+                return dataTrajectoryId === selectedTrajectory;
+            }
+        });
+        
+        if (selectedData) {
+            return selectedData.gene_expression_data;
+        } else {
+            // Fallback to first available trajectory if no match found
+            if (geneExpressionData.length > 0) {
+                return geneExpressionData[0].gene_expression_data;
+            }
+            return null;
+        }
+    }, [geneExpressionData, selectedTrajectory, trajectoryIndex]);
 
     // Detect container size changes
     useEffect(() => {
@@ -101,7 +148,7 @@ export const PseudotimeGlyph = ({
         if (pseudotimeData && pseudotimeData.length > 0 && dimensions.width > 0 && dimensions.height > 0) {
             createGlyph(pseudotimeData);
         }
-    }, [pseudotimeData, dimensions, geneExpressionData, clusterColors]);
+    }, [pseudotimeData, dimensions, geneExpressionData, clusterColors, selectedTrajectory]);
 
     // Cleanup tooltip on unmount
     useEffect(() => {
@@ -246,7 +293,7 @@ export const PseudotimeGlyph = ({
         createBottomSection(g, dataToUse, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory);
 
         // Create top section - gene expression gauge
-        createTopSection(g, geneExpressionData, centerX, centerY, axisLength, maxPseudotime, tooltip);
+        createTopSection(g, selectedGeneData, centerX, centerY, axisLength, maxPseudotime, tooltip, selectedTrajectory);
 
         // Add title
         svg.append("text")
@@ -416,39 +463,109 @@ export const PseudotimeGlyph = ({
                     .y(d => d.y)
                     .curve(d3.curveCardinal);
 
+                const isSelected = trajIndex === selectedTrajectory;
+                const strokeWidth = isSelected ? 5 : 3;
+                const opacity = isSelected ? 1 : 0.8;
+                
+                // Apply grey color to non-selected trajectories
+                const finalColor = isSelected ? trajectoryColor : "#CCCCCC";
+                
                 bottomSection.append("path")
                     .datum(pathData)
                     .attr("d", line)
                     .attr("fill", "none")
-                    .attr("stroke", trajectoryColor)
-                    .attr("stroke-width", 3)
-                    .attr("opacity", 0.8)
+                    .attr("stroke", finalColor)
+                    .attr("stroke-width", strokeWidth)
+                    .attr("opacity", opacity)
                     .style("cursor", "pointer")
                     .on("mouseover", function (event) {
+                        const isCurrentlySelected = trajIndex === selectedTrajectory;
+                        const selectionText = isCurrentlySelected ? "Currently selected" : "Click to select";
                         tooltip.style("visibility", "visible")
-                            .html(`<strong>Trajectory ${trajIndex + 1}</strong><br/>Path: ${path.join(' → ')}<br/>Time range: ${pseudotimes[0]} - ${pseudotimes[pseudotimes.length - 1]}`);
+                            .html(`<strong>Trajectory ${trajIndex + 1}</strong><br/>Path: ${path.join(' → ')}<br/>Time range: ${pseudotimes[0]} - ${pseudotimes[pseudotimes.length - 1]}<br/>${selectionText}`);
                         positionTooltip(event, tooltip);
 
-                        // Highlight this trajectory
-                        d3.select(this).attr("stroke-width", 4).attr("opacity", 1);
+                        // Highlight this trajectory on hover
+                        if (!isSelected) {
+                            // Restore original color and increase prominence for non-selected trajectories
+                            d3.select(this)
+                                .attr("stroke", trajectoryColor)
+                                .attr("stroke-width", 4)
+                                .attr("opacity", 0.9);
+                        }
                     })
                     .on("mousemove", function (event) {
                         positionTooltip(event, tooltip);
                     })
                     .on("mouseout", function () {
                         tooltip.style("visibility", "hidden");
-                        d3.select(this).attr("stroke-width", 3).attr("opacity", 0.8);
+                        // Restore original appearance
+                        if (!isSelected) {
+                            d3.select(this)
+                                .attr("stroke", "#CCCCCC")
+                                .attr("stroke-width", 3)
+                                .attr("opacity", 0.8);
+                        }
+                    })
+                    .on("click", function () {
+                        setSelectedTrajectory(trajIndex);
                     });
             }
 
             // Draw node markers at each time point
             trajectoryPoints.forEach((point, pointIndex) => {
                 const isEndpoint = pointIndex === trajectoryPoints.length - 1;
-                const nodeColor = clusterColorScale(point.cluster);
+                const isSelected = trajIndex === selectedTrajectory;
+                
+                // Use grey color for non-selected trajectories' nodes
+                const nodeColor = isSelected ? clusterColorScale(point.cluster) : "#CCCCCC";
+                const originalNodeColor = clusterColorScale(point.cluster);
 
                 if (isEndpoint) {
                     // Draw star for endpoints
-                    drawStar(bottomSection, point.x, point.y, 6, nodeColor, 0.9);
+                    const starElement = drawStar(bottomSection, point.x, point.y, 6, nodeColor, isSelected ? 0.9 : 0.6);
+                    
+                    // Add hover effects for stars
+                    if (!isSelected) {
+                        starElement
+                            .style("cursor", "pointer")
+                            .on("mouseover", function (event) {
+                                tooltip.style("visibility", "visible")
+                                    .html(`<strong>Cluster ${point.cluster}</strong><br/>Pseudotime: ${point.pseudotime.toFixed(3)}<br/>Trajectory: ${trajIndex + 1}`);
+                                positionTooltip(event, tooltip);
+                                
+                                // Restore original color on hover
+                                d3.select(this)
+                                    .attr("fill", originalNodeColor)
+                                    .attr("opacity", 0.9);
+                            })
+                            .on("mousemove", function (event) {
+                                positionTooltip(event, tooltip);
+                            })
+                            .on("mouseout", function () {
+                                tooltip.style("visibility", "hidden");
+                                
+                                // Restore grey color
+                                d3.select(this)
+                                    .attr("fill", "#CCCCCC")
+                                    .attr("opacity", 0.6);
+                            });
+                    } else {
+                        // Add tooltip for selected trajectory stars
+                        starElement
+                            .style("cursor", "pointer")
+                            .on("mouseover", function (event) {
+                                tooltip.style("visibility", "visible")
+                                    .html(`<strong>Cluster ${point.cluster}</strong><br/>Pseudotime: ${point.pseudotime.toFixed(3)}<br/>Trajectory: ${trajIndex + 1}`);
+                                positionTooltip(event, tooltip);
+                            })
+                            .on("mousemove", function (event) {
+                                positionTooltip(event, tooltip);
+                            })
+                            .on("mouseout", function () {
+                                tooltip.style("visibility", "hidden");
+                            });
+                    }
                 } else {
                     // Draw circle for intermediate points
                     bottomSection.append("circle")
@@ -458,25 +575,39 @@ export const PseudotimeGlyph = ({
                         .attr("fill", nodeColor)
                         .attr("stroke", "#fff")
                         .attr("stroke-width", 1)
-                        .attr("opacity", 0.9)
+                        .attr("opacity", isSelected ? 0.9 : 0.6)
                         .style("cursor", "pointer")
                         .on("mouseover", function (event) {
                             tooltip.style("visibility", "visible")
                                 .html(`<strong>Cluster ${point.cluster}</strong><br/>Pseudotime: ${point.pseudotime.toFixed(3)}<br/>Trajectory: ${trajIndex + 1}`);
                             positionTooltip(event, tooltip);
+                            
+                            // Restore original color on hover for non-selected trajectories
+                            if (!isSelected) {
+                                d3.select(this)
+                                    .attr("fill", originalNodeColor)
+                                    .attr("opacity", 0.9);
+                            }
                         })
                         .on("mousemove", function (event) {
                             positionTooltip(event, tooltip);
                         })
                         .on("mouseout", function () {
                             tooltip.style("visibility", "hidden");
+                            
+                            // Restore grey color for non-selected trajectories
+                            if (!isSelected) {
+                                d3.select(this)
+                                    .attr("fill", "#CCCCCC")
+                                    .attr("opacity", 0.6);
+                            }
                         });
                 }
             });
         });
     };
 
-    const createTopSection = (g, geneData, centerX, centerY, axisLength, maxPseudotime, tooltip) => {
+    const createTopSection = (g, geneData, centerX, centerY, axisLength, maxPseudotime, tooltip, selectedTrajectory) => {
         const maxRadius = axisLength / 2 - 15;
         const topSection = g.append("g").attr("class", "top-section");
 
@@ -744,6 +875,24 @@ export const PseudotimeGlyph = ({
             .attr("font-size", "10px")
             .attr("fill", "#666")
             .text("High Expr");
+
+        // Add selected trajectory indicator if gene data is available
+        if (geneData && Array.isArray(geneData) && geneData.length > 0) {
+            const selectedData = geneData.find(data => {
+                const dataTrajectoryId = data.trajectory_id;
+                if (typeof dataTrajectoryId === 'string') {
+                    if (dataTrajectoryId.includes('_')) {
+                        const parts = dataTrajectoryId.split('_');
+                        const trajectoryIndexPart = parseInt(parts[parts.length - 1]);
+                        return trajectoryIndexPart === selectedTrajectory;
+                    } else {
+                        return parseInt(dataTrajectoryId) === selectedTrajectory;
+                    }
+                } else {
+                    return dataTrajectoryId === selectedTrajectory;
+                }
+            });
+        }
     };
 
     const drawStar = (parent, cx, cy, radius, color, opacity = 0.9) => {
