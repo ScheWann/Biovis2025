@@ -10,6 +10,7 @@ import gseapy as gp
 from scipy.sparse import issparse
 import networkx as nx
 import random
+import squidpy as sq
 from slingshot import (
     run_slingshot_via_rpy2_improved,
     analyze_trajectory_cluster_transitions,
@@ -1090,15 +1091,23 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
                     }
                     trajectory_objects.append(trajectory_obj)
             
+            # Get cluster order based on spatial enrichment analysis
+            cluster_order = get_cluster_order_by_spatial_enrichment(adata_with_slingshot, adata_umap_title)
+            
             # Store the processed adata for gene expression analysis
             global PROCESSED_ADATA_CACHE
             cache_key = f"{sample_id}_{adata_umap_title}"
             PROCESSED_ADATA_CACHE[cache_key] = {
                 'adata': adata_with_slingshot,
                 'trajectory_analysis': merged_analysis,
-                'leiden_col': leiden_col
+                'leiden_col': leiden_col,
+                'cluster_order': cluster_order
             }
             print(f"Stored trajectory data in cache with key: {cache_key}")
+            
+            # Add cluster order to each trajectory object
+            for trajectory_obj in trajectory_objects:
+                trajectory_obj['cluster_order'] = cluster_order
             
             return trajectory_objects
             
@@ -1133,15 +1142,22 @@ def _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title, sample_id
         }
     }
     
+    # Get cluster order based on spatial enrichment analysis
+    cluster_order = get_cluster_order_by_spatial_enrichment(sample_id)
+    
     # Store the processed adata for gene expression analysis
     global PROCESSED_ADATA_CACHE
     cache_key = f"{sample_id}_{adata_umap_title}"
     PROCESSED_ADATA_CACHE[cache_key] = {
         'adata': adata,
         'trajectory_analysis': fallback_analysis,
-        'leiden_col': leiden_col
+        'leiden_col': leiden_col,
+        'cluster_order': cluster_order
     }
     print(f"Stored fallback trajectory data in cache with key: {cache_key}")
+    
+    # Add cluster order to trajectory object
+    trajectory_obj['cluster_order'] = cluster_order
     
     return [trajectory_obj]
 
@@ -1282,6 +1298,90 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
             result_data.append(gene_data)
     
     return result_data
+
+
+def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
+    """
+    Get cluster order based on spatial enrichment analysis using spatial coherence ranking.
+    """
+    # Check if we have leiden clustering results for this UMAP
+    leiden_col = f'leiden_{adata_umap_title}'
+    if leiden_col not in adata.obs.columns:
+        print(f"No leiden clustering found for {adata_umap_title}")
+        return []
+    
+    # Check if spatial neighbors and enrichment analysis already exists
+    enrichment_key = f'{leiden_col}_nhood_enrichment'
+    if enrichment_key not in adata.uns:
+        # Perform spatial neighbors analysis
+        if sq is None:
+            print("Squidpy not available, cannot perform spatial enrichment analysis")
+            return []
+        try:
+            sq.gr.spatial_neighbors(adata)
+            sq.gr.nhood_enrichment(adata, cluster_key=leiden_col)
+        except Exception as e:
+            print(f"Error performing spatial enrichment analysis: {e}")
+            return []
+    
+    # Get enrichment results
+    nhood_results = adata.uns[enrichment_key]
+    if 'zscore' not in nhood_results:
+        print("No Z-score results found in enrichment analysis")
+        return []
+    
+    enrichment_results = nhood_results['zscore']
+    cluster_names = sorted(adata.obs[leiden_col].unique())
+    
+    if len(cluster_names) == 0:
+        print(f"No clusters found in {leiden_col}")
+        return []
+
+    def rank_by_spatial_clustering(enrichment_matrix, cluster_names):
+        """Sorting based on spatial clustering pattern"""
+        # Ensure it's a numpy array
+        if isinstance(enrichment_matrix, pd.DataFrame):
+            matrix = enrichment_matrix.values
+            names = enrichment_matrix.index.tolist()
+        else:
+            matrix = enrichment_matrix
+            names = cluster_names
+        
+        results = []
+        
+        for i, cluster in enumerate(names):
+            # Self-enrichment
+            self_enrich = matrix[i, i]
+            
+            # Interactions with other clusters (excluding self)
+            row_interactions = np.concatenate([matrix[i, :i], matrix[i, i+1:]])
+            col_interactions = np.concatenate([matrix[:i, i], matrix[i+1:, i]])
+            
+            avg_outgoing = row_interactions.mean() if len(row_interactions) > 0 else 0
+            avg_incoming = col_interactions.mean() if len(col_interactions) > 0 else 0
+            
+            spatial_coherence = self_enrich - max(avg_outgoing, avg_incoming)
+            
+            results.append({
+                'cluster': cluster,
+                'self_enrichment': self_enrich,
+                'avg_outgoing_interaction': avg_outgoing,
+                'avg_incoming_interaction': avg_incoming,
+                'spatial_coherence': spatial_coherence
+            })
+        
+        sorted_df = pd.DataFrame(results).sort_values('spatial_coherence', ascending=False)
+        print(f"Sorted clusters: {sorted_df['cluster'].tolist()}")
+        
+        return sorted_df
+    
+    # Sort clusters by spatial coherence
+    sorted_clusters = rank_by_spatial_clustering(enrichment_results, cluster_names)
+    
+    # Get just the cluster names in order
+    cluster_order = sorted_clusters['cluster'].tolist()
+    
+    return cluster_order
 
 
 def get_highly_variable_genes(sample_ids, top_n=20):
