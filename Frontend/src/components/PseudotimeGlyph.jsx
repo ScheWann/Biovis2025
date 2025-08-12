@@ -276,463 +276,203 @@ export const PseudotimeGlyph = ({
             .attr("fill", "#D2B48C")
             .attr("opacity", 0.3)
             .attr("stroke", "none")
-            .style("cursor", "pointer")
-        // .on("click", function (event) {
-        //     // Deselect trajectory when clicking on background
-        //     event.stopPropagation();
-        //     setSelectedTrajectory(null);
-        // });
+            .style("cursor", "pointer");
+
+        // Find all unique clusters across all trajectories
+        const allClusters = new Set();
+        trajectoryData.forEach(trajectory => {
+            trajectory.path.forEach(cluster => allClusters.add(parseInt(cluster)));
+        });
+        
+        // Sort clusters for consistent ordering
+        const sortedClusters = Array.from(allClusters).sort((a, b) => a - b);
+        const numLines = sortedClusters.length;
+        
+        // Create radial lines (avoiding horizontal lines)
+        // Use mid-bin angles like in the semicircle visualization for bottom half
+        const step = Math.PI / Math.max(numLines, 1);
+        const angles = [];
+        for (let i = 0; i < numLines; i++) {
+            // Bottom semicircle: from 0 to π (right to left counterclockwise)
+            angles.push(step / 2.0 + (i * step));
+        }
+        
+        // Create a mapping from cluster ID to angle
+        const clusterToAngle = new Map();
+        sortedClusters.forEach((cluster, index) => {
+            clusterToAngle.set(cluster, angles[index]);
+        });
+
+        // Draw radial lines for each cluster
+        sortedClusters.forEach((cluster, index) => {
+            const angle = angles[index];
+            const x = maxRadius * Math.cos(angle);
+            const y = maxRadius * Math.sin(angle);
+            
+            bottomSection.append("line")
+                .attr("x1", centerX)
+                .attr("y1", centerY)
+                .attr("x2", centerX + x)
+                .attr("y2", centerY + y)
+                .attr("stroke", "#CCCCCC")
+                .attr("stroke-width", 1)
+                .attr("opacity", 0.6);
+                
+            // Add cluster labels at the end of each line
+            bottomSection.append("text")
+                .attr("x", centerX + x * 1.1)
+                .attr("y", centerY + y * 1.1)
+                .attr("text-anchor", "middle")
+                .attr("dominant-baseline", "central")
+                .attr("font-size", "10px")
+                .attr("fill", "#555")
+                .text(cluster.toString());
+        });
+
+        // Add concentric circles for time scale
+        const timeScaleFractions = [0.25, 0.5, 0.75, 1.0];
+        timeScaleFractions.forEach(fraction => {
+            const radius = (8 + (maxRadius - 8) * fraction);
+            
+            // Draw semicircle arc for time indication (bottom half)
+            const timeArc = d3.arc()
+                .innerRadius(radius)
+                .outerRadius(radius)
+                .startAngle(0)           // Start from right (0 radians)
+                .endAngle(Math.PI);      // End at left (π radians)
+
+            bottomSection.append("path")
+                .attr("d", timeArc)
+                .attr("transform", `translate(${centerX}, ${centerY})`)
+                .attr("fill", "none")
+                .attr("stroke", "#E0E0E0")
+                .attr("stroke-width", 0.5)
+                .attr("stroke-dasharray", "2,2")
+                .attr("opacity", 0.7);
+        });
 
         // Scale for converting pseudotime to radial distance
         const radiusScale = d3.scaleLinear()
             .domain([0, maxPseudotime])
             .range([8, maxRadius]); // Start from time point 0 circle edge (radius 8)
 
-        // Build a tree structure from trajectory data to handle branching
-        const buildTrajectoryTree = (trajectoryData) => {
-            const nodes = new Map(); // Map of "cluster_pseudotime" -> node info
-            const edges = []; // Array of connections between nodes
-            const trajectoryPaths = []; // Track which trajectory each edge belongs to
+        // Color scale for different trajectories
+        const trajectoryColors = d3.schemeCategory10;
 
-            trajectoryData.forEach((trajectory, trajIndex) => {
-                const { path, pseudotimes } = trajectory;
+        // Draw each trajectory
+        trajectoryData.forEach((trajectory, trajIndex) => {
+            const { path, pseudotimes } = trajectory;
+            const trajectoryColor = trajectoryColors[trajIndex % trajectoryColors.length];
 
-                // Create nodes for each cell state
-                path.forEach((cluster, i) => {
-                    const pseudotime = parseFloat(pseudotimes[i]);
-                    const nodeKey = `${cluster}_${pseudotime}`;
-
-                    if (!nodes.has(nodeKey)) {
-                        nodes.set(nodeKey, {
-                            cluster: cluster,
-                            pseudotime: pseudotime,
-                            radius: radiusScale(pseudotime),
-                            trajectories: new Set([trajIndex]),
-                            isEndpoint: false
-                        });
-                    } else {
-                        // If node already exists, add this trajectory to it
-                        nodes.get(nodeKey).trajectories.add(trajIndex);
-                    }
-                });
-
-                // Mark endpoints
-                const lastIndex = path.length - 1;
-                const lastNodeKey = `${path[lastIndex]}_${parseFloat(pseudotimes[lastIndex])}`;
-                if (nodes.has(lastNodeKey)) {
-                    nodes.get(lastNodeKey).isEndpoint = true;
-                }
-
-                // Create edges between consecutive nodes
-                for (let i = 0; i < path.length - 1; i++) {
-                    const fromKey = `${path[i]}_${parseFloat(pseudotimes[i])}`;
-                    const toKey = `${path[i + 1]}_${parseFloat(pseudotimes[i + 1])}`;
-
-                    edges.push({
-                        from: fromKey,
-                        to: toKey,
-                        trajectory: trajIndex
-                    });
-                    trajectoryPaths.push(trajIndex);
-                }
-            });
-
-            return { nodes, edges, trajectoryPaths };
-        };
-
-        // Calculate positions for nodes using a tree layout
-        const calculateNodePositions = (nodes, edges) => {
-            const nodePositions = new Map();
-
-            // Find root node (pseudotime = 0)
-            const rootNode = Array.from(nodes.values()).find(node => node.pseudotime === 0);
-            if (rootNode) {
-                const rootKey = `${rootNode.cluster}_${rootNode.pseudotime}`;
-                nodePositions.set(rootKey, { x: centerX, y: centerY });
-            }
-
-            // Build a proper tree structure to handle multiple branching points
-            const buildTreeStructure = () => {
-                const treeNodes = new Map();
-                const childrenMap = new Map(); // parent -> children
-                const parentMap = new Map();   // child -> parent
-
-                // Initialize all nodes
-                nodes.forEach((node, key) => {
-                    treeNodes.set(key, {
-                        ...node,
-                        children: [],
-                        parent: null,
-                        branchIndex: -1,  // Which branch from its parent this node belongs to
-                        level: 0  // Distance from root
-                    });
-                    childrenMap.set(key, []);
-                });
-
-                // Build parent-child relationships
-                edges.forEach(edge => {
-                    const parent = edge.from;
-                    const child = edge.to;
-
-                    if (!childrenMap.get(parent).includes(child)) {
-                        childrenMap.get(parent).push(child);
-                        parentMap.set(child, parent);
-                        treeNodes.get(child).parent = parent;
-                        treeNodes.get(parent).children.push(child);
-                    }
-                });
-
-                // Calculate levels and assign branch indices
-                const assignLevelsAndBranches = () => {
-                    const rootKey = Array.from(treeNodes.keys()).find(key =>
-                        treeNodes.get(key).pseudotime === 0
-                    );
-
-                    if (!rootKey) return;
-
-                    // BFS to assign levels
-                    const queue = [{ key: rootKey, level: 0 }];
-                    const visited = new Set();
-
-                    while (queue.length > 0) {
-                        const { key, level } = queue.shift();
-                        if (visited.has(key)) continue;
-                        visited.add(key);
-
-                        const node = treeNodes.get(key);
-                        node.level = level;
-
-                        // Assign branch indices to children based on their order
-                        node.children.forEach((childKey, index) => {
-                            const childNode = treeNodes.get(childKey);
-                            childNode.branchIndex = index;
-                            queue.push({ key: childKey, level: level + 1 });
-                        });
-                    }
-                };
-
-                assignLevelsAndBranches();
-                return treeNodes;
-            };
-
-            const treeStructure = buildTreeStructure();
-
-            // Define the bottom semicircle range for trajectories
-            const minAngle = Math.PI / 6;  // 30 degrees
-            const maxAngle = 5 * Math.PI / 6;  // 150 degrees
-
-            // Calculate angle for each node based on its ancestry path
-            const calculateNodeAngles = () => {
-                const nodeAngles = new Map();
-
-                // Find root and start with straight down angle
-                const rootKey = Array.from(treeStructure.keys()).find(key =>
-                    treeStructure.get(key).pseudotime === 0
-                );
-
-                if (rootKey) {
-                    nodeAngles.set(rootKey, Math.PI / 2); // 90 degrees (straight down)
-                }
-
-                // Process nodes level by level
-                const processedLevels = new Map();
-                treeStructure.forEach((node, key) => {
-                    if (!processedLevels.has(node.level)) {
-                        processedLevels.set(node.level, []);
-                    }
-                    processedLevels.get(node.level).push({ key, node });
-                });
-
-                // Sort levels and process each level
-                const sortedLevels = Array.from(processedLevels.entries()).sort((a, b) => a[0] - b[0]);
-
-                sortedLevels.forEach(([level, nodesAtLevel]) => {
-                    if (level === 0) return; // Root already processed
-
-                    nodesAtLevel.forEach(({ key, node }) => {
-                        const parentKey = node.parent;
-                        const parentNode = treeStructure.get(parentKey);
-                        const parentAngle = nodeAngles.get(parentKey);
-
-                        if (parentAngle !== undefined && parentNode) {
-                            const numSiblings = parentNode.children.length;
-
-                            if (numSiblings === 1) {
-                                // Single child: continue in same direction as parent
-                                nodeAngles.set(key, parentAngle);
-                            } else {
-                                // Multiple siblings: spread them out
-                                const branchIndex = node.branchIndex;
-
-                                // Calculate angular spread based on number of siblings
-                                let spreadAngle;
-                                if (numSiblings === 2) {
-                                    spreadAngle = Math.PI / 6; // 30 degrees each side
-                                } else if (numSiblings === 3) {
-                                    spreadAngle = Math.PI / 4; // 45 degrees total spread
-                                } else {
-                                    spreadAngle = Math.PI / 3; // 60 degrees total spread for more branches
-                                }
-
-                                // Calculate angle offset from parent angle
-                                const angleStep = (2 * spreadAngle) / (numSiblings - 1);
-                                const angleOffset = -spreadAngle + (branchIndex * angleStep);
-                                let nodeAngle = parentAngle + angleOffset;
-
-                                // Ensure angle stays within bounds
-                                nodeAngle = Math.max(minAngle, Math.min(maxAngle, nodeAngle));
-                                nodeAngles.set(key, nodeAngle);
-                            }
-                        }
-                    });
-                });
-
-                return nodeAngles;
-            };
-
-            const nodeAngles = calculateNodeAngles();
-
-            // Position all nodes based on their calculated angles
-            treeStructure.forEach((node, key) => {
-                if (node.pseudotime === 0) {
-                    // Root is already positioned
-                    return;
-                }
-
-                const angle = nodeAngles.get(key);
-                const radius = radiusScale(node.pseudotime);
-
+            // Build interpolated points for smooth curves
+            const trajectoryPoints = [];
+            
+            for (let i = 0; i < path.length; i++) {
+                const cluster = parseInt(path[i]);
+                const pseudotime = parseFloat(pseudotimes[i]);
+                const angle = clusterToAngle.get(cluster);
+                const radius = radiusScale(pseudotime);
+                
                 if (angle !== undefined) {
-                    const x = centerX + Math.cos(angle) * radius;
-                    const y = centerY + Math.sin(angle) * radius;
-                    nodePositions.set(key, { x, y });
+                    trajectoryPoints.push({
+                        x: centerX + radius * Math.cos(angle),
+                        y: centerY + radius * Math.sin(angle),
+                        cluster: cluster,
+                        pseudotime: pseudotime,
+                        angle: angle,
+                        radius: radius
+                    });
+                }
+            }
+
+            // Create smooth interpolated path between trajectory points
+            if (trajectoryPoints.length > 1) {
+                const pathData = [];
+                
+                for (let i = 0; i < trajectoryPoints.length - 1; i++) {
+                    const current = trajectoryPoints[i];
+                    const next = trajectoryPoints[i + 1];
+                    
+                    // Number of interpolation points based on time difference
+                    const timeDiff = Math.abs(next.pseudotime - current.pseudotime);
+                    const numPoints = Math.max(12, Math.floor(60 * timeDiff / maxPseudotime));
+                    
+                    for (let j = 0; j <= numPoints; j++) {
+                        const t = j / numPoints;
+                        const interpPseudotime = current.pseudotime + t * (next.pseudotime - current.pseudotime);
+                        const interpAngle = current.angle + t * (next.angle - current.angle);
+                        const interpRadius = radiusScale(interpPseudotime);
+                        
+                        pathData.push({
+                            x: centerX + interpRadius * Math.cos(interpAngle),
+                            y: centerY + interpRadius * Math.sin(interpAngle)
+                        });
+                    }
+                }
+
+                // Draw trajectory path
+                const line = d3.line()
+                    .x(d => d.x)
+                    .y(d => d.y)
+                    .curve(d3.curveCardinal);
+
+                bottomSection.append("path")
+                    .datum(pathData)
+                    .attr("d", line)
+                    .attr("fill", "none")
+                    .attr("stroke", trajectoryColor)
+                    .attr("stroke-width", 3)
+                    .attr("opacity", 0.8)
+                    .style("cursor", "pointer")
+                    .on("mouseover", function(event) {
+                        tooltip.style("visibility", "visible")
+                            .html(`<strong>Trajectory ${trajIndex + 1}</strong><br/>Path: ${path.join(' → ')}<br/>Time range: ${pseudotimes[0]} - ${pseudotimes[pseudotimes.length - 1]}`);
+                        positionTooltip(event, tooltip);
+                        
+                        // Highlight this trajectory
+                        d3.select(this).attr("stroke-width", 4).attr("opacity", 1);
+                    })
+                    .on("mousemove", function(event) {
+                        positionTooltip(event, tooltip);
+                    })
+                    .on("mouseout", function() {
+                        tooltip.style("visibility", "hidden");
+                        d3.select(this).attr("stroke-width", 3).attr("opacity", 0.8);
+                    });
+            }
+
+            // Draw node markers at each time point
+            trajectoryPoints.forEach((point, pointIndex) => {
+                const isEndpoint = pointIndex === trajectoryPoints.length - 1;
+                const nodeColor = clusterColorScale(point.cluster);
+                
+                if (isEndpoint) {
+                    // Draw star for endpoints
+                    drawStar(bottomSection, point.x, point.y, 6, nodeColor, 0.9);
+                } else {
+                    // Draw circle for intermediate points
+                    bottomSection.append("circle")
+                        .attr("cx", point.x)
+                        .attr("cy", point.y)
+                        .attr("r", 4)
+                        .attr("fill", nodeColor)
+                        .attr("stroke", "#fff")
+                        .attr("stroke-width", 1)
+                        .attr("opacity", 0.9)
+                        .style("cursor", "pointer")
+                        .on("mouseover", function(event) {
+                            tooltip.style("visibility", "visible")
+                                .html(`<strong>Cluster ${point.cluster}</strong><br/>Pseudotime: ${point.pseudotime.toFixed(3)}<br/>Trajectory: ${trajIndex + 1}`);
+                            positionTooltip(event, tooltip);
+                        })
+                        .on("mousemove", function(event) {
+                            positionTooltip(event, tooltip);
+                        })
+                        .on("mouseout", function() {
+                            tooltip.style("visibility", "hidden");
+                        });
                 }
             });
-
-            return nodePositions;
-        };
-
-        const { nodes, edges } = buildTrajectoryTree(trajectoryData);
-        const nodePositions = calculateNodePositions(nodes, edges);
-
-        // Use black color for all trajectory paths
-        const trajectoryColor = "#333333"; // Black color
-
-        // Draw edges (connections between nodes)
-        edges.forEach(edge => {
-            const fromPos = nodePositions.get(edge.from);
-            const toPos = nodePositions.get(edge.to);
-
-            // Determine if this edge should be grayed out
-            const isSelected = selectedTrajectory === null || selectedTrajectory === edge.trajectory;
-            const color = isSelected ? trajectoryColor : "#ccc";
-            const opacity = isSelected ? 0.8 : 0.4;
-            const strokeWidth = isSelected ? 3 : 2;
-
-            if (fromPos && toPos) {
-                let x1 = fromPos.x, y1 = fromPos.y;
-
-                // If starting from center (time 0), start from edge of center circle
-                const fromNode = nodes.get(edge.from);
-                if (fromNode && fromNode.pseudotime === 0) {
-                    const angle = Math.atan2(toPos.y - centerY, toPos.x - centerX);
-                    x1 = centerX + Math.cos(angle) * 8;
-                    y1 = centerY + Math.sin(angle) * 8;
-                }
-
-                bottomSection.append("line")
-                    .attr("x1", x1)
-                    .attr("y1", y1)
-                    .attr("x2", toPos.x)
-                    .attr("y2", toPos.y)
-                    .attr("stroke", color)
-                    .attr("stroke-width", strokeWidth)
-                    .attr("opacity", opacity)
-                    .attr("stroke-linecap", "round")
-                    .style("cursor", "pointer")
-                    // .on("click", function (event) {
-                    //     event.stopPropagation();
-                    //     // Toggle selection: if clicking on the same trajectory, deselect it
-                    //     if (selectedTrajectory === edge.trajectory) {
-                    //         setSelectedTrajectory(null);
-                    //     } else {
-                    //         setSelectedTrajectory(edge.trajectory);
-                    //     }
-                    // })
-                    .on("mouseover", function (event) {
-                        // Only enhance hover effect if this trajectory is not grayed out
-                        if (isSelected) {
-                            d3.select(this)
-                                .attr("stroke-width", strokeWidth + 2)
-                                .attr("opacity", 1);
-                        }
-
-                        const fromNode = nodes.get(edge.from);
-                        const toNode = nodes.get(edge.to);
-                        const fromCluster = fromNode ? fromNode.cluster : "unknown";
-                        const toCluster = toNode ? toNode.cluster : "unknown";
-                        const fromTime = fromNode ? fromNode.pseudotime.toFixed(2) : "0.00";
-                        const toTime = toNode ? toNode.pseudotime.toFixed(2) : "0.00";
-
-                        // Get the complete trajectory sequence
-                        const trajectory = trajectoryData[edge.trajectory];
-                        const trajectorySequence = trajectory.path.map((cluster, idx) =>
-                            `${cluster} (t=${parseFloat(trajectory.pseudotimes[idx]).toFixed(2)})`
-                        ).join(' → ');
-
-                        // Emit trajectory hover event to parent components with debouncing
-                        if (trajectory && source_title) {
-                            const currentTrajectory = {
-                                path: trajectory.path,
-                                adata_umap_title: source_title,
-                                // sampleId: sampleId,
-                                pseudotimes: trajectory.pseudotimes,
-                                trajectoryIndex: trajectoryIndex
-                            };
-
-                            debouncedSetHover(currentTrajectory);
-                        }
-
-                        tooltip.style("visibility", "visible")
-                            .html(`
-                                <div><strong>Trajectory ${edge.trajectory + 1}</strong></div>
-                                <div>Current transition: ${fromCluster} (t=${fromTime}) → ${toCluster} (t=${toTime})</div>
-                                <div><strong>Complete sequence:</strong></div>
-                                <div style="font-size: 11px; margin-top: 5px;">${trajectorySequence}</div>
-                            `);
-                        positionTooltip(event, tooltip);
-                    })
-                    .on("mousemove", function (event) {
-                        positionTooltip(event, tooltip);
-                    })
-                    .on("mouseout", function () {
-                        d3.select(this)
-                            .attr("stroke-width", strokeWidth)
-                            .attr("opacity", opacity);
-                        tooltip.style("visibility", "hidden");
-
-                        // Clear trajectory hover event with debouncing
-                        clearHover();
-                    });
-            }
-        });
-
-        // Draw nodes
-        nodes.forEach((node, key) => {
-            const pos = nodePositions.get(key);
-            if (!pos || node.radius <= 8) return; // Skip center node
-
-            // Check if this node belongs to the selected trajectory
-            const nodeTrajectories = Array.from(node.trajectories);
-            const isNodeSelected = selectedTrajectory === null || nodeTrajectories.includes(selectedTrajectory);
-
-            // Use cluster-based color for each cell state
-            const baseColor = clusterColorScale(node.cluster);
-            const nodeColor = isNodeSelected ? baseColor : "#ccc";
-            const nodeOpacity = isNodeSelected ? 0.8 : 0.3;
-
-            // Draw endpoint as star, others as circles
-            if (node.isEndpoint) {
-                const star = drawStar(bottomSection, pos.x, pos.y, 10, nodeColor, nodeOpacity);
-                // Add tooltip functionality to star
-                star.style("cursor", "pointer")
-                    .on("mouseover", function (event) {
-                        // Get the first trajectory this node belongs to for hover emission
-                        const firstTrajectoryIndex = Array.from(node.trajectories)[0];
-                        const firstTrajectory = trajectoryData[firstTrajectoryIndex];
-                        
-                        // Emit trajectory hover event to parent components with debouncing
-                        if (firstTrajectory && source_title) {
-                            const currentTrajectory = {
-                                path: firstTrajectory.path,
-                                adata_umap_title: source_title,
-                                pseudotimes: firstTrajectory.pseudotimes,
-                                trajectoryIndex: trajectoryIndex
-                            };
-
-                            debouncedSetHover(currentTrajectory);
-                        }
-
-                        // Get all trajectories this node belongs to for tooltip display
-                        const trajectoryInfo = Array.from(node.trajectories).map(trajIndex => {
-                            const trajectory = trajectoryData[trajIndex];
-                            const trajectorySequence = trajectory.path.map((cluster, idx) =>
-                                `${cluster} (t=${parseFloat(trajectory.pseudotimes[idx]).toFixed(2)})`
-                            ).join(' → ');
-                            return `<div><strong>Trajectory ${trajIndex + 1}:</strong> ${trajectorySequence}</div>`;
-                        }).join('');
-
-                        tooltip.style("visibility", "visible")
-                            .html(`
-                                <div><strong>Endpoint at time ${node.pseudotime.toFixed(2)}</strong></div>
-                                <div style="margin-top: 8px;"><strong>Trajectory sequence(s):</strong></div>
-                                ${trajectoryInfo}
-                            `);
-                        positionTooltip(event, tooltip);
-                    })
-                    .on("mousemove", function (event) {
-                        positionTooltip(event, tooltip);
-                    })
-                    .on("mouseout", function () {
-                        tooltip.style("visibility", "hidden");
-                        
-                        // Clear trajectory hover event with debouncing
-                        clearHover();
-                    });
-            } else {
-                const circle = bottomSection.append("circle")
-                    .attr("cx", pos.x)
-                    .attr("cy", pos.y)
-                    .attr("r", 6)
-                    .attr("fill", nodeColor)
-                    .attr("stroke", "#fff")
-                    .attr("stroke-width", 2)
-                    .attr("opacity", nodeOpacity)
-                    .style("cursor", "pointer")
-                    .on("mouseover", function (event) {
-                        // Get the first trajectory this node belongs to for hover emission
-                        const firstTrajectoryIndex = Array.from(node.trajectories)[0];
-                        const firstTrajectory = trajectoryData[firstTrajectoryIndex];
-                        
-                        // Emit trajectory hover event to parent components with debouncing
-                        if (firstTrajectory && source_title) {
-                            const currentTrajectory = {
-                                path: firstTrajectory.path,
-                                adata_umap_title: source_title,
-                                pseudotimes: firstTrajectory.pseudotimes,
-                                trajectoryIndex: trajectoryIndex
-                            };
-
-                            debouncedSetHover(currentTrajectory);
-                        }
-
-                        // Get all trajectories this node belongs to for tooltip display
-                        const trajectoryInfo = Array.from(node.trajectories).map(trajIndex => {
-                            const trajectory = trajectoryData[trajIndex];
-                            const trajectorySequence = trajectory.path.map((cluster, idx) =>
-                                `${cluster} (t=${parseFloat(trajectory.pseudotimes[idx]).toFixed(2)})`
-                            ).join(' → ');
-                            return `<div><strong>Trajectory ${trajIndex + 1}:</strong> ${trajectorySequence}</div>`;
-                        }).join('');
-
-                        tooltip.style("visibility", "visible")
-                            .html(`
-                                <div><strong>Node at time ${node.pseudotime.toFixed(2)}</strong></div>
-                                <div style="margin-top: 8px;"><strong>Trajectory sequence(s):</strong></div>
-                                ${trajectoryInfo}
-                            `);
-                        positionTooltip(event, tooltip);
-                    })
-                    .on("mousemove", function (event) {
-                        positionTooltip(event, tooltip);
-                    })
-                    .on("mouseout", function () {
-                        tooltip.style("visibility", "hidden");
-                        
-                        // Clear trajectory hover event with debouncing
-                        clearHover();
-                    });
-            }
         });
     };
 

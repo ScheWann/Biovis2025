@@ -125,6 +125,90 @@ export const PseudotimeGlyphComponent = ({
         setSelectedGlyphs(newSelected);
     };
     
+    // Convert pseudotimeDataSets object to merged trajectory data
+    const mergedPseudotimeData = [];
+    let allPseudotimeData = [];
+    
+    try {
+        // Find the first valid dataset to use as the main source
+        let mainSourceTitle = null;
+        let mainDisplayTitle = null;
+        
+        // Collect all trajectories from all datasets
+        Object.entries(pseudotimeDataSets).forEach(([title, dataArray]) => {
+            if (Array.isArray(dataArray) && dataArray.length > 0) {
+                if (!mainSourceTitle) {
+                    mainSourceTitle = title;
+                    
+                    // Find the corresponding UMAP dataset title
+                    mainDisplayTitle = title;
+                    if (umapDataSets && Array.isArray(umapDataSets)) {
+                        const matchingUmapDataset = umapDataSets.find(dataset => 
+                            dataset.adata_umap_title === title || dataset.title === title
+                        );
+                        
+                        if (matchingUmapDataset) {
+                            mainDisplayTitle = matchingUmapDataset.title;
+                        }
+                    }
+                }
+                
+                // Add all trajectories from this dataset to the merged data
+                dataArray.forEach((trajectoryData) => {
+                    // Ensure sampleId is set - try multiple fallback strategies
+                    let sampleId = trajectoryData.sampleId;
+                    
+                    // First fallback: try relatedSampleIds
+                    if (!sampleId && relatedSampleIds.length > 0) {
+                        sampleId = relatedSampleIds[0];
+                    }
+                    
+                    // Second fallback: try to extract from title (format: prefix_sampleId_suffix)
+                    if (!sampleId) {
+                        const titleToCheck = title || adata_umap_title;
+                        if (titleToCheck && typeof titleToCheck === 'string') {
+                            // Look for patterns like skin_TXK6Z4X_A1 or similar
+                            const match = titleToCheck.match(/(skin_[A-Z0-9]+_[A-Z0-9]+)/);
+                            if (match) {
+                                sampleId = match[1];
+                            }
+                        }
+                    }
+                    
+                    mergedPseudotimeData.push({
+                        ...trajectoryData,
+                        sampleId: sampleId
+                    });
+                });
+            }
+        });
+
+        // Check if there's any loading happening
+        const isLoading = Object.values(pseudotimeLoadingStates).some(loading => loading);
+        
+        // Create a single merged dataset entry if we have data
+        if (mergedPseudotimeData.length > 0) {
+            allPseudotimeData.push({
+                mergedTrajectories: mergedPseudotimeData,
+                source_title: mainSourceTitle,
+                display_title: mainDisplayTitle || adata_umap_title,
+                isLoading: false,
+                isPlaceholder: false
+            });
+        } else if (isLoading) {
+            // Show loading placeholder if data is still loading
+            allPseudotimeData.push({
+                source_title: 'Loading',
+                display_title: 'Loading trajectories...',
+                isLoading: true,
+                isPlaceholder: true
+            });
+        }
+    } catch (error) {
+        console.error('Error processing pseudotime data:', error);
+        // Continue with empty data rather than breaking the component
+    }
+
     // Handle confirmation button click
     const handleAnalyzeGeneExpression = async () => {
         if (selectedGlyphs.size === 0) {
@@ -152,7 +236,7 @@ export const PseudotimeGlyphComponent = ({
             // Create analysis requests for each selected glyph
             Array.from(selectedGlyphs).forEach(glyphIndex => {
                 const trajectoryData = allPseudotimeData[glyphIndex];
-                if (trajectoryData && !trajectoryData.isPlaceholder && trajectoryData.path) {
+                if (trajectoryData && !trajectoryData.isPlaceholder && trajectoryData.mergedTrajectories) {
                     // Use the related sample IDs directly - typically there should be one main sample
                     // For pseudotime analysis, we should use the same sample that generated the trajectory
                     const sampleId = relatedSampleIds.length > 0 ? relatedSampleIds[0] : 'unknown';
@@ -160,12 +244,15 @@ export const PseudotimeGlyphComponent = ({
                     // The trajectory ID should match the glyph index or trajectory data structure
                     const trajectoryId = glyphIndex;
 
-                    analysisRequests.push({
-                        sample_id: sampleId,
-                        genes: geneNames,
-                        adata_umap_title: adata_umap_title,
-                        trajectory_id: trajectoryId,
-                        trajectory_path: trajectoryData.path
+                    // For merged trajectories, we need to handle multiple paths
+                    trajectoryData.mergedTrajectories.forEach((singleTrajectory, trajIndex) => {
+                        analysisRequests.push({
+                            sample_id: sampleId,
+                            genes: geneNames,
+                            adata_umap_title: adata_umap_title,
+                            trajectory_id: `${trajectoryId}_${trajIndex}`,
+                            trajectory_path: singleTrajectory.path
+                        });
                     });
                 }
             });
@@ -221,85 +308,6 @@ export const PseudotimeGlyphComponent = ({
             setIsAnalyzing(false);
         }
     };
-    
-    // Convert pseudotimeDataSets object to array of all trajectory data
-    const allPseudotimeData = [];
-    
-    try {
-        Object.entries(pseudotimeDataSets).forEach(([title, dataArray]) => {
-            if (Array.isArray(dataArray)) {
-                dataArray.forEach((trajectoryData, index) => {
-                    // Find the corresponding UMAP dataset title
-                    let displayTitle = title;
-                    
-                    // Look for matching UMAP dataset by adata_umap_title
-                    if (umapDataSets && Array.isArray(umapDataSets)) {
-                        const matchingUmapDataset = umapDataSets.find(dataset => 
-                            dataset.adata_umap_title === title || dataset.title === title
-                        );
-                        
-                        if (matchingUmapDataset) {
-                            displayTitle = matchingUmapDataset.title;
-                        }
-                    }
-                    
-                    // Ensure sampleId is set - try multiple fallback strategies
-                    let sampleId = trajectoryData.sampleId;
-                    
-                    // First fallback: try relatedSampleIds
-                    if (!sampleId && relatedSampleIds.length > 0) {
-                        sampleId = relatedSampleIds[0];
-                    }
-                    
-                    // Second fallback: try to extract from title (format: prefix_sampleId_suffix)
-                    if (!sampleId) {
-                        const titleToCheck = title || adata_umap_title;
-                        if (titleToCheck && typeof titleToCheck === 'string') {
-                            // Look for patterns like skin_TXK6Z4X_A1 or similar
-                            const match = titleToCheck.match(/(skin_[A-Z0-9]+_[A-Z0-9]+)/);
-                            if (match) {
-                                sampleId = match[1];
-                            }
-                        }
-                    }
-                    
-                    allPseudotimeData.push({
-                        ...trajectoryData,
-                        source_title: title,
-                        display_title: `${displayTitle} - ${index + 1}`,
-                        isLoading: pseudotimeLoadingStates[title] || false
-                    });
-                });
-            }
-        });
-
-        // Add loading placeholders for datasets that are currently being loaded
-        Object.entries(pseudotimeLoadingStates).forEach(([title, isLoading]) => {
-            if (isLoading && !pseudotimeDataSets[title]) {
-                // Find the corresponding UMAP dataset title for loading placeholder
-                let displayTitle = title;
-                if (umapDataSets && Array.isArray(umapDataSets)) {
-                    const matchingUmapDataset = umapDataSets.find(dataset => 
-                        dataset.adata_umap_title === title || dataset.title === title
-                    );
-                    
-                    if (matchingUmapDataset) {
-                        displayTitle = matchingUmapDataset.title;
-                    }
-                }
-                
-                allPseudotimeData.push({
-                    source_title: title,
-                    display_title: `${displayTitle} - Loading...`,
-                    isLoading: true,
-                    isPlaceholder: true
-                });
-            }
-        });
-    } catch (error) {
-        console.error('Error processing pseudotime data:', error);
-        // Continue with empty data rather than breaking the component
-    }
 
     // Check if there's any global loading happening and no data exists yet
     const anyLoading = Object.values(pseudotimeLoadingStates).some(loading => loading);
@@ -344,14 +352,6 @@ export const PseudotimeGlyphComponent = ({
             />
         );
     }
-
-    // Calculate responsive dimensions
-    const numGlyphs = allPseudotimeData.length;
-    const maxPerRow = 3;
-    const glyphsPerRow = Math.min(numGlyphs, maxPerRow);
-    const numRows = Math.ceil(numGlyphs / maxPerRow);
-
-    const gapSize = 10; // gap in px
 
     // Wrap the entire render in error handling to prevent white screen
     try {
@@ -399,15 +399,12 @@ export const PseudotimeGlyphComponent = ({
                 </div>
 
                 <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(${glyphsPerRow}, 1fr)`,
-                    gridTemplateRows: `repeat(${numRows}, 1fr)`,
-                    gap: `${gapSize}px`,
                     width: '100%',
                     height: `calc(100% - 30px)`,
-                    justifyItems: 'center',
-                    alignItems: 'center',
-                    marginTop: '35px'
+                    marginTop: '35px',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center'
                 }}>
                     {allPseudotimeData.map((trajectoryData, index) => (
                         <div
@@ -415,8 +412,6 @@ export const PseudotimeGlyphComponent = ({
                             style={{
                                 width: '100%',
                                 height: '100%',
-                                minWidth: '200px',
-                                minHeight: '200px',
                                 textAlign: 'center'
                             }}
                         >
@@ -430,14 +425,40 @@ export const PseudotimeGlyphComponent = ({
                                     border: '2px dashed #ccc',
                                     borderRadius: '8px',
                                     color: '#666',
-                                    fontSize: '8px'
+                                    fontSize: '12px'
                                 }}>
                                     Loading {trajectoryData.source_title}...
                                 </div>
                             ) : (
                                 (() => {
                                     try {
-                                        const geneDataForGlyph = geneExpressionData.find(data => data.trajectory_id === index)?.gene_expression_data || null;
+                                        // For merged trajectories, collect gene expression data from all related trajectories
+                                        let geneDataForGlyph = null;
+                                        
+                                        if (trajectoryData.mergedTrajectories && trajectoryData.mergedTrajectories.length > 0) {
+                                            // Collect all gene expression data for trajectories that start with this glyph index
+                                            const relatedGeneData = geneExpressionData.filter(data => 
+                                                data.trajectory_id && data.trajectory_id.toString().startsWith(`${index}_`)
+                                            );
+                                            
+                                            console.log(`Glyph ${index}: Found ${relatedGeneData.length} related gene data entries`, relatedGeneData);
+                                            
+                                            if (relatedGeneData.length > 0) {
+                                                // Merge gene expression data from all trajectories
+                                                // Use the first trajectory's data as the base structure
+                                                geneDataForGlyph = relatedGeneData[0].gene_expression_data;
+                                                console.log(`Glyph ${index}: Using gene data:`, geneDataForGlyph);
+                                                
+                                                // If there are multiple trajectories, we might want to average or combine them
+                                                // For now, just use the first one - can be enhanced later
+                                            }
+                                        } else {
+                                            // Single trajectory - find by exact match
+                                            geneDataForGlyph = geneExpressionData.find(data => 
+                                                data.trajectory_id === index || data.trajectory_id === index.toString()
+                                            )?.gene_expression_data || null;
+                                            console.log(`Glyph ${index}: Single trajectory gene data:`, geneDataForGlyph);
+                                        }
                                         
                                         // Get cluster color mapping for this trajectory data
                                         // Try different key formats to find the correct mapping
@@ -461,7 +482,7 @@ export const PseudotimeGlyphComponent = ({
                                         return (
                                             <PseudotimeGlyph
                                                 adata_umap_title={trajectoryData.display_title}
-                                                pseudotimeData={[trajectoryData]}
+                                                pseudotimeData={trajectoryData.mergedTrajectories || [trajectoryData]}
                                                 pseudotimeLoading={trajectoryData.isLoading}
                                                 isSelected={selectedGlyphs.has(index)}
                                                 onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
