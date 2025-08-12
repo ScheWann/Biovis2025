@@ -18,7 +18,7 @@ export const LineChart = ({
   const svgRef = useRef();
   const containerRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
-  
+
   // Detect container size changes
   useEffect(() => {
     const container = containerRef.current;
@@ -52,7 +52,7 @@ export const LineChart = ({
 
   // Handle array of numbers or array of objects, or multiple datasets
   let allDatasets = [];
-  
+
   if (datasets && datasets.length > 0) {
     // Multiple datasets mode
     allDatasets = datasets;
@@ -68,7 +68,7 @@ export const LineChart = ({
       xAcc = xAccessor;
       yAcc = yAccessor;
     }
-    
+
     allDatasets = [{
       data: processedData,
       xAccessor: xAcc,
@@ -81,21 +81,21 @@ export const LineChart = ({
 
   useEffect(() => {
     if (!allDatasets || allDatasets.length === 0) return;
-    
+
     d3.select(svgRef.current).selectAll("*").remove();
-    
+
     // Calculate space needed for legend
     const legendHeight = (showLegend && allDatasets.length > 1) ? 25 : 0; // Space for legend
-    
+
     // Use full parent height for SVG
     const svgHeight = dimensions.height;
-    
+
     // Adjust margin to account for legend space at bottom
-    const adjustedMargin = { 
-      ...margin, 
+    const adjustedMargin = {
+      ...margin,
       bottom: margin.bottom + legendHeight + (legendHeight > 0 ? 0 : 0) // Add legend space to bottom margin
     };
-    
+
     const innerWidth = dimensions.width - adjustedMargin.left - adjustedMargin.right;
     const innerHeight = svgHeight - adjustedMargin.top - adjustedMargin.bottom;
 
@@ -113,7 +113,7 @@ export const LineChart = ({
         const yValues = dataset.data.map(dataset.yAccessor);
         allXValues.push(...xValues);
         allYValues.push(...yValues);
-        
+
         if (showErrorBands && dataset.yMinAccessor && dataset.yMaxAccessor) {
           const yMinValues = dataset.data.map(dataset.yMinAccessor);
           const yMaxValues = dataset.data.map(dataset.yMaxAccessor);
@@ -153,9 +153,9 @@ export const LineChart = ({
     // Render each dataset
     allDatasets.forEach((dataset, index) => {
       if (!dataset.data || dataset.data.length === 0) return;
-      
+
       const datasetColor = dataset.lineColor || colorScale(index);
-      
+
       // Create line generator for this dataset
       const line = d3
         .line()
@@ -213,14 +213,14 @@ export const LineChart = ({
       .attr("font-size", 12)
       .text("Estimated Expression");
 
-      svg
-        .append("text")
-        .attr("x", adjustedMargin.left)
-        .attr("y", adjustedMargin.top - 10)
-        .attr("text-anchor", "start")
-        .attr("font-size", 14)
-        .attr("font-weight", "bold")
-        .text("Gene Expression Trajectories");
+    svg
+      .append("text")
+      .attr("x", adjustedMargin.left)
+      .attr("y", adjustedMargin.top - 10)
+      .attr("text-anchor", "start")
+      .attr("font-size", 14)
+      .attr("font-weight", "bold")
+      .text("Gene Expression Trajectories");
 
     // Add legend for multiple datasets
     if (showLegend && allDatasets.length > 1) {
@@ -228,13 +228,13 @@ export const LineChart = ({
         .attr("transform", `translate(${adjustedMargin.left}, ${svgHeight - legendHeight - 5})`);
 
       const legendSpacing = Math.min(innerWidth / allDatasets.length, 60);
-      
+
       allDatasets.forEach((dataset, index) => {
         const legendGroup = legend.append("g")
           .attr("transform", `translate(${index * legendSpacing}, 0)`);
 
         const datasetColor = dataset.lineColor || colorScale(index);
-        
+
         legendGroup.append("line")
           .attr("x1", 0)
           .attr("x2", 15)

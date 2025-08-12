@@ -52,7 +52,7 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
             if (onKosaraLoadingStart) {
                 onKosaraLoadingStart(sampleId);
             }
-            
+
             const response = await fetch('/api/get_kosara_data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

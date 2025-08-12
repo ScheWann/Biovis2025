@@ -283,11 +283,11 @@ export const PseudotimeGlyph = ({
         trajectoryData.forEach(trajectory => {
             trajectory.path.forEach(cluster => allClusters.add(parseInt(cluster)));
         });
-        
+
         // Sort clusters for consistent ordering
         const sortedClusters = Array.from(allClusters).sort((a, b) => a - b);
         const numLines = sortedClusters.length;
-        
+
         // Create radial lines (avoiding horizontal lines)
         // Use mid-bin angles like in the semicircle visualization for bottom half
         const step = Math.PI / Math.max(numLines, 1);
@@ -296,7 +296,7 @@ export const PseudotimeGlyph = ({
             // Bottom semicircle: from 0 to π (right to left counterclockwise)
             angles.push(step / 2.0 + (i * step));
         }
-        
+
         // Create a mapping from cluster ID to angle
         const clusterToAngle = new Map();
         sortedClusters.forEach((cluster, index) => {
@@ -308,7 +308,7 @@ export const PseudotimeGlyph = ({
             const angle = angles[index];
             const x = maxRadius * Math.cos(angle);
             const y = maxRadius * Math.sin(angle);
-            
+
             bottomSection.append("line")
                 .attr("x1", centerX)
                 .attr("y1", centerY)
@@ -317,7 +317,7 @@ export const PseudotimeGlyph = ({
                 .attr("stroke", "#CCCCCC")
                 .attr("stroke-width", 1)
                 .attr("opacity", 0.6);
-                
+
             // Add cluster labels at the end of each line
             bottomSection.append("text")
                 .attr("x", centerX + x * 1.1)
@@ -333,7 +333,7 @@ export const PseudotimeGlyph = ({
         const timeScaleFractions = [0.25, 0.5, 0.75, 1.0];
         timeScaleFractions.forEach(fraction => {
             const radius = (8 + (maxRadius - 8) * fraction);
-            
+
             // Draw semicircle arc for time indication (bottom half)
             const timeArc = d3.arc()
                 .innerRadius(radius)
@@ -366,13 +366,13 @@ export const PseudotimeGlyph = ({
 
             // Build interpolated points for smooth curves
             const trajectoryPoints = [];
-            
+
             for (let i = 0; i < path.length; i++) {
                 const cluster = parseInt(path[i]);
                 const pseudotime = parseFloat(pseudotimes[i]);
                 const angle = clusterToAngle.get(cluster);
                 const radius = radiusScale(pseudotime);
-                
+
                 if (angle !== undefined) {
                     trajectoryPoints.push({
                         x: centerX + radius * Math.cos(angle),
@@ -388,21 +388,21 @@ export const PseudotimeGlyph = ({
             // Create smooth interpolated path between trajectory points
             if (trajectoryPoints.length > 1) {
                 const pathData = [];
-                
+
                 for (let i = 0; i < trajectoryPoints.length - 1; i++) {
                     const current = trajectoryPoints[i];
                     const next = trajectoryPoints[i + 1];
-                    
+
                     // Number of interpolation points based on time difference
                     const timeDiff = Math.abs(next.pseudotime - current.pseudotime);
                     const numPoints = Math.max(12, Math.floor(60 * timeDiff / maxPseudotime));
-                    
+
                     for (let j = 0; j <= numPoints; j++) {
                         const t = j / numPoints;
                         const interpPseudotime = current.pseudotime + t * (next.pseudotime - current.pseudotime);
                         const interpAngle = current.angle + t * (next.angle - current.angle);
                         const interpRadius = radiusScale(interpPseudotime);
-                        
+
                         pathData.push({
                             x: centerX + interpRadius * Math.cos(interpAngle),
                             y: centerY + interpRadius * Math.sin(interpAngle)
@@ -424,18 +424,18 @@ export const PseudotimeGlyph = ({
                     .attr("stroke-width", 3)
                     .attr("opacity", 0.8)
                     .style("cursor", "pointer")
-                    .on("mouseover", function(event) {
+                    .on("mouseover", function (event) {
                         tooltip.style("visibility", "visible")
                             .html(`<strong>Trajectory ${trajIndex + 1}</strong><br/>Path: ${path.join(' → ')}<br/>Time range: ${pseudotimes[0]} - ${pseudotimes[pseudotimes.length - 1]}`);
                         positionTooltip(event, tooltip);
-                        
+
                         // Highlight this trajectory
                         d3.select(this).attr("stroke-width", 4).attr("opacity", 1);
                     })
-                    .on("mousemove", function(event) {
+                    .on("mousemove", function (event) {
                         positionTooltip(event, tooltip);
                     })
-                    .on("mouseout", function() {
+                    .on("mouseout", function () {
                         tooltip.style("visibility", "hidden");
                         d3.select(this).attr("stroke-width", 3).attr("opacity", 0.8);
                     });
@@ -445,7 +445,7 @@ export const PseudotimeGlyph = ({
             trajectoryPoints.forEach((point, pointIndex) => {
                 const isEndpoint = pointIndex === trajectoryPoints.length - 1;
                 const nodeColor = clusterColorScale(point.cluster);
-                
+
                 if (isEndpoint) {
                     // Draw star for endpoints
                     drawStar(bottomSection, point.x, point.y, 6, nodeColor, 0.9);
@@ -460,15 +460,15 @@ export const PseudotimeGlyph = ({
                         .attr("stroke-width", 1)
                         .attr("opacity", 0.9)
                         .style("cursor", "pointer")
-                        .on("mouseover", function(event) {
+                        .on("mouseover", function (event) {
                             tooltip.style("visibility", "visible")
                                 .html(`<strong>Cluster ${point.cluster}</strong><br/>Pseudotime: ${point.pseudotime.toFixed(3)}<br/>Trajectory: ${trajIndex + 1}`);
                             positionTooltip(event, tooltip);
                         })
-                        .on("mousemove", function(event) {
+                        .on("mousemove", function (event) {
                             positionTooltip(event, tooltip);
                         })
-                        .on("mouseout", function() {
+                        .on("mouseout", function () {
                             tooltip.style("visibility", "hidden");
                         });
                 }
@@ -648,47 +648,47 @@ export const PseudotimeGlyph = ({
                     normalCurveMultiplier: 1.15,        // Normal curve extension
                     useShortestPath: true               // Use shortest angular path
                 };
-                
+
                 const customPath = generateCustomCurve(curvePoints, curveOptions);
-                
+
                 if (customPath) {
                     topSection.append("path")
                         .attr("d", customPath)
-                    .attr("stroke", color)
-                    .attr("stroke-width", 3)
-                    .attr("fill", "none")
-                    .attr("opacity", 0.6)
-                    .attr("stroke-linecap", "round")
-                    .attr("stroke-linejoin", "round")
-                    .style("cursor", "pointer")
-                    .on("mouseover", function (event) {
-                        d3.select(this)
-                            .attr("stroke-width", 4)
-                            .attr("opacity", 1);
+                        .attr("stroke", color)
+                        .attr("stroke-width", 3)
+                        .attr("fill", "none")
+                        .attr("opacity", 0.6)
+                        .attr("stroke-linecap", "round")
+                        .attr("stroke-linejoin", "round")
+                        .style("cursor", "pointer")
+                        .on("mouseover", function (event) {
+                            d3.select(this)
+                                .attr("stroke-width", 4)
+                                .attr("opacity", 1);
 
-                        const minExpression = Math.min(...geneInfo.expressions);
-                        const maxExpression = Math.max(...geneInfo.expressions);
-                        const avgExpression = (geneInfo.expressions.reduce((a, b) => a + b, 0) / geneInfo.expressions.length).toFixed(2);
-                        const timeSpan = `${geneInfo.timePoints[0]} - ${geneInfo.timePoints[geneInfo.timePoints.length - 1]}`;
+                            const minExpression = Math.min(...geneInfo.expressions);
+                            const maxExpression = Math.max(...geneInfo.expressions);
+                            const avgExpression = (geneInfo.expressions.reduce((a, b) => a + b, 0) / geneInfo.expressions.length).toFixed(2);
+                            const timeSpan = `${geneInfo.timePoints[0]} - ${geneInfo.timePoints[geneInfo.timePoints.length - 1]}`;
 
-                        tooltip.style("visibility", "visible")
-                            .html(`
+                            tooltip.style("visibility", "visible")
+                                .html(`
                                 <div><strong>Gene Expression: ${geneInfo.gene}</strong></div>
                                 <div>Time span: ${timeSpan}</div>
                                 <div>Expression range: ${minExpression.toFixed(2)} - ${maxExpression.toFixed(2)}</div>
                                 <div>Average expression: ${avgExpression}</div>
                             `);
-                        positionTooltip(event, tooltip);
-                    })
-                    .on("mousemove", function (event) {
-                        positionTooltip(event, tooltip);
-                    })
-                    .on("mouseout", function () {
-                        d3.select(this)
-                            .attr("stroke-width", 3)
-                            .attr("opacity", 0.6);
-                        tooltip.style("visibility", "hidden");
-                    });
+                            positionTooltip(event, tooltip);
+                        })
+                        .on("mousemove", function (event) {
+                            positionTooltip(event, tooltip);
+                        })
+                        .on("mouseout", function () {
+                            d3.select(this)
+                                .attr("stroke-width", 3)
+                                .attr("opacity", 0.6);
+                            tooltip.style("visibility", "hidden");
+                        });
                 }
             }
 

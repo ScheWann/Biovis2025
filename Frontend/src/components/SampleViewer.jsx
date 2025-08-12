@@ -2000,7 +2000,8 @@ export const SampleViewer = ({
                 style={{
                     width: '100%',
                     height: '100%',
-                    position: 'relative'
+                    position: 'relative',
+                    overflow: 'hidden'
                 }}
             >
                 <DeckGL

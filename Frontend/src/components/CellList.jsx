@@ -1,16 +1,16 @@
 import React from 'react';
 import { Checkbox, ColorPicker } from "antd";
 
-export const CellSettings = ({ 
+export const CellSettings = ({
     cellTypesData,
-    selectedCellTypes, 
+    selectedCellTypes,
     setSelectedCellTypes,
     cellTypeColors,
-    setCellTypeColors 
+    setCellTypeColors
 }) => {
     // Default color palette for cell types
     const defaultColors = [
-        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
         '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
         '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
         '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
@@ -60,24 +60,24 @@ export const CellSettings = ({
                                     onChange={() => toggleCellTypeSelection(name)}
                                     style={{ marginRight: 8 }}
                                 />
-                                <div style={{ 
-                                    display: 'flex', 
-                                    justifyContent: 'space-between', 
-                                    alignItems: 'center', 
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
                                     width: '100%',
                                     gap: '8px'
                                 }}>
                                     <div style={{ flex: 1 }}>
-                                        <span style={{ 
-                                            fontSize: 12, 
+                                        <span style={{
+                                            fontSize: 12,
                                             color: selectedCellTypes.includes(name) ? '#000' : '#999',
                                             fontWeight: selectedCellTypes.includes(name) ? '500' : 'normal'
                                         }}>
                                             {name}
                                         </span>
-                                        <span style={{ 
-                                            fontSize: 10, 
-                                            color: '#999', 
+                                        <span style={{
+                                            fontSize: 10,
+                                            color: '#999',
                                             marginLeft: '8px',
                                             fontStyle: 'italic'
                                         }}>
@@ -89,8 +89,8 @@ export const CellSettings = ({
                                         onChange={(color, hex) => updateCellTypeColor(name, hex)}
                                         size="small"
                                         showText={false}
-                                        style={{ 
-                                            width: 24, 
+                                        style={{
+                                            width: 24,
                                             height: 24,
                                             opacity: selectedCellTypes.includes(name) ? 1 : 0.5
                                         }}

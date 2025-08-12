@@ -93,7 +93,7 @@ export const TrajectoryViewer = ({ sampleId }) => {
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ sample_id, selected_genes: genes, is_vertical: isVertical}),
+            body: JSON.stringify({ sample_id, selected_genes: genes, is_vertical: isVertical }),
         }).then((response) => response.json())
             .then((data) => {
                 setTrajectoryData(data);

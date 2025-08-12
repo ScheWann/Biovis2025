@@ -36,7 +36,7 @@ export const ScatterplotUmap = ({
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
   const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
   const [currentCellIds, setCurrentCellIds] = useState([]);
-  
+
   // Local GO analysis state for this ScatterPlotUmap instance
   const [GOAnalysisData, setGOAnalysisData] = useState(null);
   const [GOAnalysisLoading, setGOAnalysisLoading] = useState(false);
@@ -46,7 +46,7 @@ export const ScatterplotUmap = ({
     setGOAnalysisLoading(true);
     setGOAnalysisVisible(true);
     setGOAnalysisData(null); // Clear previous data
-    
+
     const cluster_id = cluster.split(" ")[1]
     fetch("/api/get_go_analysis", {
       method: "POST",
@@ -65,7 +65,7 @@ export const ScatterplotUmap = ({
       });
   };
 
-  const fetchPseudotimeData = async ( sampleId, cellIds ) => {
+  const fetchPseudotimeData = async (sampleId, cellIds) => {
     // Check if data for this adata_umap_title already exists
     if (pseudotimeDataSetsRef.current[adata_umap_title]) {
       return pseudotimeDataSetsRef.current[adata_umap_title];
@@ -76,7 +76,7 @@ export const ScatterplotUmap = ({
     let n_neighbors;
     let n_pcas;
     let resolutions;
-    
+
     // Set loading state for this specific dataset
     setPseudotimeLoadingStates(prevStates => ({
       ...prevStates,
@@ -119,7 +119,7 @@ export const ScatterplotUmap = ({
         pseudotimeDataSetsRef.current = newDataSets;
         return newDataSets;
       });
-      
+
       // Clear loading state for this specific dataset
       setPseudotimeLoadingStates(prevStates => ({
         ...prevStates,
@@ -176,22 +176,22 @@ export const ScatterplotUmap = ({
       name: adata_umap_title,
       clusters: {}
     };
-    
+
     clusters.forEach(cluster => {
       // Extract numeric part from cluster name (e.g., "Cluster 4" -> "4")
       const clusterNumber = cluster.toString().replace(/\D/g, '') || cluster;
       colorMapping.clusters[clusterNumber] = color(cluster);
     });
-    
+
     setClusterColorMappings(prevMappings => {
       // Only update if the mapping has changed
-      if (!prevMappings[adata_umap_title] || 
-          JSON.stringify(prevMappings[adata_umap_title].clusters) !== JSON.stringify(colorMapping.clusters)) {
+      if (!prevMappings[adata_umap_title] ||
+        JSON.stringify(prevMappings[adata_umap_title].clusters) !== JSON.stringify(colorMapping.clusters)) {
         const newMappings = { ...prevMappings };
         newMappings[adata_umap_title] = colorMapping;
         return newMappings;
       }
-      
+
       return prevMappings;
     });
   }, [data, clusterAccessor, sampleId, adata_umap_title, setClusterColorMappings]);
@@ -239,13 +239,13 @@ export const ScatterplotUmap = ({
 
     // Group data by cluster and compute hulls
     const clusterGroups = d3.group(data, clusterAccessor);
-    
+
     // Check if trajectory is being hovered for this UMAP
-    const isTrajectoryHovered = hoveredTrajectory && 
-        hoveredTrajectory.adata_umap_title === adata_umap_title && 
-        hoveredTrajectory.path && 
-        hoveredTrajectory.path.length > 1;
-    
+    const isTrajectoryHovered = hoveredTrajectory &&
+      hoveredTrajectory.adata_umap_title === adata_umap_title &&
+      hoveredTrajectory.path &&
+      hoveredTrajectory.path.length > 1;
+
     clusterGroups.forEach((points, cluster) => {
       if (points.length < 3) return;
 
@@ -289,7 +289,7 @@ export const ScatterplotUmap = ({
           .on("mouseenter", (event) => {
             // Stop event propagation to prevent conflicts
             event.stopPropagation();
-            
+
             d3.select(event.currentTarget)
               .attr("fill-opacity", 0.4)
               .attr("stroke-width", 3.5)
@@ -310,20 +310,20 @@ export const ScatterplotUmap = ({
             }
           })
           .on("mouseleave", (event) => {
-              // Stop event propagation to prevent conflicts
-              event.stopPropagation();
-              
-              d3.select(event.currentTarget)
-                .attr("fill-opacity", 0.2)
-                .attr("stroke-width", 2.5)
-                .attr("stroke-opacity", 0.3);
+            // Stop event propagation to prevent conflicts
+            event.stopPropagation();
 
-              // Use a small delay to prevent flickering when moving between related elements
-              setTimeout(() => {
-                if (hoveredCluster && hoveredCluster.cluster === cluster && hoveredCluster.umapId === umapId) {
-                  setHoveredCluster(null);
-                }
-              }, 10);
+            d3.select(event.currentTarget)
+              .attr("fill-opacity", 0.2)
+              .attr("stroke-width", 2.5)
+              .attr("stroke-opacity", 0.3);
+
+            // Use a small delay to prevent flickering when moving between related elements
+            setTimeout(() => {
+              if (hoveredCluster && hoveredCluster.cluster === cluster && hoveredCluster.umapId === umapId) {
+                setHoveredCluster(null);
+              }
+            }, 10);
           });
       }
     });
@@ -353,7 +353,7 @@ export const ScatterplotUmap = ({
       .on("mouseenter", (event, d) => {
         // Stop event propagation to prevent conflicts with hull events
         event.stopPropagation();
-        
+
         // Highlight points of the same cluster
         const cluster = clusterAccessor(d);
         const clusterPoints = data.filter(
@@ -376,7 +376,7 @@ export const ScatterplotUmap = ({
       .on("mouseleave", (event, d) => {
         // Stop event propagation to prevent conflicts
         event.stopPropagation();
-        
+
         const cluster = clusterAccessor(d);
         // Use a small delay to prevent flickering when moving between points in the same cluster
         setTimeout(() => {
@@ -405,8 +405,8 @@ export const ScatterplotUmap = ({
       .on("click", () => {
         // Pseudotime analysis for current cells
         // If no specific cluster selected, use all cells
-        const cellIds = currentCellIds.length > 0 
-          ? currentCellIds 
+        const cellIds = currentCellIds.length > 0
+          ? currentCellIds
           : data.map(d => d.id || d.cell_id).filter(Boolean);
         fetchPseudotimeData(sampleId, cellIds);
       });
@@ -425,7 +425,7 @@ export const ScatterplotUmap = ({
         .on("mouseenter", (event) => {
           // Stop event propagation to prevent conflicts
           event.stopPropagation();
-          
+
           // Find all points in this cluster
           const clusterPoints = data.filter(
             (point) => clusterAccessor(point) === cl
@@ -447,7 +447,7 @@ export const ScatterplotUmap = ({
         .on("mouseleave", (event) => {
           // Stop event propagation to prevent conflicts
           event.stopPropagation();
-          
+
           // Use a small delay to prevent flickering
           setTimeout(() => {
             if (hoveredCluster && hoveredCluster.cluster === cl && hoveredCluster.umapId === umapId) {
@@ -479,10 +479,10 @@ export const ScatterplotUmap = ({
     });
 
     // Trajectory visualization - draw stars and arrows when trajectory is hovered
-    if (hoveredTrajectory && 
-        hoveredTrajectory.adata_umap_title === adata_umap_title && 
-        hoveredTrajectory.path && 
-        hoveredTrajectory.path.length > 1) {
+    if (hoveredTrajectory &&
+      hoveredTrajectory.adata_umap_title === adata_umap_title &&
+      hoveredTrajectory.path &&
+      hoveredTrajectory.path.length > 1) {
 
       // Calculate cluster centers
       const clusterCenters = new Map();
@@ -492,9 +492,9 @@ export const ScatterplotUmap = ({
         if (clusterPoints.length > 0) {
           const centerX = d3.mean(clusterPoints, xAccessor);
           const centerY = d3.mean(clusterPoints, yAccessor);
-          clusterCenters.set(cluster, { 
-            x: xScale(centerX), 
-            y: yScale(centerY) 
+          clusterCenters.set(cluster, {
+            x: xScale(centerX),
+            y: yScale(centerY)
           });
         }
       });
@@ -514,12 +514,12 @@ export const ScatterplotUmap = ({
           const outerRadius = 12;
           const innerRadius = 6;
           const numPoints = 2;
-          
+
           for (let i = 0; i < numPoints * 2; i++) {
             const angle = (i * Math.PI) / numPoints;
             const radius = i % 2 === 0 ? outerRadius : innerRadius;
-            const x = center.x + Math.cos(angle - Math.PI/2) * radius;
-            const y = center.y + Math.sin(angle - Math.PI/2) * radius;
+            const x = center.x + Math.cos(angle - Math.PI / 2) * radius;
+            const y = center.y + Math.sin(angle - Math.PI / 2) * radius;
             starPoints.push([x, y]);
           }
 
@@ -562,11 +562,11 @@ export const ScatterplotUmap = ({
           const dx = toCenter.x - fromCenter.x;
           const dy = toCenter.y - fromCenter.y;
           const length = Math.sqrt(dx * dx + dy * dy);
-          
+
           if (length > 24) { // Only draw arrow if clusters are far enough apart
             const unitX = dx / length;
             const unitY = dy / length;
-            
+
             // Adjust start and end points to avoid overlapping with stars
             const startX = fromCenter.x + unitX * 15;
             const startY = fromCenter.y + unitY * 15;
@@ -590,7 +590,7 @@ export const ScatterplotUmap = ({
             if (defs.empty()) {
               defs = svg.append("defs");
             }
-            
+
             if (defs.select("#arrowhead").empty()) {
               defs.append("marker")
                 .attr("id", "arrowhead")
@@ -625,8 +625,8 @@ export const ScatterplotUmap = ({
   ]);
 
   return (
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       style={{ width: "100%", height: "100%" }}
       onMouseLeave={() => {
         // Clear hover state when mouse leaves the entire container

@@ -56,7 +56,7 @@ function App() {
 
   useEffect(() => {
     fetchSamplesOption();
-    
+
     // Cleanup function to clear AnnData cache when component unmounts
     return () => {
       clearCache();
@@ -97,7 +97,7 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sample_ids: sampleIds }),
       });
-      
+
       if (cellTypesResponse.ok) {
         const cellTypesData = await cellTypesResponse.json();
         const newCellTypesData = {};
@@ -107,9 +107,9 @@ function App() {
         sampleIds.forEach((sampleId) => {
           newCellTypesData[sampleId] = cellTypesData[sampleId] || [];
           newSelectedCellTypes[sampleId] = newCellTypesData[sampleId].map(({ name }) => name);
-          
+
           const defaultColors = [
-            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
             '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
             '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
             '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
@@ -167,14 +167,14 @@ function App() {
           },
           body: JSON.stringify({ sample_ids: tempSamples }),
         });
-        
+
         if (!cacheResponse.ok) {
           const errorData = await cacheResponse.json();
           message.error(`Failed to load data cache: ${errorData.error}`);
           setSampleDataLoading(false);
           return;
-        } 
-        
+        }
+
         await fetchCoordinates(tempSamples);
         setSelectedSamples(
           tempSamples.map((sample) => ({ id: sample, name: sample }))
@@ -358,164 +358,164 @@ function App() {
                     <Spin spinning={true} size="large" />
                   </div>
                 )}
-              <Splitter lazy style={{ width: "100%", height: "100%" }}>
-                <Splitter.Panel defaultSize="60%" min="50%" max="60%">
-                  <SampleViewer
-                    selectedSamples={selectedSamples}
-                    coordinatesData={coordinatesData}
-                    cellTypesData={cellTypesData}
-                    setCellTypesData={setCellTypesData}
-                    selectedCellTypes={selectedCellTypes}
-                    setSelectedCellTypes={setSelectedCellTypes}
-                    cellTypeColors={cellTypeColors}
-                    setCellTypeColors={setCellTypeColors}
-                    setUmapDataSets={setUmapDataSets}
-                    umapLoading={umapLoading}
-                    setUmapLoading={setUmapLoading}
-                    hoveredCluster={hoveredCluster}
-                    cellName={cellName}
-                    setCellName={setCellName}
-                    onImagesLoaded={onImagesLoaded}
-                  />
-                </Splitter.Panel>
-                <Splitter.Panel defaultSize="40%" min="40%" max="50%">
-                  <Splitter lazy layout="vertical">
-                    <Splitter.Panel
-                      defaultSize="33%"
-                      min="20%"
-                      max="45%"
-                      style={{ borderBottom: "1px solid #e8e8e8" }}
-                    >
-                      <div style={{ height: "100%", overflow: "auto" }}>
-                        {selectedSamples.length > 0 || sampleDataLoading ? (
-                          <TrajectoryViewer sampleId={selectedSamples.length > 0 ? selectedSamples[0].id : null} />
-                        ) : (
-                          <div style={{
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                            height: "100%",
-                            color: "#999"
-                          }}>
-                            Select a sample to view trajectory data
-                          </div>
-                        )}
-                      </div>
-                    </Splitter.Panel>
+                <Splitter lazy style={{ width: "100%", height: "100%" }}>
+                  <Splitter.Panel defaultSize="60%" min="50%" max="60%">
+                    <SampleViewer
+                      selectedSamples={selectedSamples}
+                      coordinatesData={coordinatesData}
+                      cellTypesData={cellTypesData}
+                      setCellTypesData={setCellTypesData}
+                      selectedCellTypes={selectedCellTypes}
+                      setSelectedCellTypes={setSelectedCellTypes}
+                      cellTypeColors={cellTypeColors}
+                      setCellTypeColors={setCellTypeColors}
+                      setUmapDataSets={setUmapDataSets}
+                      umapLoading={umapLoading}
+                      setUmapLoading={setUmapLoading}
+                      hoveredCluster={hoveredCluster}
+                      cellName={cellName}
+                      setCellName={setCellName}
+                      onImagesLoaded={onImagesLoaded}
+                    />
+                  </Splitter.Panel>
+                  <Splitter.Panel defaultSize="40%" min="40%" max="50%">
+                    <Splitter lazy layout="vertical">
+                      <Splitter.Panel
+                        defaultSize="33%"
+                        min="20%"
+                        max="45%"
+                        style={{ borderBottom: "1px solid #e8e8e8" }}
+                      >
+                        <div style={{ height: "100%", overflow: "auto" }}>
+                          {selectedSamples.length > 0 || sampleDataLoading ? (
+                            <TrajectoryViewer sampleId={selectedSamples.length > 0 ? selectedSamples[0].id : null} />
+                          ) : (
+                            <div style={{
+                              display: "flex",
+                              justifyContent: "center",
+                              alignItems: "center",
+                              height: "100%",
+                              color: "#999"
+                            }}>
+                              Select a sample to view trajectory data
+                            </div>
+                          )}
+                        </div>
+                      </Splitter.Panel>
 
-                    <Splitter.Panel
-                      defaultSize="33%"
-                      min="20%"
-                      max="45%"
-                      style={{ borderBottom: "1px solid #e8e8e8" }}
-                    >
-                      <div
-                        style={{
-                          height: "100%",
-                          display: "flex",
-                          flexDirection: "column",
-                        }}
+                      <Splitter.Panel
+                        defaultSize="33%"
+                        min="20%"
+                        max="45%"
+                        style={{ borderBottom: "1px solid #e8e8e8" }}
                       >
                         <div
                           style={{
-                            flex: 1,
-                            display: "grid",
-                            gridTemplateColumns: "repeat(2, 1fr)",
-                            gridAutoRows: "1fr",
-                            gap: 5,
-                            maxHeight: "100%",
-                            overflow: umapDataSets.length <= 2 ? "hidden" : "auto",
+                            height: "100%",
+                            display: "flex",
+                            flexDirection: "column",
                           }}
                         >
-                          {umapDataSets.length === 0 ? (
-                            <Empty style={{ gridColumn: "1 / -1" }} description="No UMAP data available"  image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                          ) : (
-                            umapDataSets.map((dataset, index) => {
-                              // Calculate dimensions based on total count
-                              const totalCount = umapDataSets.length;
-                              let containerStyle = {
-                                border: "1px solid #e8e8e8",
-                                borderRadius: "4px",
-                                backgroundColor: "#fafafa",
-                                position: "relative",
-                                overflow: "hidden",
-                                height: "100%",
-                                minHeight: "200px",
-                              };
+                          <div
+                            style={{
+                              flex: 1,
+                              display: "grid",
+                              gridTemplateColumns: "repeat(2, 1fr)",
+                              gridAutoRows: "1fr",
+                              gap: 5,
+                              maxHeight: "100%",
+                              overflow: umapDataSets.length <= 2 ? "hidden" : "auto",
+                            }}
+                          >
+                            {umapDataSets.length === 0 ? (
+                              <Empty style={{ gridColumn: "1 / -1" }} description="No UMAP data available" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                            ) : (
+                              umapDataSets.map((dataset, index) => {
+                                // Calculate dimensions based on total count
+                                const totalCount = umapDataSets.length;
+                                let containerStyle = {
+                                  border: "1px solid #e8e8e8",
+                                  borderRadius: "4px",
+                                  backgroundColor: "#fafafa",
+                                  position: "relative",
+                                  overflow: "hidden",
+                                  height: "100%",
+                                  minHeight: "200px",
+                                };
 
-                              // Determine size based on count
-                              if (totalCount === 1) {
-                                containerStyle.gridColumn = "1 / -1";
-                              }
+                                // Determine size based on count
+                                if (totalCount === 1) {
+                                  containerStyle.gridColumn = "1 / -1";
+                                }
 
-                              return (
-                                <div key={dataset.id} style={containerStyle}>
-                                  {/* UMAP Component Close Button */}
-                                  <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<CloseOutlined />}
-                                    onClick={() =>
-                                      setUmapDataSets((prev) =>
-                                        prev.filter((d) => d.id !== dataset.id)
-                                      )
-                                    }
-                                    style={{
-                                      position: "absolute",
-                                      top: "2px",
-                                      right: "2px",
-                                      zIndex: 10,
-                                      color: "#999",
-                                      width: "20px",
-                                      height: "20px",
-                                      minWidth: "20px",
-                                      padding: 0,
-                                    }}
-                                  />
-                                  <UmapComponent
-                                    umapData={dataset.data}
-                                    umapLoading={dataset.loading}
-                                    title={dataset.title}
-                                    adata_umap_title={dataset.adata_umap_title}
-                                    hoveredCluster={hoveredCluster}
-                                    setHoveredCluster={setHoveredCluster}
-                                    umapId={dataset.id}
-                                    sampleId={dataset.sampleId}
-                                    setCellName={setCellName}
-                                    setPseudotimeDataSets={setPseudotimeDataSets}
-                                    setPseudotimeLoadingStates={setPseudotimeLoadingStates}
-                                    setClusterColorMappings={setClusterColorMappings}
-                                    hoveredTrajectory={hoveredTrajectory}
-                                    coordinatesData={coordinatesData}
-                                    cellTypesData={cellTypesData}
-                                    setCellTypesData={setCellTypesData}
-                                    selectedCellTypes={selectedCellTypes}
-                                    setSelectedCellTypes={setSelectedCellTypes}
-                                    cellTypeColors={cellTypeColors}
-                                    setCellTypeColors={setCellTypeColors}
-                                  />
-                                </div>
-                              );
-                            })
-                          )}
+                                return (
+                                  <div key={dataset.id} style={containerStyle}>
+                                    {/* UMAP Component Close Button */}
+                                    <Button
+                                      type="text"
+                                      size="small"
+                                      icon={<CloseOutlined />}
+                                      onClick={() =>
+                                        setUmapDataSets((prev) =>
+                                          prev.filter((d) => d.id !== dataset.id)
+                                        )
+                                      }
+                                      style={{
+                                        position: "absolute",
+                                        top: "2px",
+                                        right: "2px",
+                                        zIndex: 10,
+                                        color: "#999",
+                                        width: "20px",
+                                        height: "20px",
+                                        minWidth: "20px",
+                                        padding: 0,
+                                      }}
+                                    />
+                                    <UmapComponent
+                                      umapData={dataset.data}
+                                      umapLoading={dataset.loading}
+                                      title={dataset.title}
+                                      adata_umap_title={dataset.adata_umap_title}
+                                      hoveredCluster={hoveredCluster}
+                                      setHoveredCluster={setHoveredCluster}
+                                      umapId={dataset.id}
+                                      sampleId={dataset.sampleId}
+                                      setCellName={setCellName}
+                                      setPseudotimeDataSets={setPseudotimeDataSets}
+                                      setPseudotimeLoadingStates={setPseudotimeLoadingStates}
+                                      setClusterColorMappings={setClusterColorMappings}
+                                      hoveredTrajectory={hoveredTrajectory}
+                                      coordinatesData={coordinatesData}
+                                      cellTypesData={cellTypesData}
+                                      setCellTypesData={setCellTypesData}
+                                      selectedCellTypes={selectedCellTypes}
+                                      setSelectedCellTypes={setSelectedCellTypes}
+                                      cellTypeColors={cellTypeColors}
+                                      setCellTypeColors={setCellTypeColors}
+                                    />
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </Splitter.Panel>
-                    <Splitter.Panel defaultSize="33%" min="20%" max="45%">
-                          <PseudotimeGlyphComponent
-                            umapDataSets={umapDataSets}
-                            adata_umap_title={umapDataSets.length > 0 ? umapDataSets[0].adata_umap_title : null}
-                            relatedSampleIds={umapDataSets.length > 0 ? [...new Set(umapDataSets.map(d => d.sampleId))] : []}
-                            pseudotimeDataSets={pseudotimeDataSets}
-                            pseudotimeLoadingStates={pseudotimeLoadingStates}
-                            clusterColorMappings={clusterColorMappings}
-                            hoveredTrajectory={hoveredTrajectory}
-                            setHoveredTrajectory={setHoveredTrajectory}
-                          />
-                    </Splitter.Panel>
-                  </Splitter>
-                </Splitter.Panel>
-              </Splitter>
+                      </Splitter.Panel>
+                      <Splitter.Panel defaultSize="33%" min="20%" max="45%">
+                        <PseudotimeGlyphComponent
+                          umapDataSets={umapDataSets}
+                          adata_umap_title={umapDataSets.length > 0 ? umapDataSets[0].adata_umap_title : null}
+                          relatedSampleIds={umapDataSets.length > 0 ? [...new Set(umapDataSets.map(d => d.sampleId))] : []}
+                          pseudotimeDataSets={pseudotimeDataSets}
+                          pseudotimeLoadingStates={pseudotimeLoadingStates}
+                          clusterColorMappings={clusterColorMappings}
+                          hoveredTrajectory={hoveredTrajectory}
+                          setHoveredTrajectory={setHoveredTrajectory}
+                        />
+                      </Splitter.Panel>
+                    </Splitter>
+                  </Splitter.Panel>
+                </Splitter>
               </>
             ) : (
               <div

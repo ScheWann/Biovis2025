@@ -1,15 +1,15 @@
 import { ScatterplotUmap } from "./ScatterPlotUmap";
 import { Spin } from "antd";
 
-export const UmapComponent = ({ 
-  umapData, 
-  umapLoading, 
-  title, 
-  adata_umap_title, 
-  hoveredCluster, 
-  setHoveredCluster, 
-  umapId, 
-  sampleId, 
+export const UmapComponent = ({
+  umapData,
+  umapLoading,
+  title,
+  adata_umap_title,
+  hoveredCluster,
+  setHoveredCluster,
+  umapId,
+  sampleId,
   setCellName,
   setPseudotimeDataSets,
   setPseudotimeLoadingStates,
@@ -36,7 +36,7 @@ export const UmapComponent = ({
           height: '100%',
           padding: 5
         }}>
-          <Spin size="large"/>
+          <Spin size="large" />
           <div style={{ fontSize: '12px', color: '#999' }}>
             Generating {title}...
           </div>

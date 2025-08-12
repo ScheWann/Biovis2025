@@ -29,13 +29,13 @@ export const GOAnalysisWindow = ({
     const confirmCellName = () => {
         if (inputCellName.trim() && cellIds.length > 0) {
             const newCellTypeName = inputCellName.trim();
-            
+
             // Create object mapping each cellId to the inputCellName
             const newCellNames = {};
             cellIds.forEach(cellId => {
                 newCellNames[cellId] = newCellTypeName;
             });
-            
+
             // Update setCellName with the new mappings
             setCellName(prevCellNames => ({
                 ...prevCellNames,
@@ -46,10 +46,10 @@ export const GOAnalysisWindow = ({
             setCellTypesData(prevCellTypesData => {
                 // Find which original cell types these cells belonged to
                 const originalCellTypes = {};
-                
+
                 // Get all cell data across samples to find original cell types
                 const allCells = Object.values(coordinatesData || {}).flat();
-                
+
                 cellIds.forEach(cellId => {
                     const cell = allCells.find(c => c.id === cellId);
                     if (cell && cell.cell_type) {
@@ -59,7 +59,7 @@ export const GOAnalysisWindow = ({
 
                 // Create new cell types array with updated counts
                 let updatedCellTypes = [...prevCellTypesData];
-                
+
                 // Reduce counts for original cell types
                 Object.entries(originalCellTypes).forEach(([cellType, count]) => {
                     const cellTypeIndex = updatedCellTypes.findIndex(ct => ct.name === cellType);
@@ -111,7 +111,7 @@ export const GOAnalysisWindow = ({
                 if (!prevColors[newCellTypeName]) {
                     // Default color palette for new cell types
                     const defaultColors = [
-                        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+                        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
                         '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
                         '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
                         '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
@@ -309,11 +309,11 @@ export const GOAnalysisWindow = ({
             {/* Content */}
             <div style={{ padding: "16px" }}>
                 {/* Input and Button Row */}
-                <div style={{ 
-                    display: "flex", 
-                    gap: "8px", 
-                    marginBottom: "9px", 
-                    alignItems: "center" 
+                <div style={{
+                    display: "flex",
+                    gap: "8px",
+                    marginBottom: "9px",
+                    alignItems: "center"
                 }}>
                     <Input
                         size="small"
@@ -323,9 +323,9 @@ export const GOAnalysisWindow = ({
                         onPressEnter={confirmCellName}
                         style={{ flex: 1 }}
                     />
-                    <Button 
+                    <Button
                         size="small"
-                        type="primary" 
+                        type="primary"
                         onClick={confirmCellName}
                         disabled={!inputCellName.trim()}
                     >
@@ -359,7 +359,7 @@ export const GOAnalysisWindow = ({
                     ) : data && data.length > 0 ? (
                         <svg ref={svgRef}></svg>
                     ) : (
-                        <Empty 
+                        <Empty
                             description="No GO analysis data available"
                             image={Empty.PRESENTED_IMAGE_SIMPLE}
                         />
