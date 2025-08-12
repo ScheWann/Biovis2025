@@ -1105,11 +1105,11 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
             }
             print(f"Stored trajectory data in cache with key: {cache_key}")
             
-            # Add cluster order to each trajectory object
-            for trajectory_obj in trajectory_objects:
-                trajectory_obj['cluster_order'] = cluster_order
-            
-            return trajectory_objects
+            # Return object with cluster_order and trajectory_objects
+            return {
+                'cluster_order': cluster_order,
+                'trajectory_objects': trajectory_objects
+            }
             
         except Exception as e:
             print(f"Slingshot analysis failed: {e}")
@@ -1156,10 +1156,11 @@ def _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title, sample_id
     }
     print(f"Stored fallback trajectory data in cache with key: {cache_key}")
     
-    # Add cluster order to trajectory object
-    trajectory_obj['cluster_order'] = cluster_order
-    
-    return [trajectory_obj]
+    # Return object with cluster_order and trajectory_objects
+    return {
+        'cluster_order': cluster_order,
+        'trajectory_objects': [trajectory_obj]
+    }
 
 
 def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, trajectory_path):
