@@ -125,36 +125,27 @@ export const PseudotimeGlyphComponent = ({
         setSelectedGlyphs(newSelected);
     };
 
-    // Convert pseudotimeDataSets object to merged trajectory data
-    const mergedPseudotimeData = [];
-    let allPseudotimeData = [];
+    // Convert pseudotimeDataSets object to separate trajectory data for each UMAP
+    const allPseudotimeData = [];
 
     try {
-        // Find the first valid dataset to use as the main source
-        let mainSourceTitle = null;
-        let mainDisplayTitle = null;
-
-        // Collect all trajectories from all datasets
+        // Process each UMAP dataset separately to create individual glyphs
         Object.entries(pseudotimeDataSets).forEach(([title, dataArray]) => {
             if (Array.isArray(dataArray) && dataArray.length > 0) {
-                if (!mainSourceTitle) {
-                    mainSourceTitle = title;
+                // Find the corresponding UMAP dataset for display title
+                let displayTitle = title;
+                if (umapDataSets && Array.isArray(umapDataSets)) {
+                    const matchingUmapDataset = umapDataSets.find(dataset =>
+                        dataset.adata_umap_title === title || dataset.title === title
+                    );
 
-                    // Find the corresponding UMAP dataset title
-                    mainDisplayTitle = title;
-                    if (umapDataSets && Array.isArray(umapDataSets)) {
-                        const matchingUmapDataset = umapDataSets.find(dataset =>
-                            dataset.adata_umap_title === title || dataset.title === title
-                        );
-
-                        if (matchingUmapDataset) {
-                            mainDisplayTitle = matchingUmapDataset.title;
-                        }
+                    if (matchingUmapDataset) {
+                        displayTitle = matchingUmapDataset.title;
                     }
                 }
 
-                // Add all trajectories from this dataset to the merged data
-                dataArray.forEach((trajectoryData) => {
+                // Process trajectories for this specific UMAP dataset
+                const processedTrajectories = dataArray.map((trajectoryData) => {
                     // Ensure sampleId is set - try multiple fallback strategies
                     let sampleId = trajectoryData.sampleId;
 
@@ -175,10 +166,19 @@ export const PseudotimeGlyphComponent = ({
                         }
                     }
 
-                    mergedPseudotimeData.push({
+                    return {
                         ...trajectoryData,
                         sampleId: sampleId
-                    });
+                    };
+                });
+
+                // Create a separate glyph entry for this UMAP dataset
+                allPseudotimeData.push({
+                    mergedTrajectories: processedTrajectories,
+                    source_title: title,
+                    display_title: displayTitle,
+                    isLoading: false,
+                    isPlaceholder: false
                 });
             }
         });
@@ -186,17 +186,28 @@ export const PseudotimeGlyphComponent = ({
         // Check if there's any loading happening
         const isLoading = Object.values(pseudotimeLoadingStates).some(loading => loading);
 
-        // Create a single merged dataset entry if we have data
-        if (mergedPseudotimeData.length > 0) {
-            allPseudotimeData.push({
-                mergedTrajectories: mergedPseudotimeData,
-                source_title: mainSourceTitle,
-                display_title: mainDisplayTitle || adata_umap_title,
-                isLoading: false,
-                isPlaceholder: false
+        // Add loading placeholders for UMAP datasets that are currently loading
+        if (umapDataSets && Array.isArray(umapDataSets)) {
+            umapDataSets.forEach((umapDataset) => {
+                const isThisDatasetLoading = pseudotimeLoadingStates[umapDataset.adata_umap_title];
+                const hasDataForThisDataset = allPseudotimeData.some(data => 
+                    data.source_title === umapDataset.adata_umap_title
+                );
+                
+                // If this dataset is loading and we don't have data for it yet, add a loading placeholder
+                if (isThisDatasetLoading && !hasDataForThisDataset) {
+                    allPseudotimeData.push({
+                        source_title: umapDataset.adata_umap_title,
+                        display_title: umapDataset.title || umapDataset.adata_umap_title,
+                        isLoading: true,
+                        isPlaceholder: true
+                    });
+                }
             });
-        } else if (isLoading) {
-            // Show loading placeholder if data is still loading
+        }
+
+        // If no data at all but loading, show generic loading placeholder
+        if (allPseudotimeData.length === 0 && isLoading) {
             allPseudotimeData.push({
                 source_title: 'Loading',
                 display_title: 'Loading trajectories...',
@@ -249,7 +260,7 @@ export const PseudotimeGlyphComponent = ({
                         analysisRequests.push({
                             sample_id: sampleId,
                             genes: geneNames,
-                            adata_umap_title: adata_umap_title,
+                            adata_umap_title: trajectoryData.source_title, // Use the source_title of the UMAP dataset
                             trajectory_id: `${trajectoryId}_${trajIndex}`,
                             trajectory_path: singleTrajectory.path
                         });
@@ -402,32 +413,53 @@ export const PseudotimeGlyphComponent = ({
                     width: '100%',
                     height: `calc(100% - 30px)`,
                     marginTop: '35px',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center'
+                    display: 'grid',
+                    gridTemplateColumns: allPseudotimeData.length === 1 ? '1fr' : 
+                                       allPseudotimeData.length === 2 ? 'repeat(2, 1fr)' : 
+                                       'repeat(3, 1fr)',
+                    gridAutoRows: '1fr',
+                    gap: '10px',
+                    padding: '10px',
+                    overflow: 'hidden'
                 }}>
-                    {allPseudotimeData.map((trajectoryData, index) => (
-                        <div
-                            key={index}
-                            style={{
-                                width: '100%',
-                                height: '100%',
-                                textAlign: 'center'
-                            }}
-                        >
+                    {allPseudotimeData.map((trajectoryData, index) => {
+                        return (
+                            <div
+                                key={index}
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    textAlign: 'center',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '8px',
+                                    backgroundColor: '#f9f9f9',
+                                    position: 'relative',
+                                    overflow: 'hidden'
+                                }}
+                            >
                             {trajectoryData.isPlaceholder ? (
                                 <div style={{
                                     width: '100%',
                                     height: '100%',
                                     display: 'flex',
+                                    flexDirection: 'column',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     border: '2px dashed #ccc',
                                     borderRadius: '8px',
                                     color: '#666',
-                                    fontSize: '12px'
+                                    fontSize: '12px',
+                                    backgroundColor: '#fafafa'
                                 }}>
-                                    Loading {trajectoryData.source_title}...
+                                    <Spin size="large" style={{ marginBottom: '10px' }} />
+                                    <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                                            Generating Pseudotime
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: '#999' }}>
+                                            {trajectoryData.display_title}
+                                        </div>
+                                    </div>
                                 </div>
                             ) : (
                                 (() => {
@@ -508,7 +540,8 @@ export const PseudotimeGlyphComponent = ({
                                 })()
                             )}
                         </div>
-                    ))}
+                    );
+                    })}
                 </div>
             </div>
         );

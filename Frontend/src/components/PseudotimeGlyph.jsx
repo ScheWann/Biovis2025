@@ -967,8 +967,6 @@ export const PseudotimeGlyph = ({
                         width: '100%',
                         height: '100%',
                         display: 'block',
-                        border: '1px solid #ddd',
-                        borderRadius: '5px',
                         backgroundColor: '#f9f9f9'
                     }}
                     preserveAspectRatio="xMidYMid meet"
