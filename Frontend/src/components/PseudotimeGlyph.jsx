@@ -961,7 +961,7 @@ export const PseudotimeGlyph = ({
     };
 
     return (
-        <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }}>
+        <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative", boxSizing: 'border-box' }}>
             {/* Checkbox in upper left corner */}
             <div style={{
                 position: 'absolute',

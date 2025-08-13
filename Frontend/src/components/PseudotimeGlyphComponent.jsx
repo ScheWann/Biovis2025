@@ -426,12 +426,13 @@ export const PseudotimeGlyphComponent = ({
                     width: '100%',
                     height: `calc(100% - 35px)`,
                     display: 'grid',
-                    gridTemplateColumns: allPseudotimeData.length === 1 ? '1fr' :
-                        allPseudotimeData.length === 2 ? 'repeat(2, 1fr)' :
-                            'repeat(3, 1fr)',
+                    gridTemplateColumns: allPseudotimeData.length === 1 ? 'minmax(0, 1fr)' :
+                        allPseudotimeData.length === 2 ? 'repeat(2, minmax(0, 1fr))' :
+                            'repeat(3, minmax(0, 1fr))',
                     gridAutoRows: '1fr',
-                    gap: '10px',
-                    overflow: 'hidden'
+                    gap: '5px',
+                    overflow: 'hidden',
+                    boxSizing: 'border-box'
                 }}>
                     {allPseudotimeData.map((trajectoryData, index) => {
                         return (
@@ -445,13 +446,14 @@ export const PseudotimeGlyphComponent = ({
                                     borderRadius: '8px',
                                     backgroundColor: '#f9f9f9',
                                     position: 'relative',
-                                    overflow: 'hidden'
+                                    overflow: 'hidden',
+                                    boxSizing: 'border-box'
                                 }}
                             >
                                 {trajectoryData.isPlaceholder ? (
                                     <div style={{
                                         width: '100%',
-                                        height: '99%',
+                                        height: '100%',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         alignItems: 'center',
@@ -460,7 +462,8 @@ export const PseudotimeGlyphComponent = ({
                                         borderRadius: '8px',
                                         color: '#666',
                                         fontSize: '12px',
-                                        backgroundColor: '#fafafa'
+                                        backgroundColor: '#fafafa',
+                                        boxSizing: 'border-box'
                                     }}>
                                         <Spin size="large" style={{ marginBottom: '10px' }} />
                                         <div style={{ textAlign: 'center' }}>
