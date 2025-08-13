@@ -63,8 +63,14 @@ export const PseudotimeGlyph = ({
 
     // Ensure selectedTrajectory is valid when pseudotimeData changes
     useEffect(() => {
-        if (pseudotimeData && pseudotimeData.length > 0) {
-            if (selectedTrajectory >= pseudotimeData.length) {
+        if (pseudotimeData) {
+            let trajectoryCount = 0;
+            
+            if (pseudotimeData.trajectory_objects && Array.isArray(pseudotimeData.trajectory_objects)) {
+                trajectoryCount = pseudotimeData.trajectory_objects.length;
+            }
+            
+            if (trajectoryCount > 0 && selectedTrajectory >= trajectoryCount) {
                 setSelectedTrajectory(0); // Reset to first trajectory if current selection is out of bounds
             }
         }
@@ -145,7 +151,16 @@ export const PseudotimeGlyph = ({
     }, []);
 
     useEffect(() => {
-        if (pseudotimeData && pseudotimeData.length > 0 && dimensions.width > 0 && dimensions.height > 0) {
+        // Check if we have valid pseudotime data in either structure
+        let hasValidData = false;
+        
+        if (pseudotimeData) {
+            if (pseudotimeData.trajectory_objects && Array.isArray(pseudotimeData.trajectory_objects) && pseudotimeData.trajectory_objects.length > 0) {
+                hasValidData = true;
+            }
+        }
+        
+        if (hasValidData && dimensions.width > 0 && dimensions.height > 0) {
             createGlyph(pseudotimeData);
         }
     }, [pseudotimeData, dimensions, geneExpressionData, clusterColors, selectedTrajectory]);
@@ -194,7 +209,19 @@ export const PseudotimeGlyph = ({
         svg.selectAll("*").remove();
 
         // If no data, just clear the SVG and return
-        if (!pseudotimeData || pseudotimeData.length === 0) {
+        if (!pseudotimeData) {
+            return;
+        }
+        
+        // Check if we have valid data in either structure
+        let hasValidData = false;
+        if (pseudotimeData.trajectory_objects && Array.isArray(pseudotimeData.trajectory_objects) && pseudotimeData.trajectory_objects.length > 0) {
+            hasValidData = true;
+        } else if (Array.isArray(pseudotimeData) && pseudotimeData.length > 0) {
+            hasValidData = true;
+        }
+        
+        if (!hasValidData) {
             return;
         }
 
@@ -239,12 +266,30 @@ export const PseudotimeGlyph = ({
             .attr("opacity", 0.8);
 
         // Process trajectory data
-        const maxPseudotime = Math.max(...dataToUse.flatMap(traj =>
+        let trajectories, clusterOrder;
+        if (dataToUse.trajectory_objects && dataToUse.cluster_order) {
+            trajectories = dataToUse.trajectory_objects;
+            clusterOrder = dataToUse.cluster_order;
+        } else {
+            // Invalid structure
+            console.warn('Invalid pseudotime data structure:', dataToUse);
+            return;
+        }
+
+        const maxPseudotime = Math.max(...trajectories.flatMap(traj =>
             traj.pseudotimes.map(pt => parseFloat(pt))
         ));
 
         // Color scale for different cell states/clusters
-        const allClusters = [...new Set(dataToUse.flatMap(traj => traj.path))];
+        const allClusters = clusterOrder ? 
+            clusterOrder.map(cluster => cluster.toString()) : 
+            [...new Set(trajectories.flatMap(traj => traj.path))];
+
+        // Create structured data object for bottom section
+        const structuredData = {
+            trajectory_objects: trajectories,
+            cluster_order: clusterOrder
+        };
 
         // Use cluster colors from UMAP if available, otherwise use default colors
         let clusterColorScale;
@@ -290,7 +335,7 @@ export const PseudotimeGlyph = ({
             .text("t0");
 
         // Create bottom section - macroscopic cell trajectories
-        createBottomSection(g, dataToUse, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory);
+        createBottomSection(g, structuredData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory);
 
         // Create top section - gene expression gauge
         createTopSection(g, selectedGeneData, centerX, centerY, axisLength, maxPseudotime, tooltip, selectedTrajectory);
@@ -306,7 +351,7 @@ export const PseudotimeGlyph = ({
             .text(adata_umap_title);
     };
 
-    const createBottomSection = (g, trajectoryData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory) => {
+    const createBottomSection = (g, trajectoryDataStructure, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory) => {
         const bottomSection = g.append("g").attr("class", "bottom-section");
         const maxRadius = axisLength / 2 - 15;
 
@@ -325,14 +370,12 @@ export const PseudotimeGlyph = ({
             .attr("stroke", "none")
             .style("cursor", "pointer");
 
-        // Find all unique clusters across all trajectories
-        const allClusters = new Set();
-        trajectoryData.forEach(trajectory => {
-            trajectory.path.forEach(cluster => allClusters.add(parseInt(cluster)));
-        });
-
-        // Sort clusters for consistent ordering
-        const sortedClusters = Array.from(allClusters).sort((a, b) => a - b);
+        // Use cluster_order if available, otherwise find all unique clusters across all trajectories
+        let sortedClusters;
+        if (trajectoryDataStructure.cluster_order && Array.isArray(trajectoryDataStructure.cluster_order)) {
+            // Use the provided cluster_order for positioning
+            sortedClusters = trajectoryDataStructure.cluster_order.map(cluster => parseInt(cluster));
+        }
         const numLines = sortedClusters.length;
 
         // Create radial lines (avoiding horizontal lines)
@@ -407,7 +450,8 @@ export const PseudotimeGlyph = ({
         const trajectoryColors = d3.schemeCategory10;
 
         // Draw each trajectory
-        trajectoryData.forEach((trajectory, trajIndex) => {
+        const trajectories = trajectoryDataStructure.trajectory_objects || trajectoryDataStructure;
+        trajectories.forEach((trajectory, trajIndex) => {
             const { path, pseudotimes } = trajectory;
             const trajectoryColor = trajectoryColors[trajIndex % trajectoryColors.length];
 
@@ -944,7 +988,18 @@ export const PseudotimeGlyph = ({
                     <Spin size="large" />
                 </div>
             )}
-            {!pseudotimeLoading && (!pseudotimeData || pseudotimeData.length === 0) ? (
+            {!pseudotimeLoading && (() => {
+                // Check if we have valid data in either structure
+                if (!pseudotimeData) return true;
+                
+                if (pseudotimeData.trajectory_objects && Array.isArray(pseudotimeData.trajectory_objects)) {
+                    return pseudotimeData.trajectory_objects.length === 0;
+                } else if (Array.isArray(pseudotimeData)) {
+                    return pseudotimeData.length === 0;
+                }
+                
+                return true; // No valid data structure found
+            })() ? (
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',

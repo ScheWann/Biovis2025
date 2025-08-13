@@ -130,8 +130,19 @@ export const PseudotimeGlyphComponent = ({
 
     try {
         // Process each UMAP dataset separately to create individual glyphs
-        Object.entries(pseudotimeDataSets).forEach(([title, dataArray]) => {
-            if (Array.isArray(dataArray) && dataArray.length > 0) {
+        Object.entries(pseudotimeDataSets).forEach(([title, pseudotimeData]) => {
+            // Handle both new structure {cluster_order, trajectory_objects} and old array structure
+            let hasValidData = false;
+            let trajectoryObjects = [];
+            
+            if (pseudotimeData && typeof pseudotimeData === 'object') {
+                if (pseudotimeData.trajectory_objects && Array.isArray(pseudotimeData.trajectory_objects) && pseudotimeData.trajectory_objects.length > 0) {
+                    hasValidData = true;
+                    trajectoryObjects = pseudotimeData.trajectory_objects;
+                }
+            }
+            
+            if (hasValidData) {
                 // Find the corresponding UMAP dataset for display title
                 let displayTitle = title;
                 if (umapDataSets && Array.isArray(umapDataSets)) {
@@ -145,7 +156,7 @@ export const PseudotimeGlyphComponent = ({
                 }
 
                 // Process trajectories for this specific UMAP dataset
-                const processedTrajectories = dataArray.map((trajectoryData) => {
+                const processedTrajectories = trajectoryObjects.map((trajectoryData) => {
                     // Ensure sampleId is set - try multiple fallback strategies
                     let sampleId = trajectoryData.sampleId;
 
@@ -178,7 +189,8 @@ export const PseudotimeGlyphComponent = ({
                     source_title: title,
                     display_title: displayTitle,
                     isLoading: false,
-                    isPlaceholder: false
+                    isPlaceholder: false,
+                    fullPseudotimeData: pseudotimeData
                 });
             }
         });
@@ -507,7 +519,7 @@ export const PseudotimeGlyphComponent = ({
                                         return (
                                             <PseudotimeGlyph
                                                 adata_umap_title={trajectoryData.display_title}
-                                                pseudotimeData={trajectoryData.mergedTrajectories || [trajectoryData]}
+                                                pseudotimeData={trajectoryData.fullPseudotimeData || trajectoryData.mergedTrajectories || [trajectoryData]}
                                                 pseudotimeLoading={trajectoryData.isLoading}
                                                 isSelected={selectedGlyphs.has(index)}
                                                 onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
