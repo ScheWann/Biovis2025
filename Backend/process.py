@@ -741,9 +741,59 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
         sc.pp.log1p(adata)
         sc.pp.scale(adata, max_value=10)
 
+        # Add data quality checks
+        if adata.n_obs < 10:
+            raise ValueError(f"Sample {sample_id} has too few cells ({adata.n_obs}) for UMAP analysis")
+        
+        if adata.n_vars < 50:
+            raise ValueError(f"Sample {sample_id} has too few genes ({adata.n_vars}) for UMAP analysis")
+        
+        # Check for excessive sparsity
+        try:
+            if issparse(adata.X):
+                # Sparse matrix
+                sparsity = 1 - (adata.X.nnz / (adata.X.shape[0] * adata.X.shape[1]))
+            else:
+                # Dense numpy array
+                sparsity = 1 - (np.count_nonzero(adata.X) / (adata.X.shape[0] * adata.X.shape[1]))
+            
+            if sparsity > 0.99:
+                print(f"Warning: Sample {sample_id} has very sparse data (sparsity: {sparsity:.3f})")
+        except Exception as e:
+            print(f"Warning: Could not calculate sparsity for sample {sample_id}: {e}")
+
         sc.tl.pca(adata, use_highly_variable=True)
-        sc.pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcas)
-        sc.tl.umap(adata)
+        
+        # Adaptive parameter selection based on data size
+        n_cells = adata.n_obs
+        if n_cells < 100:
+            # For small datasets, use more conservative parameters
+            adaptive_n_neighbors = min(n_neighbors, 5)
+            adaptive_n_pcas = min(n_pcas, 10)
+        elif n_cells < 1000:
+            # For medium datasets
+            adaptive_n_neighbors = min(n_neighbors, 8)
+            adaptive_n_pcas = min(n_pcas, 20)
+        else:
+            # For large datasets, use original parameters
+            adaptive_n_neighbors = n_neighbors
+            adaptive_n_pcas = n_pcas
+            
+        sc.pp.neighbors(adata, n_neighbors=adaptive_n_neighbors, n_pcs=adaptive_n_pcas)
+        
+        # Add error handling for UMAP computation
+        try:
+            sc.tl.umap(adata)
+        except Exception as e:
+            error_msg = str(e)
+            if "reciprocal condition number" in error_msg:
+                print(f"Warning: UMAP condition number error for sample {sample_id}. Trying with adjusted parameters...")
+                # Try with even more conservative parameters
+                sc.pp.neighbors(adata, n_neighbors=min(adaptive_n_neighbors, 3), n_pcs=min(adaptive_n_pcas, 5))
+                sc.tl.umap(adata, min_dist=0.5, spread=1.0)
+            else:
+                raise e
+                
         adata.obsm[f'X_umap_{adata_umap_title}'] = adata.obsm['X_umap'].copy()
 
         sc.tl.leiden(adata, resolution=resolutions, key_added=f'leiden_{adata_umap_title}')
