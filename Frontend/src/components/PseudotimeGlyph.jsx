@@ -65,11 +65,11 @@ export const PseudotimeGlyph = ({
     useEffect(() => {
         if (pseudotimeData) {
             let trajectoryCount = 0;
-            
+
             if (pseudotimeData.trajectory_objects && Array.isArray(pseudotimeData.trajectory_objects)) {
                 trajectoryCount = pseudotimeData.trajectory_objects.length;
             }
-            
+
             if (trajectoryCount > 0 && selectedTrajectory >= trajectoryCount) {
                 setSelectedTrajectory(0); // Reset to first trajectory if current selection is out of bounds
             }
@@ -87,11 +87,11 @@ export const PseudotimeGlyph = ({
         if (!geneExpressionData || !Array.isArray(geneExpressionData)) {
             return null;
         }
-        
+
         // Find the gene expression data for the selected trajectory
         const selectedData = geneExpressionData.find(data => {
             const dataTrajectoryId = data.trajectory_id;
-            
+
             // Handle different trajectory ID formats
             if (typeof dataTrajectoryId === 'string') {
                 if (dataTrajectoryId.includes('_')) {
@@ -108,7 +108,7 @@ export const PseudotimeGlyph = ({
                 return dataTrajectoryId === selectedTrajectory;
             }
         });
-        
+
         if (selectedData) {
             return selectedData.gene_expression_data;
         } else {
@@ -153,13 +153,13 @@ export const PseudotimeGlyph = ({
     useEffect(() => {
         // Check if we have valid pseudotime data in either structure
         let hasValidData = false;
-        
+
         if (pseudotimeData) {
             if (pseudotimeData.trajectory_objects && Array.isArray(pseudotimeData.trajectory_objects) && pseudotimeData.trajectory_objects.length > 0) {
                 hasValidData = true;
             }
         }
-        
+
         if (hasValidData && dimensions.width > 0 && dimensions.height > 0) {
             createGlyph(pseudotimeData);
         }
@@ -212,7 +212,7 @@ export const PseudotimeGlyph = ({
         if (!pseudotimeData) {
             return;
         }
-        
+
         // Check if we have valid data in either structure
         let hasValidData = false;
         if (pseudotimeData.trajectory_objects && Array.isArray(pseudotimeData.trajectory_objects) && pseudotimeData.trajectory_objects.length > 0) {
@@ -220,7 +220,7 @@ export const PseudotimeGlyph = ({
         } else if (Array.isArray(pseudotimeData) && pseudotimeData.length > 0) {
             hasValidData = true;
         }
-        
+
         if (!hasValidData) {
             return;
         }
@@ -281,8 +281,8 @@ export const PseudotimeGlyph = ({
         ));
 
         // Color scale for different cell states/clusters
-        const allClusters = clusterOrder ? 
-            clusterOrder.map(cluster => cluster.toString()) : 
+        const allClusters = clusterOrder ?
+            clusterOrder.map(cluster => cluster.toString()) :
             [...new Set(trajectories.flatMap(traj => traj.path))];
 
         // Create structured data object for bottom section
@@ -510,10 +510,10 @@ export const PseudotimeGlyph = ({
                 const isSelected = trajIndex === selectedTrajectory;
                 const strokeWidth = isSelected ? 5 : 3;
                 const opacity = isSelected ? 1 : 0.8;
-                
+
                 // Apply grey color to non-selected trajectories
                 const finalColor = isSelected ? trajectoryColor : "#CCCCCC";
-                
+
                 bottomSection.append("path")
                     .datum(pathData)
                     .attr("d", line)
@@ -560,7 +560,7 @@ export const PseudotimeGlyph = ({
             trajectoryPoints.forEach((point, pointIndex) => {
                 const isEndpoint = pointIndex === trajectoryPoints.length - 1;
                 const isSelected = trajIndex === selectedTrajectory;
-                
+
                 // Use grey color for non-selected trajectories' nodes
                 const nodeColor = isSelected ? clusterColorScale(point.cluster) : "#CCCCCC";
                 const originalNodeColor = clusterColorScale(point.cluster);
@@ -568,7 +568,7 @@ export const PseudotimeGlyph = ({
                 if (isEndpoint) {
                     // Draw star for endpoints
                     const starElement = drawStar(bottomSection, point.x, point.y, 6, nodeColor, isSelected ? 0.9 : 0.6);
-                    
+
                     // Add hover effects for stars
                     if (!isSelected) {
                         starElement
@@ -577,7 +577,7 @@ export const PseudotimeGlyph = ({
                                 tooltip.style("visibility", "visible")
                                     .html(`<strong>Cluster ${point.cluster}</strong><br/>Pseudotime: ${point.pseudotime.toFixed(3)}<br/>Trajectory: ${trajIndex + 1}`);
                                 positionTooltip(event, tooltip);
-                                
+
                                 // Restore original color on hover
                                 d3.select(this)
                                     .attr("fill", originalNodeColor)
@@ -588,7 +588,7 @@ export const PseudotimeGlyph = ({
                             })
                             .on("mouseout", function () {
                                 tooltip.style("visibility", "hidden");
-                                
+
                                 // Restore grey color
                                 d3.select(this)
                                     .attr("fill", "#CCCCCC")
@@ -625,7 +625,7 @@ export const PseudotimeGlyph = ({
                             tooltip.style("visibility", "visible")
                                 .html(`<strong>Cluster ${point.cluster}</strong><br/>Pseudotime: ${point.pseudotime.toFixed(3)}<br/>Trajectory: ${trajIndex + 1}`);
                             positionTooltip(event, tooltip);
-                            
+
                             // Restore original color on hover for non-selected trajectories
                             if (!isSelected) {
                                 d3.select(this)
@@ -638,7 +638,7 @@ export const PseudotimeGlyph = ({
                         })
                         .on("mouseout", function () {
                             tooltip.style("visibility", "hidden");
-                            
+
                             // Restore grey color for non-selected trajectories
                             if (!isSelected) {
                                 d3.select(this)
@@ -991,13 +991,13 @@ export const PseudotimeGlyph = ({
             {!pseudotimeLoading && (() => {
                 // Check if we have valid data in either structure
                 if (!pseudotimeData) return true;
-                
+
                 if (pseudotimeData.trajectory_objects && Array.isArray(pseudotimeData.trajectory_objects)) {
                     return pseudotimeData.trajectory_objects.length === 0;
                 } else if (Array.isArray(pseudotimeData)) {
                     return pseudotimeData.length === 0;
                 }
-                
+
                 return true; // No valid data structure found
             })() ? (
                 <div style={{

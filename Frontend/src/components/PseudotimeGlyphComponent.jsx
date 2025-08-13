@@ -134,14 +134,14 @@ export const PseudotimeGlyphComponent = ({
             // Handle both new structure {cluster_order, trajectory_objects} and old array structure
             let hasValidData = false;
             let trajectoryObjects = [];
-            
+
             if (pseudotimeData && typeof pseudotimeData === 'object') {
                 if (pseudotimeData.trajectory_objects && Array.isArray(pseudotimeData.trajectory_objects) && pseudotimeData.trajectory_objects.length > 0) {
                     hasValidData = true;
                     trajectoryObjects = pseudotimeData.trajectory_objects;
                 }
             }
-            
+
             if (hasValidData) {
                 // Find the corresponding UMAP dataset for display title
                 let displayTitle = title;
@@ -202,10 +202,10 @@ export const PseudotimeGlyphComponent = ({
         if (umapDataSets && Array.isArray(umapDataSets)) {
             umapDataSets.forEach((umapDataset) => {
                 const isThisDatasetLoading = pseudotimeLoadingStates[umapDataset.adata_umap_title];
-                const hasDataForThisDataset = allPseudotimeData.some(data => 
+                const hasDataForThisDataset = allPseudotimeData.some(data =>
                     data.source_title === umapDataset.adata_umap_title
                 );
-                
+
                 // If this dataset is loading and we don't have data for it yet, add a loading placeholder
                 if (isThisDatasetLoading && !hasDataForThisDataset) {
                     allPseudotimeData.push({
@@ -426,9 +426,9 @@ export const PseudotimeGlyphComponent = ({
                     height: `calc(100% - 30px)`,
                     marginTop: '35px',
                     display: 'grid',
-                    gridTemplateColumns: allPseudotimeData.length === 1 ? '1fr' : 
-                                       allPseudotimeData.length === 2 ? 'repeat(2, 1fr)' : 
-                                       'repeat(3, 1fr)',
+                    gridTemplateColumns: allPseudotimeData.length === 1 ? '1fr' :
+                        allPseudotimeData.length === 2 ? 'repeat(2, 1fr)' :
+                            'repeat(3, 1fr)',
                     gridAutoRows: '1fr',
                     gap: '10px',
                     padding: '10px',
@@ -449,110 +449,110 @@ export const PseudotimeGlyphComponent = ({
                                     overflow: 'hidden'
                                 }}
                             >
-                            {trajectoryData.isPlaceholder ? (
-                                <div style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    border: '2px dashed #ccc',
-                                    borderRadius: '8px',
-                                    color: '#666',
-                                    fontSize: '12px',
-                                    backgroundColor: '#fafafa'
-                                }}>
-                                    <Spin size="large" style={{ marginBottom: '10px' }} />
-                                    <div style={{ textAlign: 'center' }}>
-                                        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-                                            Generating Pseudotime
-                                        </div>
-                                        <div style={{ fontSize: '11px', color: '#999' }}>
-                                            {trajectoryData.display_title}
+                                {trajectoryData.isPlaceholder ? (
+                                    <div style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        border: '2px dashed #ccc',
+                                        borderRadius: '8px',
+                                        color: '#666',
+                                        fontSize: '12px',
+                                        backgroundColor: '#fafafa'
+                                    }}>
+                                        <Spin size="large" style={{ marginBottom: '10px' }} />
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                                                Generating Pseudotime
+                                            </div>
+                                            <div style={{ fontSize: '11px', color: '#999' }}>
+                                                {trajectoryData.display_title}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ) : (
-                                (() => {
-                                    try {
-                                        // For merged trajectories, collect gene expression data from all related trajectories
-                                        let geneDataForGlyph = null;
+                                ) : (
+                                    (() => {
+                                        try {
+                                            // For merged trajectories, collect gene expression data from all related trajectories
+                                            let geneDataForGlyph = null;
 
-                                        if (trajectoryData.mergedTrajectories && trajectoryData.mergedTrajectories.length > 0) {
-                                            // Collect all gene expression data for trajectories that start with this glyph index
-                                            const relatedGeneData = geneExpressionData.filter(data =>
-                                                data.trajectory_id && data.trajectory_id.toString().startsWith(`${index}_`)
+                                            if (trajectoryData.mergedTrajectories && trajectoryData.mergedTrajectories.length > 0) {
+                                                // Collect all gene expression data for trajectories that start with this glyph index
+                                                const relatedGeneData = geneExpressionData.filter(data =>
+                                                    data.trajectory_id && data.trajectory_id.toString().startsWith(`${index}_`)
+                                                );
+
+                                                if (relatedGeneData.length > 0) {
+                                                    // Pass all related gene data so the glyph can select the appropriate one
+                                                    geneDataForGlyph = relatedGeneData;
+                                                }
+                                            } else {
+                                                // Single trajectory - find by exact match
+                                                const singleGeneData = geneExpressionData.find(data =>
+                                                    data.trajectory_id === index || data.trajectory_id === index.toString()
+                                                );
+                                                geneDataForGlyph = singleGeneData ? [singleGeneData] : null;
+                                            }
+
+                                            // Get cluster color mapping for this trajectory data
+                                            // Try different key formats to find the correct mapping
+                                            let clusterColors = null;
+                                            if (clusterColorMappings) {
+                                                // Try the source_title first
+                                                clusterColors = clusterColorMappings[trajectoryData.source_title]?.clusters;
+
+                                                // If not found, try the adata_umap_title
+                                                if (!clusterColors && adata_umap_title) {
+                                                    clusterColors = clusterColorMappings[adata_umap_title]?.clusters;
+                                                }
+
+                                                // If still not found, try with sample_id prefix
+                                                if (!clusterColors && trajectoryData.sampleId) {
+                                                    const keyWithSample = `${trajectoryData.sampleId}_${trajectoryData.source_title || adata_umap_title}`;
+                                                    clusterColors = clusterColorMappings[keyWithSample]?.clusters;
+                                                }
+                                            }
+
+                                            return (
+                                                <PseudotimeGlyph
+                                                    adata_umap_title={trajectoryData.display_title}
+                                                    pseudotimeData={trajectoryData.fullPseudotimeData || trajectoryData.mergedTrajectories || [trajectoryData]}
+                                                    pseudotimeLoading={trajectoryData.isLoading}
+                                                    isSelected={selectedGlyphs.has(index)}
+                                                    onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
+                                                    geneExpressionData={geneDataForGlyph}
+                                                    clusterColors={clusterColors}
+                                                    hoveredTrajectory={hoveredTrajectory}
+                                                    setHoveredTrajectory={setHoveredTrajectory}
+                                                    trajectoryIndex={index}
+                                                    source_title={trajectoryData.source_title || adata_umap_title}
+                                                />
                                             );
-
-                                            if (relatedGeneData.length > 0) {
-                                                // Pass all related gene data so the glyph can select the appropriate one
-                                                geneDataForGlyph = relatedGeneData;
-                                            }
-                                        } else {
-                                            // Single trajectory - find by exact match
-                                            const singleGeneData = geneExpressionData.find(data =>
-                                                data.trajectory_id === index || data.trajectory_id === index.toString()
+                                        } catch (error) {
+                                            console.error(`Error rendering glyph ${index}:`, error);
+                                            return (
+                                                <div style={{
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    border: '2px solid #ff4d4f',
+                                                    borderRadius: '8px',
+                                                    color: '#ff4d4f',
+                                                    fontSize: '12px'
+                                                }}>
+                                                    Error rendering glyph
+                                                </div>
                                             );
-                                            geneDataForGlyph = singleGeneData ? [singleGeneData] : null;
                                         }
-
-                                        // Get cluster color mapping for this trajectory data
-                                        // Try different key formats to find the correct mapping
-                                        let clusterColors = null;
-                                        if (clusterColorMappings) {
-                                            // Try the source_title first
-                                            clusterColors = clusterColorMappings[trajectoryData.source_title]?.clusters;
-
-                                            // If not found, try the adata_umap_title
-                                            if (!clusterColors && adata_umap_title) {
-                                                clusterColors = clusterColorMappings[adata_umap_title]?.clusters;
-                                            }
-
-                                            // If still not found, try with sample_id prefix
-                                            if (!clusterColors && trajectoryData.sampleId) {
-                                                const keyWithSample = `${trajectoryData.sampleId}_${trajectoryData.source_title || adata_umap_title}`;
-                                                clusterColors = clusterColorMappings[keyWithSample]?.clusters;
-                                            }
-                                        }
-
-                                        return (
-                                            <PseudotimeGlyph
-                                                adata_umap_title={trajectoryData.display_title}
-                                                pseudotimeData={trajectoryData.fullPseudotimeData || trajectoryData.mergedTrajectories || [trajectoryData]}
-                                                pseudotimeLoading={trajectoryData.isLoading}
-                                                isSelected={selectedGlyphs.has(index)}
-                                                onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
-                                                geneExpressionData={geneDataForGlyph}
-                                                clusterColors={clusterColors}
-                                                hoveredTrajectory={hoveredTrajectory}
-                                                setHoveredTrajectory={setHoveredTrajectory}
-                                                trajectoryIndex={index}
-                                                source_title={trajectoryData.source_title || adata_umap_title}
-                                            />
-                                        );
-                                    } catch (error) {
-                                        console.error(`Error rendering glyph ${index}:`, error);
-                                        return (
-                                            <div style={{
-                                                width: '100%',
-                                                height: '100%',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                border: '2px solid #ff4d4f',
-                                                borderRadius: '8px',
-                                                color: '#ff4d4f',
-                                                fontSize: '12px'
-                                            }}>
-                                                Error rendering glyph
-                                            </div>
-                                        );
-                                    }
-                                })()
-                            )}
-                        </div>
-                    );
+                                    })()
+                                )}
+                            </div>
+                        );
                     })}
                 </div>
             </div>

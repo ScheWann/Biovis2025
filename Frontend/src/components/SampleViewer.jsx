@@ -1405,17 +1405,21 @@ export const SampleViewer = ({
         return result;
     }, [selectedSamples, radioCellGeneModes, selectedGenes, geneColorMap, kosaraDataBySample, sampleOffsets, generateKosaraPath]);
 
-    // Removed previous auto-hide logic; spinner now tied strictly to fetch lifecycle tracked in kosaraLoadingSamples.
+    // Precompute hovered ID sets per sample for efficient matching
+    const hoveredIdsSetBySample = useMemo(() => {
+        if (!hoveredCluster || !hoveredCluster.sampleId || !Array.isArray(hoveredCluster.cellIds)) return {};
+        return { [hoveredCluster.sampleId]: new Set(hoveredCluster.cellIds.map(String)) };
+    }, [hoveredCluster]);
 
     const generateCellLayers = useCallback(() => {
         return selectedSamples.flatMap(sample => {
             const sampleId = sample.id;
             const mode = radioCellGeneModes[sampleId];
 
-            // If in gene mode and kosara data available, draw kosara polygons
+            // If in gene mode and kosara data available, draw kosara polygons + optional highlight overlay
             if (mode === 'genes' && kosaraPolygonsBySample[sampleId]?.length > 0) {
                 const optimizedPathData = kosaraPolygonsBySample[sampleId];
-                return [new PolygonLayer({
+                const layers = [new PolygonLayer({
                     id: `kosara-polygons-${sampleId}`,
                     data: optimizedPathData,
                     getPolygon: d => d.points,
@@ -1442,6 +1446,35 @@ export const SampleViewer = ({
                         getFillColor: 0
                     }
                 })];
+
+                // Add a highlight overlay for hovered cells to ensure cross-highlighting works in gene mode
+                const hoveredSet = hoveredIdsSetBySample[sampleId] || null;
+                if (hoveredSet) {
+                    const highlightData = (filteredCellData[sampleId] || []).filter(d => hoveredSet.has(String(d.id ?? d.cell_id)));
+                    const baseRadius = 5;
+                    const zoomFactor = mainViewState ? Math.pow(2, mainViewState.zoom * 0.8) : 1;
+                    const dynamicRadius = baseRadius * zoomFactor;
+
+                    layers.push(new ScatterplotLayer({
+                        id: `cells-highlight-${sampleId}`,
+                        data: highlightData,
+                        getPosition: d => [d.x, d.y],
+                        getRadius: dynamicRadius * 1.6,
+                        getFillColor: [255, 215, 0, 220],
+                        getLineColor: [255, 140, 0, 255],
+                        getLineWidth: 2,
+                        lineWidthUnits: 'pixels',
+                        radiusUnits: 'pixels',
+                        pickable: false,
+                        stroked: false,
+                        updateTriggers: {
+                            getRadius: [sampleId, mainViewState?.zoom, hoveredCluster],
+                        },
+                        parameters: { depthTest: false }
+                    }));
+                }
+
+                return layers;
             }
 
             // Otherwise, default cell scatter for cell type highlighting
@@ -1451,12 +1484,16 @@ export const SampleViewer = ({
             const zoomFactor = mainViewState ? Math.pow(2, mainViewState.zoom * 0.8) : 1;
             const dynamicRadius = baseRadius * zoomFactor;
 
+            const hoveredSet = hoveredIdsSetBySample[sampleId] || null;
+
             return [new ScatterplotLayer({
                 id: `cells-${sampleId}`,
                 data: cellData,
                 getPosition: d => [d.x, d.y],
                 getRadius: d => {
-                    if (hoveredCluster && hoveredCluster.sampleId === sampleId && hoveredCluster.cellIds.includes(d.id)) {
+                    const localId = d.id ?? d.cell_id;
+                    const isHoveredSample = !!hoveredSet;
+                    if (isHoveredSample && hoveredSet.has(String(localId))) {
                         return dynamicRadius * 1.5;
                     }
                     return dynamicRadius;
@@ -1471,25 +1508,28 @@ export const SampleViewer = ({
                             return [...rgb, 200];
                         }
                     }
-                    if (hoveredCluster && hoveredCluster.sampleId === sampleId && hoveredCluster.cellIds.includes(d.id)) {
+                    const localId = d.id ?? d.cell_id;
+                    if (hoveredSet && hoveredSet.has(String(localId))) {
                         return [255, 215, 0, 200];
                     }
-                    if (hoveredCluster && hoveredCluster.sampleId === sampleId) {
+                    if (hoveredSet) {
                         return [150, 150, 150, 50];
                     }
                     return [0, 0, 0, 0];
                 },
                 getLineColor: d => {
-                    if (hoveredCluster && hoveredCluster.sampleId === sampleId && hoveredCluster.cellIds.includes(d.id)) {
+                    const localId = d.id ?? d.cell_id;
+                    if (hoveredSet && hoveredSet.has(String(localId))) {
                         return [255, 140, 0, 255];
                     }
-                    if (hoveredCluster && hoveredCluster.sampleId === sampleId) {
+                    if (hoveredSet) {
                         return [150, 150, 150, 100];
                     }
                     return [150, 150, 150, 255];
                 },
                 getLineWidth: d => {
-                    if (hoveredCluster && hoveredCluster.sampleId === sampleId && hoveredCluster.cellIds.includes(d.id)) {
+                    const localId = d.id ?? d.cell_id;
+                    if (hoveredSet && hoveredSet.has(String(localId))) {
                         return 2;
                     }
                     return 1;
@@ -1498,11 +1538,11 @@ export const SampleViewer = ({
                 pickable: true,
                 radiusUnits: 'pixels',
                 stroked: false,
-                filled: (hoveredCluster && hoveredCluster.sampleId === sampleId) || (selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
+                filled: (!!hoveredSet) || (selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
                 updateTriggers: {
                     getFillColor: [hoveredCluster, selectedCellTypes[sampleId], cellTypeColors, sampleId],
                     getLineColor: [hoveredCluster, sampleId],
-                    getRadius: [sampleId, mainViewState?.zoom],
+                    getRadius: [sampleId, mainViewState?.zoom, hoveredCluster],
                     getLineWidth: [hoveredCluster, sampleId],
                 },
                 transitions: {
@@ -1511,7 +1551,7 @@ export const SampleViewer = ({
                 }
             })];
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, hoveredCluster, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, mainViewState]);
+    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, mainViewState]);
 
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {
