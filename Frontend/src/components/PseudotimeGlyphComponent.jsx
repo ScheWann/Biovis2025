@@ -363,6 +363,17 @@ export const PseudotimeGlyphComponent = ({
         return (
             <div style={{ textAlign: 'center', marginTop: '15%' }}>
                 <Spin size="large" />
+                <div style={{ textAlign: 'center', marginTop: '8px', color: '#666', fontSize: '12px' }}>
+                    {(() => {
+                        const loadingNames = (umapDataSets || [])
+                            .filter(ds => pseudotimeLoadingStates?.[ds.adata_umap_title])
+                            .map(ds => ds.title || ds.adata_umap_title);
+
+                        if (loadingNames.length === 0) return 'Generating pseudotime...';
+                        if (loadingNames.length === 1) return `Generating ${loadingNames[0]}...`;
+                        return `Generating ${loadingNames.join(', ')}...`;
+                    })()}
+                </div>
             </div>
         );
     }
@@ -376,208 +387,185 @@ export const PseudotimeGlyphComponent = ({
         );
     }
 
-    // Wrap the entire render in error handling to prevent white screen
-    try {
-        return (
+    return (
+        <div style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center'
+        }}>
+            {/* Gene Selection Dropdown and Confirmation Button */}
             <div style={{
-                width: '100%',
-                height: '100%',
+                top: '5px',
+                right: '10px',
+                zIndex: 1000,
                 display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center'
+                gap: '8px',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                padding: '5px'
             }}>
-                {/* Gene Selection Dropdown and Confirmation Button */}
-                <div style={{
-                    top: '5px',
-                    right: '10px',
-                    zIndex: 1000,
-                    display: 'flex',
-                    gap: '8px',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    padding: '5px'
-                }}>
-                    <Select
-                        placeholder="Select genes"
-                        value={selectedGenes}
-                        onChange={setSelectedGenes}
-                        style={{ width: '200px' }}
-                        size="small"
-                        options={selectOptions}
-                        mode="multiple"
-                        showSearch
-                        filterOption={(input, option) =>
-                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                        }
-                        maxTagCount="responsive"
-                    />
-                    <Button
-                        onClick={handleAnalyzeGeneExpression}
-                        disabled={selectedGlyphs.size === 0 || selectedGenes.length === 0 || isAnalyzing}
-                        loading={isAnalyzing}
-                        type="primary"
-                        size="small"
-                    >
-                        Analyze
-                    </Button>
-                </div>
-
-                <div style={{
-                    width: '100%',
-                    height: `calc(100% - 35px)`,
-                    display: 'grid',
-                    gridTemplateColumns: allPseudotimeData.length === 1 ? 'minmax(0, 1fr)' :
-                        allPseudotimeData.length === 2 ? 'repeat(2, minmax(0, 1fr))' :
-                            'repeat(3, minmax(0, 1fr))',
-                    gridAutoRows: '1fr',
-                    gap: '5px',
-                    overflow: 'hidden',
-                    boxSizing: 'border-box'
-                }}>
-                    {allPseudotimeData.map((trajectoryData, index) => {
-                        return (
-                            <div
-                                key={index}
-                                style={{
-                                    width: '100%',
-                                    height: '99%',
-                                    textAlign: 'center',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '8px',
-                                    backgroundColor: '#f9f9f9',
-                                    position: 'relative',
-                                    overflow: 'hidden',
-                                    boxSizing: 'border-box'
-                                }}
-                            >
-                                {trajectoryData.isPlaceholder ? (
-                                    <div style={{
-                                        width: '100%',
-                                        height: '100%',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        border: '2px dashed #ccc',
-                                        borderRadius: '8px',
-                                        color: '#666',
-                                        fontSize: '12px',
-                                        backgroundColor: '#fafafa',
-                                        boxSizing: 'border-box'
-                                    }}>
-                                        <Spin size="large" style={{ marginBottom: '10px' }} />
-                                        <div style={{ textAlign: 'center' }}>
-                                            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-                                                Generating Pseudotime
-                                            </div>
-                                            <div style={{ fontSize: '11px', color: '#999' }}>
-                                                {trajectoryData.display_title}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    (() => {
-                                        try {
-                                            // For merged trajectories, collect gene expression data from all related trajectories
-                                            let geneDataForGlyph = null;
-
-                                            if (trajectoryData.mergedTrajectories && trajectoryData.mergedTrajectories.length > 0) {
-                                                // Collect all gene expression data for trajectories that start with this glyph index
-                                                const relatedGeneData = geneExpressionData.filter(data =>
-                                                    data.trajectory_id && data.trajectory_id.toString().startsWith(`${index}_`)
-                                                );
-
-                                                if (relatedGeneData.length > 0) {
-                                                    // Pass all related gene data so the glyph can select the appropriate one
-                                                    geneDataForGlyph = relatedGeneData;
-                                                }
-                                            } else {
-                                                // Single trajectory - find by exact match
-                                                const singleGeneData = geneExpressionData.find(data =>
-                                                    data.trajectory_id === index || data.trajectory_id === index.toString()
-                                                );
-                                                geneDataForGlyph = singleGeneData ? [singleGeneData] : null;
-                                            }
-
-                                            // Get cluster color mapping for this trajectory data
-                                            // Try different key formats to find the correct mapping
-                                            let clusterColors = null;
-                                            if (clusterColorMappings) {
-                                                // Try the source_title first
-                                                clusterColors = clusterColorMappings[trajectoryData.source_title]?.clusters;
-
-                                                // If not found, try the adata_umap_title
-                                                if (!clusterColors && adata_umap_title) {
-                                                    clusterColors = clusterColorMappings[adata_umap_title]?.clusters;
-                                                }
-
-                                                // If still not found, try with sample_id prefix
-                                                if (!clusterColors && trajectoryData.sampleId) {
-                                                    const keyWithSample = `${trajectoryData.sampleId}_${trajectoryData.source_title || adata_umap_title}`;
-                                                    clusterColors = clusterColorMappings[keyWithSample]?.clusters;
-                                                }
-                                            }
-
-                                            return (
-                                                <PseudotimeGlyph
-                                                    adata_umap_title={trajectoryData.display_title}
-                                                    pseudotimeData={trajectoryData.fullPseudotimeData || trajectoryData.mergedTrajectories || [trajectoryData]}
-                                                    pseudotimeLoading={trajectoryData.isLoading}
-                                                    isSelected={selectedGlyphs.has(index)}
-                                                    onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
-                                                    geneExpressionData={geneDataForGlyph}
-                                                    clusterColors={clusterColors}
-                                                    hoveredTrajectory={hoveredTrajectory}
-                                                    setHoveredTrajectory={setHoveredTrajectory}
-                                                    trajectoryIndex={index}
-                                                    source_title={trajectoryData.source_title || adata_umap_title}
-                                                />
-                                            );
-                                        } catch (error) {
-                                            console.error(`Error rendering glyph ${index}:`, error);
-                                            return (
-                                                <div style={{
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    border: '2px solid #ff4d4f',
-                                                    borderRadius: '8px',
-                                                    color: '#ff4d4f',
-                                                    fontSize: '12px'
-                                                }}>
-                                                    Error rendering glyph
-                                                </div>
-                                            );
-                                        }
-                                    })()
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        );
-    } catch (error) {
-        console.error('Critical component render error:', error);
-        return (
-            <div style={{
-                textAlign: 'center',
-                marginTop: '15%',
-                color: '#ff4d4f',
-                padding: '20px'
-            }}>
-                <div style={{ fontSize: '16px', marginBottom: '10px' }}>Component Render Error</div>
-                <div style={{ fontSize: '12px', marginBottom: '10px' }}>{error.message}</div>
-                <Button
+                <Select
+                    placeholder="Select genes"
+                    value={selectedGenes}
+                    onChange={setSelectedGenes}
+                    style={{ width: '200px' }}
                     size="small"
-                    onClick={() => window.location.reload()}
+                    options={selectOptions}
+                    mode="multiple"
+                    showSearch
+                    filterOption={(input, option) =>
+                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    maxTagCount="responsive"
+                />
+                <Button
+                    onClick={handleAnalyzeGeneExpression}
+                    disabled={selectedGlyphs.size === 0 || selectedGenes.length === 0 || isAnalyzing}
+                    loading={isAnalyzing}
                     type="primary"
+                    size="small"
                 >
-                    Reload Page
+                    Analyze
                 </Button>
             </div>
-        );
-    }
+
+            <div style={{
+                width: '100%',
+                height: `calc(100% - 35px)`,
+                display: 'grid',
+                gridTemplateColumns: allPseudotimeData.length === 1 ? 'minmax(0, 1fr)' :
+                    allPseudotimeData.length === 2 ? 'repeat(2, minmax(0, 1fr))' :
+                        'repeat(3, minmax(0, 1fr))',
+                gridAutoRows: '1fr',
+                gap: '5px',
+                overflow: 'hidden',
+                boxSizing: 'border-box'
+            }}>
+                {allPseudotimeData.map((trajectoryData, index) => {
+                    return (
+                        <div
+                            key={index}
+                            style={{
+                                width: '100%',
+                                height: '99%',
+                                textAlign: 'center',
+                                border: '1px solid #ddd',
+                                borderRadius: '8px',
+                                backgroundColor: '#f9f9f9',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                boxSizing: 'border-box'
+                            }}
+                        >
+                            {trajectoryData.isPlaceholder ? (
+                                <div style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '2px dashed #ccc',
+                                    borderRadius: '8px',
+                                    color: '#666',
+                                    fontSize: '12px',
+                                    backgroundColor: '#fafafa',
+                                    boxSizing: 'border-box'
+                                }}>
+                                    <Spin size="large" style={{ marginBottom: '10px' }} />
+                                    <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                                            Generating Pseudotime
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: '#999' }}>
+                                            {trajectoryData.display_title}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                (() => {
+                                    try {
+                                        // For merged trajectories, collect gene expression data from all related trajectories
+                                        let geneDataForGlyph = null;
+
+                                        if (trajectoryData.mergedTrajectories && trajectoryData.mergedTrajectories.length > 0) {
+                                            // Collect all gene expression data for trajectories that start with this glyph index
+                                            const relatedGeneData = geneExpressionData.filter(data =>
+                                                data.trajectory_id && data.trajectory_id.toString().startsWith(`${index}_`)
+                                            );
+
+                                            if (relatedGeneData.length > 0) {
+                                                // Pass all related gene data so the glyph can select the appropriate one
+                                                geneDataForGlyph = relatedGeneData;
+                                            }
+                                        } else {
+                                            // Single trajectory - find by exact match
+                                            const singleGeneData = geneExpressionData.find(data =>
+                                                data.trajectory_id === index || data.trajectory_id === index.toString()
+                                            );
+                                            geneDataForGlyph = singleGeneData ? [singleGeneData] : null;
+                                        }
+
+                                        // Get cluster color mapping for this trajectory data
+                                        // Try different key formats to find the correct mapping
+                                        let clusterColors = null;
+                                        if (clusterColorMappings) {
+                                            // Try the source_title first
+                                            clusterColors = clusterColorMappings[trajectoryData.source_title]?.clusters;
+
+                                            // If not found, try the adata_umap_title
+                                            if (!clusterColors && adata_umap_title) {
+                                                clusterColors = clusterColorMappings[adata_umap_title]?.clusters;
+                                            }
+
+                                            // If still not found, try with sample_id prefix
+                                            if (!clusterColors && trajectoryData.sampleId) {
+                                                const keyWithSample = `${trajectoryData.sampleId}_${trajectoryData.source_title || adata_umap_title}`;
+                                                clusterColors = clusterColorMappings[keyWithSample]?.clusters;
+                                            }
+                                        }
+
+                                        return (
+                                            <PseudotimeGlyph
+                                                adata_umap_title={trajectoryData.display_title}
+                                                pseudotimeData={trajectoryData.fullPseudotimeData || trajectoryData.mergedTrajectories || [trajectoryData]}
+                                                pseudotimeLoading={trajectoryData.isLoading}
+                                                isSelected={selectedGlyphs.has(index)}
+                                                onSelectionChange={(isSelected) => handleGlyphSelection(index, isSelected)}
+                                                geneExpressionData={geneDataForGlyph}
+                                                clusterColors={clusterColors}
+                                                hoveredTrajectory={hoveredTrajectory}
+                                                setHoveredTrajectory={setHoveredTrajectory}
+                                                trajectoryIndex={index}
+                                                source_title={trajectoryData.source_title || adata_umap_title}
+                                            />
+                                        );
+                                    } catch (error) {
+                                        console.error(`Error rendering glyph ${index}:`, error);
+                                        return (
+                                            <div style={{
+                                                width: '100%',
+                                                height: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                border: '2px solid #ff4d4f',
+                                                borderRadius: '8px',
+                                                color: '#ff4d4f',
+                                                fontSize: '12px'
+                                            }}>
+                                                Error rendering glyph
+                                            </div>
+                                        );
+                                    }
+                                })()
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
 };

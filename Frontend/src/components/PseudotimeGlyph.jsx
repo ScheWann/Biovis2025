@@ -343,9 +343,9 @@ export const PseudotimeGlyph = ({
         // Add title
         svg.append("text")
             .attr("x", width / 2)
-            .attr("y", height - 10)
+            .attr("y", height - 5)
             .attr("text-anchor", "middle")
-            .attr("font-size", "14px")
+            .attr("font-size", "12px")
             .attr("font-weight", "bold")
             .attr("fill", "#333")
             .text(adata_umap_title);
@@ -989,7 +989,6 @@ export const PseudotimeGlyph = ({
                 </div>
             )}
             {!pseudotimeLoading && (() => {
-                // Check if we have valid data in either structure
                 if (!pseudotimeData) return true;
 
                 if (pseudotimeData.trajectory_objects && Array.isArray(pseudotimeData.trajectory_objects)) {
@@ -998,7 +997,7 @@ export const PseudotimeGlyph = ({
                     return pseudotimeData.length === 0;
                 }
 
-                return true; // No valid data structure found
+                return true;
             })() ? (
                 <div style={{
                     display: 'flex',
