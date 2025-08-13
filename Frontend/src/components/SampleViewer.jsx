@@ -347,7 +347,7 @@ export const SampleViewer = ({
         const ratioSum = ratios.reduce((acc, item) => acc + item[1], 0);
 
         if (cellAngles.length === 0) {
-            const circlePoints = (pointX, pointY, baseRadius, 50);
+            const circlePoints = generateCirclePoints(pointX, pointY, baseRadius, 50);
             paths.push({ path: circlePoints, color: '#FFFFFF' });
         } else {
             cellAngles = cellAngles.map(angle => [angle[0], angle[1]]);
