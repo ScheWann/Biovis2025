@@ -380,21 +380,22 @@ export const PseudotimeGlyphComponent = ({
     try {
         return (
             <div style={{
-                padding: '10px',
                 width: '100%',
                 height: '100%',
-                boxSizing: 'border-box',
-                position: 'relative'
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
             }}>
                 {/* Gene Selection Dropdown and Confirmation Button */}
                 <div style={{
-                    position: 'absolute',
                     top: '5px',
                     right: '10px',
                     zIndex: 1000,
                     display: 'flex',
                     gap: '8px',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    padding: '5px'
                 }}>
                     <Select
                         placeholder="Select genes"
@@ -423,8 +424,7 @@ export const PseudotimeGlyphComponent = ({
 
                 <div style={{
                     width: '100%',
-                    height: `calc(100% - 25px)`,
-                    marginTop: '25px',
+                    height: `calc(100% - 35px)`,
                     display: 'grid',
                     gridTemplateColumns: allPseudotimeData.length === 1 ? '1fr' :
                         allPseudotimeData.length === 2 ? 'repeat(2, 1fr)' :
@@ -439,7 +439,7 @@ export const PseudotimeGlyphComponent = ({
                                 key={index}
                                 style={{
                                     width: '100%',
-                                    height: '100%',
+                                    height: '99%',
                                     textAlign: 'center',
                                     border: '1px solid #ddd',
                                     borderRadius: '8px',
@@ -451,7 +451,7 @@ export const PseudotimeGlyphComponent = ({
                                 {trajectoryData.isPlaceholder ? (
                                     <div style={{
                                         width: '100%',
-                                        height: '100%',
+                                        height: '99%',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         alignItems: 'center',
