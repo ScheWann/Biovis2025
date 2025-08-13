@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Select, Spin, message, Button, Splitter, Modal, Form, Input, Upload, ConfigProvider, Empty } from "antd";
 import "./App.css";
-// import { MultiSampleViewer } from './components/MultiSampleViewer';
 import { SampleViewer } from "./components/SampleViewer";
 import { PlusOutlined, InboxOutlined, PaperClipOutlined, CloseOutlined } from "@ant-design/icons";
 import "@ant-design/v5-patch-for-react-19";
