@@ -389,7 +389,7 @@ export const PseudotimeGlyphComponent = ({
                 {/* Gene Selection Dropdown and Confirmation Button */}
                 <div style={{
                     position: 'absolute',
-                    top: '10px',
+                    top: '5px',
                     right: '10px',
                     zIndex: 1000,
                     display: 'flex',
@@ -423,15 +423,14 @@ export const PseudotimeGlyphComponent = ({
 
                 <div style={{
                     width: '100%',
-                    height: `calc(100% - 30px)`,
-                    marginTop: '35px',
+                    height: `calc(100% - 25px)`,
+                    marginTop: '25px',
                     display: 'grid',
                     gridTemplateColumns: allPseudotimeData.length === 1 ? '1fr' :
                         allPseudotimeData.length === 2 ? 'repeat(2, 1fr)' :
                             'repeat(3, 1fr)',
                     gridAutoRows: '1fr',
                     gap: '10px',
-                    padding: '10px',
                     overflow: 'hidden'
                 }}>
                     {allPseudotimeData.map((trajectoryData, index) => {
