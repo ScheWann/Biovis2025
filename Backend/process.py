@@ -12,7 +12,7 @@ import networkx as nx
 import random
 import squidpy as sq
 from slingshot import (
-    run_slingshot_via_rpy2_improved,
+    smart_slingshot_skin_analysis,
     analyze_trajectory_cluster_transitions,
     analyze_trajectory_relationships,
     merge_subset_trajectories,
@@ -1069,14 +1069,22 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
 
         # Run Slingshot trajectory inference
         try:
-            adata_with_slingshot = run_slingshot_via_rpy2_improved(
+            # adata_with_slingshot = run_slingshot_via_rpy2_improved(
+            #     adata,
+            #     cluster_key=leiden_col,
+            #     embedding_key=f'X_umap_{adata_umap_title}',
+            #     start_cluster=None,  # Let Slingshot auto-detect
+            #     end_clusters=None
+            # )
+            results = smart_slingshot_skin_analysis(
                 adata,
                 cluster_key=leiden_col,
                 embedding_key=f'X_umap_{adata_umap_title}',
-                start_cluster=None,  # Let Slingshot auto-detect
-                end_clusters=None
+                auto_infer=True,
+                expected_trajectories=None
             )
             
+            adata_with_slingshot = results['final_adata']
             if adata_with_slingshot is None:
                 raise ValueError("Slingshot analysis failed")
                 
@@ -1193,7 +1201,8 @@ def _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title, sample_id
     }
     
     # Get cluster order based on spatial enrichment analysis
-    cluster_order = get_cluster_order_by_spatial_enrichment(sample_id)
+    # Pass the processed AnnData and the UMAP title as required by the function signature
+    cluster_order = get_cluster_order_by_spatial_enrichment(adata, adata_umap_title)
     
     # Store the processed adata for gene expression analysis
     global PROCESSED_ADATA_CACHE
@@ -1444,9 +1453,8 @@ def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
         
     #     return ranking_df
 
-    def rank_by_spatial_clustering(enrichment_matrix, cluster_names):
-        """Sorting based on spatial clustering pattern"""
-        # Ensure it's a numpy array
+    def rank_by_significant_interactions(enrichment_matrix, cluster_names, zscore_threshold=2.0):
+        """Sorting based on the number of significant interactions"""
         if isinstance(enrichment_matrix, pd.DataFrame):
             matrix = enrichment_matrix.values
             names = enrichment_matrix.index.tolist()
@@ -1458,28 +1466,28 @@ def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
         n_clusters = len(names)
         
         for i, cluster in enumerate(names):
-            # Self-enrichment
-            self_enrich = matrix[i, i]
+            # Get the row for this cluster (interactions with other clusters)
+            interactions = matrix[i, :]
             
-            # Interactions with other clusters (excluding self)
-            row_interactions = np.concatenate([matrix[i, :i], matrix[i, i+1:]])
-            col_interactions = np.concatenate([matrix[:i, i], matrix[i+1:, i]])
-            
-            avg_outgoing = row_interactions.mean() if len(row_interactions) > 0 else 0
-            avg_incoming = col_interactions.mean() if len(col_interactions) > 0 else 0
+            # Calculate significant interactions
+            significant_positive = (interactions > zscore_threshold).sum()
+            significant_negative = (interactions < -zscore_threshold).sum()
+            total_significant = significant_positive + significant_negative
             
             results.append({
                 'cluster': cluster,
-                'self_enrichment': self_enrich,
-                'avg_outgoing_interaction': avg_outgoing,
-                'avg_incoming_interaction': avg_incoming,
-                'spatial_coherence': self_enrich - max(avg_outgoing, avg_incoming)
+                'significant_interactions': total_significant,
+                'positive_interactions': significant_positive,
+                'negative_interactions': significant_negative,
+                'max_zscore': interactions.max(),
+                'min_zscore': interactions.min(),
+                'self_enrichment': matrix[i, i]
             })
         
-        return pd.DataFrame(results).sort_values('spatial_coherence', ascending=False)
+        return pd.DataFrame(results).sort_values('significant_interactions', ascending=False)
     
     # Sort clusters by spatial coherence
-    sorted_clusters = rank_by_spatial_clustering(enrichment_results, cluster_names)
+    sorted_clusters = rank_by_significant_interactions(enrichment_results, cluster_names)
     print(f"Sorted clusters by spatial coherence: {sorted_clusters['cluster'].tolist()}")
     # Get just the cluster names in order
     cluster_order = sorted_clusters['cluster'].tolist()
