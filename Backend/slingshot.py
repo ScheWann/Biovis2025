@@ -22,6 +22,7 @@ from scipy.stats import spearmanr
 
 warnings.filterwarnings("ignore")
 
+
 SKIN_GENE_SIGNATURES = {
     # Epidermis-related genes
     "Epidermis": [
@@ -101,7 +102,7 @@ def intelligent_slingshot_analysis(
     auto_infer_trajectories=True,
 ):
     """
-    基于基因表达的智能Slingshot轨迹分析
+    Intelligent Slingshot Analysis for Single-Cell Data
 
     Parameters:
     -----------
@@ -211,16 +212,6 @@ def intelligent_slingshot_analysis(
     validation_results = validate_trajectory_biology(
         best_result["adata"], gene_signatures, cluster_key
     )
-
-    # Plotting the comprehensive analysis results
-    if plot_analysis:
-        plot_intelligent_analysis_summary(
-            best_result["adata"],
-            gene_analysis,
-            validation_results,
-            cluster_key,
-            embedding_key,
-        )
 
     return {
         "final_adata": best_result["adata"],
@@ -1523,34 +1514,3 @@ def analyze_gene_expression_along_trajectories(
         gene_results[gene] = trajectory_data
 
     return gene_results
-
-
-def show_highly_variable_genes(adata, n_genes=20):
-    """
-    Show available highly variable genes in the dataset.
-
-    Parameters:
-    -----------
-    adata : AnnData
-        The annotated data matrix
-    n_genes : int
-        Number of genes to display
-    """
-    print(f"Available genes: {n_genes}")
-    print("=" * 50)
-
-    if hasattr(adata.var, "highly_variable"):
-        hvg_genes = adata.var_names[adata.var.highly_variable]
-        print(f"Total {len(hvg_genes)} highly variable genes found.")
-        print(f"Top {n_genes} genes:")
-        for i, gene in enumerate(hvg_genes[:n_genes]):
-            print(f"  {i+1:2d}. {gene}")
-
-        if len(hvg_genes) > n_genes:
-            print(f"... and {len(hvg_genes) - n_genes} more genes")
-    else:
-        print("No highly variable genes found in the dataset.")
-        print(f"Total gene count: {adata.n_vars}")
-        print(f"Top {n_genes} genes:")
-        for i, gene in enumerate(adata.var_names[:n_genes]):
-            print(f"  {i+1:2d}. {gene}")
