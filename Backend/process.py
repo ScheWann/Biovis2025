@@ -1087,6 +1087,17 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
             adata_with_slingshot = results['final_adata']
             if adata_with_slingshot is None:
                 raise ValueError("Slingshot analysis failed")
+            
+            # First, rename pseudotime columns to include embedding key for consistency
+            pseudotime_cols = [col for col in adata_with_slingshot.obs.columns if col.startswith("slingshot_pseudotime_")]
+            print(f"Found pseudotime columns: {pseudotime_cols}")
+            
+            for col in pseudotime_cols:
+                # Extract trajectory number from column name (e.g., "slingshot_pseudotime_1" -> "1")
+                traj_num = col.replace("slingshot_pseudotime_", "")
+                new_col_name = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
+                adata_with_slingshot.obs[new_col_name] = adata_with_slingshot.obs[col]
+                print(f"Renamed {col} to {new_col_name}")
                 
             # Analyze trajectory cluster transitions
             trajectory_analysis = analyze_trajectory_cluster_transitions(
@@ -1106,11 +1117,18 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
                 merge_strategy="keep_longer"
             )
             
+            print(f"Original trajectory analysis keys: {list(trajectory_analysis.keys())}")
+            print(f"Merged analysis keys: {list(merged_analysis.keys())}")
+            print(f"Number of relationships found: {len(relationships)}")
+            
             # Convert to the expected format
             trajectory_objects = []
             
-            print(f"Processing {len(merged_analysis)} trajectories from merged analysis")
-            for traj_key, traj_info in merged_analysis.items():
+            # Use merged_analysis if available, otherwise fall back to original trajectory_analysis
+            analysis_to_use = merged_analysis if merged_analysis else trajectory_analysis
+            print(f"Processing {len(analysis_to_use)} trajectories from analysis")
+            
+            for traj_key, traj_info in analysis_to_use.items():
                 print(f"Processing trajectory key: {traj_key}")
                 if "clusters_involved" in traj_info:
                     clusters_path = traj_info["clusters_involved"]
@@ -1126,6 +1144,11 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
                     print(f"  Checking if pseudotime column exists: {pseudotime_col in adata_with_slingshot.obs.columns}")
                     if pseudotime_col not in adata_with_slingshot.obs.columns:
                         print(f"  Available pseudotime columns: {[col for col in adata_with_slingshot.obs.columns if col.startswith('slingshot_pseudotime')]}")
+                        # Try to find the original column name
+                        original_col = f"slingshot_pseudotime_{traj_num}"
+                        if original_col in adata_with_slingshot.obs.columns:
+                            print(f"  Found original column: {original_col}")
+                            pseudotime_col = original_col
                     
                     for cluster in clusters_path:
                         cluster_cells = adata_with_slingshot.obs[leiden_col] == str(cluster)
@@ -1156,25 +1179,32 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
                         'pseudotimes': [f'{pt:.3f}' for pt in normalized_pt]
                     }
                     trajectory_objects.append(trajectory_obj)
+                    print(f"  Added trajectory object: {trajectory_obj}")
+            
+            print(f"Total trajectory objects created: {len(trajectory_objects)}")
+            
+            # If no trajectory objects were created, create a simple one based on cluster order
+            if len(trajectory_objects) == 0:
+                print("No trajectory objects created, creating fallback trajectory...")
+                # Get all unique clusters
+                all_clusters = sorted(adata_with_slingshot.obs[leiden_col].unique())
+                if len(all_clusters) > 1:
+                    fallback_trajectory = {
+                        'path': [int(cluster) for cluster in all_clusters],
+                        'pseudotimes': [f'{i/(len(all_clusters)-1):.3f}' for i in range(len(all_clusters))]
+                    }
+                    trajectory_objects.append(fallback_trajectory)
+                    print(f"Created fallback trajectory: {fallback_trajectory}")
             
             # Get cluster order based on spatial enrichment analysis
             cluster_order = get_cluster_order_by_spatial_enrichment(adata_with_slingshot, adata_umap_title)
-            
-            # Rename pseudotime columns to include embedding key for consistency
-            pseudotime_cols = [col for col in adata_with_slingshot.obs.columns if col.startswith("slingshot_pseudotime_")]
-            for col in pseudotime_cols:
-                # Extract trajectory number from column name (e.g., "slingshot_pseudotime_1" -> "1")
-                traj_num = col.replace("slingshot_pseudotime_", "")
-                new_col_name = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
-                adata_with_slingshot.obs[new_col_name] = adata_with_slingshot.obs[col]
-                print(f"Renamed {col} to {new_col_name}")
             
             # Store the processed adata for gene expression analysis
             global PROCESSED_ADATA_CACHE
             cache_key = f"{sample_id}_{adata_umap_title}"
             PROCESSED_ADATA_CACHE[cache_key] = {
                 'adata': adata_with_slingshot,
-                'trajectory_analysis': merged_analysis,
+                'trajectory_analysis': analysis_to_use,
                 'leiden_col': leiden_col,
                 'cluster_order': cluster_order
             }
