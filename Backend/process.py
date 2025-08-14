@@ -1388,6 +1388,62 @@ def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
         print(f"No clusters found in {leiden_col}")
         return []
 
+    # def rank_by_spatial_clustering(enrichment_matrix, cluster_names):
+    #     """Sorting based on spatial clustering pattern"""
+    #     # Ensure it's a numpy array
+    #     if isinstance(enrichment_matrix, pd.DataFrame):
+    #         matrix = enrichment_matrix.values
+    #         names = enrichment_matrix.index.tolist()
+    #     else:
+    #         matrix = enrichment_matrix
+    #         names = cluster_names
+        
+    #     results = []
+        
+    #     for i, cluster in enumerate(names):
+    #         # Self-enrichment
+    #         self_enrich = matrix[i, i]
+            
+    #         # Interactions with other clusters (excluding self)
+    #         row_interactions = np.concatenate([matrix[i, :i], matrix[i, i+1:]])
+    #         col_interactions = np.concatenate([matrix[:i, i], matrix[i+1:, i]])
+            
+    #         avg_outgoing = row_interactions.mean() if len(row_interactions) > 0 else 0
+    #         avg_incoming = col_interactions.mean() if len(col_interactions) > 0 else 0
+            
+    #         spatial_coherence = self_enrich - max(avg_outgoing, avg_incoming)
+            
+    #         results.append({
+    #             'cluster': cluster,
+    #             'self_enrichment': self_enrich,
+    #             'avg_outgoing_interaction': avg_outgoing,
+    #             'avg_incoming_interaction': avg_incoming,
+    #             'spatial_coherence': spatial_coherence
+    #         })
+        
+    #     sorted_df = pd.DataFrame(results).sort_values('spatial_coherence', ascending=False)
+    #     print(f"Sorted clusters: {sorted_df['cluster'].tolist()}")
+        
+    #     return sorted_df
+
+    # def rank_by_self_enrichment(enrichment_matrix, cluster_names):
+    #     """Sorting based on diagonal Z-score"""
+    #     if isinstance(enrichment_matrix, pd.DataFrame):
+    #         matrix = enrichment_matrix.values
+    #         names = enrichment_matrix.index.tolist()
+    #     else:
+    #         matrix = enrichment_matrix
+    #         names = cluster_names
+        
+    #     self_enrichment = np.diag(matrix)
+        
+    #     ranking_df = pd.DataFrame({
+    #         'cluster': names,
+    #         'self_enrichment_zscore': self_enrichment
+    #     }).sort_values('self_enrichment_zscore', ascending=False)
+        
+    #     return ranking_df
+
     def rank_by_spatial_clustering(enrichment_matrix, cluster_names):
         """Sorting based on spatial clustering pattern"""
         # Ensure it's a numpy array
@@ -1399,6 +1455,7 @@ def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
             names = cluster_names
         
         results = []
+        n_clusters = len(names)
         
         for i, cluster in enumerate(names):
             # Self-enrichment
@@ -1411,24 +1468,19 @@ def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
             avg_outgoing = row_interactions.mean() if len(row_interactions) > 0 else 0
             avg_incoming = col_interactions.mean() if len(col_interactions) > 0 else 0
             
-            spatial_coherence = self_enrich - max(avg_outgoing, avg_incoming)
-            
             results.append({
                 'cluster': cluster,
                 'self_enrichment': self_enrich,
                 'avg_outgoing_interaction': avg_outgoing,
                 'avg_incoming_interaction': avg_incoming,
-                'spatial_coherence': spatial_coherence
+                'spatial_coherence': self_enrich - max(avg_outgoing, avg_incoming)
             })
         
-        sorted_df = pd.DataFrame(results).sort_values('spatial_coherence', ascending=False)
-        print(f"Sorted clusters: {sorted_df['cluster'].tolist()}")
-        
-        return sorted_df
+        return pd.DataFrame(results).sort_values('spatial_coherence', ascending=False)
     
     # Sort clusters by spatial coherence
     sorted_clusters = rank_by_spatial_clustering(enrichment_results, cluster_names)
-    
+    print(f"Sorted clusters by spatial coherence: {sorted_clusters['cluster'].tolist()}")
     # Get just the cluster names in order
     cluster_order = sorted_clusters['cluster'].tolist()
     

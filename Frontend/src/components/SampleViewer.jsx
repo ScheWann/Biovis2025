@@ -1466,7 +1466,7 @@ export const SampleViewer = ({
                         lineWidthUnits: 'pixels',
                         radiusUnits: 'pixels',
                         pickable: false,
-                        stroked: false,
+                        stroked: true,
                         updateTriggers: {
                             getRadius: [sampleId, mainViewState?.zoom, hoveredCluster],
                         },
@@ -1537,7 +1537,7 @@ export const SampleViewer = ({
                 lineWidthUnits: 'pixels',
                 pickable: true,
                 radiusUnits: 'pixels',
-                stroked: false,
+                stroked: true,
                 filled: (!!hoveredSet) || (selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
                 updateTriggers: {
                     getFillColor: [hoveredCluster, selectedCellTypes[sampleId], cellTypeColors, sampleId],
