@@ -102,23 +102,25 @@ export const PseudotimeGlyphComponent = ({
         fetchHighVariableGenes();
     }, [memoizedSampleIds]);
 
-    // Group genes by sample ID for the select options
-    const geneOptions = highVariableGenes.reduce((groups, gene) => {
-        if (!groups[gene.sampleId]) {
-            groups[gene.sampleId] = [];
-        }
-        groups[gene.sampleId].push({
-            label: gene.label,
-            value: gene.value
-        });
-        return groups;
-    }, {});
+    // Group genes by sample ID for the select options and memoize the result
+    const hvgGroupedOptions = useMemo(() => {
+        const geneOptions = highVariableGenes.reduce((groups, gene) => {
+            if (!groups[gene.sampleId]) {
+                groups[gene.sampleId] = [];
+            }
+            groups[gene.sampleId].push({
+                label: gene.label,
+                value: gene.value
+            });
+            return groups;
+        }, {});
 
-    // Convert to antd Select option format with groups
-    const hvgGroupedOptions = Object.entries(geneOptions).map(([sampleId, genes]) => ({
-        label: sampleId,
-        options: genes
-    }));
+        // Convert to antd Select option format with groups
+        return Object.entries(geneOptions).map(([sampleId, genes]) => ({
+            label: sampleId,
+            options: genes
+        }));
+    }, [highVariableGenes]);
 
     // Keep displayOptions in sync with HVGs when not actively searching
     useEffect(() => {
