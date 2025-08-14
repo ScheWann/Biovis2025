@@ -561,9 +561,40 @@ export const PseudotimeGlyph = ({
                 const isEndpoint = pointIndex === trajectoryPoints.length - 1;
                 const isSelected = trajIndex === selectedTrajectory;
 
+                // Get the correct cluster color, handling different cluster ID formats
+                let clusterColor = "#999"; // fallback color
+                if (clusterColors) {
+                    // Try different formats for the cluster ID
+                    const clusterId = point.cluster;
+                    const clusterStr = clusterId.toString();
+                    
+                    // Try the numeric cluster ID first
+                    if (clusterColors[clusterId]) {
+                        clusterColor = clusterColors[clusterId];
+                    }
+                    // Try the string version
+                    else if (clusterColors[clusterStr]) {
+                        clusterColor = clusterColors[clusterStr];
+                    }
+                    // Try with "Cluster " prefix
+                    else if (clusterColors[`Cluster ${clusterId}`]) {
+                        clusterColor = clusterColors[`Cluster ${clusterId}`];
+                    }
+                    // Try extracting numeric part if it's a string
+                    else {
+                        const numericPart = clusterStr.replace(/\D/g, '');
+                        if (clusterColors[numericPart]) {
+                            clusterColor = clusterColors[numericPart];
+                        }
+                    }
+                } else {
+                    // Fallback to the color scale if no clusterColors provided
+                    clusterColor = clusterColorScale(point.cluster);
+                }
+
                 // Use grey color for non-selected trajectories' nodes
-                const nodeColor = isSelected ? clusterColorScale(point.cluster) : "#CCCCCC";
-                const originalNodeColor = clusterColorScale(point.cluster);
+                const nodeColor = isSelected ? clusterColor : "#CCCCCC";
+                const originalNodeColor = clusterColor;
 
                 if (isEndpoint) {
                     // Draw star for endpoints
