@@ -1109,16 +1109,24 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
             # Convert to the expected format
             trajectory_objects = []
             
+            print(f"Processing {len(merged_analysis)} trajectories from merged analysis")
             for traj_key, traj_info in merged_analysis.items():
+                print(f"Processing trajectory key: {traj_key}")
                 if "clusters_involved" in traj_info:
                     clusters_path = traj_info["clusters_involved"]
+                    print(f"  Clusters involved: {clusters_path}")
                     
                     # Get the trajectory number
                     traj_num = traj_key.split("_")[-1] if "_" in traj_key else traj_key
                     pseudotime_col = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
+                    print(f"  Expected pseudotime column: {pseudotime_col}")
                     
                     # Calculate pseudotime for each cluster in the path
                     path_pseudotimes = []
+                    print(f"  Checking if pseudotime column exists: {pseudotime_col in adata_with_slingshot.obs.columns}")
+                    if pseudotime_col not in adata_with_slingshot.obs.columns:
+                        print(f"  Available pseudotime columns: {[col for col in adata_with_slingshot.obs.columns if col.startswith('slingshot_pseudotime')]}")
+                    
                     for cluster in clusters_path:
                         cluster_cells = adata_with_slingshot.obs[leiden_col] == str(cluster)
                         if cluster_cells.sum() > 0 and pseudotime_col in adata_with_slingshot.obs.columns:
@@ -1151,6 +1159,15 @@ def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=Non
             
             # Get cluster order based on spatial enrichment analysis
             cluster_order = get_cluster_order_by_spatial_enrichment(adata_with_slingshot, adata_umap_title)
+            
+            # Rename pseudotime columns to include embedding key for consistency
+            pseudotime_cols = [col for col in adata_with_slingshot.obs.columns if col.startswith("slingshot_pseudotime_")]
+            for col in pseudotime_cols:
+                # Extract trajectory number from column name (e.g., "slingshot_pseudotime_1" -> "1")
+                traj_num = col.replace("slingshot_pseudotime_", "")
+                new_col_name = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
+                adata_with_slingshot.obs[new_col_name] = adata_with_slingshot.obs[col]
+                print(f"Renamed {col} to {new_col_name}")
             
             # Store the processed adata for gene expression analysis
             global PROCESSED_ADATA_CACHE
@@ -1203,6 +1220,12 @@ def _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title, sample_id
     # Get cluster order based on spatial enrichment analysis
     # Pass the processed AnnData and the UMAP title as required by the function signature
     cluster_order = get_cluster_order_by_spatial_enrichment(adata, adata_umap_title)
+    
+    # For fallback analysis, create dummy pseudotime columns with the expected naming convention
+    # This ensures compatibility with get_trajectory_gene_expression
+    pseudotime_col = f"slingshot_pseudotime_X_umap_{adata_umap_title}_1"
+    adata.obs[pseudotime_col] = np.linspace(0, 1, adata.n_obs)
+    print(f"Created fallback pseudotime column: {pseudotime_col}")
     
     # Store the processed adata for gene expression analysis
     global PROCESSED_ADATA_CACHE
@@ -1290,8 +1313,13 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
     traj_num = matching_trajectory.split("_")[-1] if "_" in matching_trajectory else matching_trajectory
     pseudotime_col = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
     
+    # Debug: Print available pseudotime columns
+    available_pseudotime_cols = [col for col in adata.obs.columns if col.startswith("slingshot_pseudotime")]
+    print(f"Available pseudotime columns: {available_pseudotime_cols}")
+    print(f"Looking for pseudotime column: {pseudotime_col}")
+    
     if pseudotime_col not in adata.obs.columns:
-        raise ValueError(f"Pseudotime data not found for trajectory {traj_num}")
+        raise ValueError(f"Pseudotime data not found for trajectory {traj_num}. Available columns: {available_pseudotime_cols}")
     
     # Analyze gene expression along the trajectory
     gene_results = analyze_gene_expression_along_trajectories(

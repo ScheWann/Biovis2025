@@ -840,11 +840,6 @@ def run_slingshot_via_rpy2_improved(
     end_clusters=None,
 ):
     try:
-        from rpy2 import robjects as ro
-        from rpy2.robjects.packages import importr
-        import tempfile
-        from scipy import sparse
-
         # Import R
         base = importr("base")
         utils = importr("utils")
