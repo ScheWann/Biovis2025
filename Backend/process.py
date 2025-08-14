@@ -1501,7 +1501,7 @@ def get_highly_variable_genes(sample_ids, top_n=20):
     
     Parameters:
     - sample_ids: List of sample IDs
-    - top_n: Number of top genes to return per sample (default: 20)
+    - top_n: Number of top genes to return per sample (default: 20). If None, 'all', or <= 0, return all genes.
     
     Returns:
     - Dictionary with sample_id as keys and list of highly variable genes as values
@@ -1531,26 +1531,30 @@ def get_highly_variable_genes(sample_ids, top_n=20):
                 # Get cached AnnData
                 adata = get_cached_adata(sample_id)
                 
-                # Calculate highly variable genes if not already done
-                if 'highly_variable' not in adata.var.columns:
-                    sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
-                
-                # Get highly variable genes
-                if 'highly_variable' in adata.var.columns:
-                    hvg_mask = adata.var['highly_variable']
-                    hvg_genes = adata.var_names[hvg_mask]
-                    
-                    # Sort by variance if available, otherwise just take first N
-                    if 'highly_variable_rank' in adata.var.columns:
-                        hvg_df = adata.var[hvg_mask].sort_values('highly_variable_rank')
-                        top_genes = hvg_df.index[:top_n].tolist()
-                    else:
-                        top_genes = hvg_genes[:top_n].tolist()
-                    
-                    result[sample_id] = top_genes
+                # If caller requests all genes, bypass HVG selection
+                if top_n is None or (isinstance(top_n, str) and str(top_n).lower() == 'all') or (isinstance(top_n, int) and top_n <= 0):
+                    result[sample_id] = adata.var_names.tolist()
                 else:
-                    # Fallback: return first N genes
-                    result[sample_id] = adata.var_names[:top_n].tolist()
+                    # Calculate highly variable genes if not already done
+                    if 'highly_variable' not in adata.var.columns:
+                        sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
+                    
+                    # Get highly variable genes
+                    if 'highly_variable' in adata.var.columns:
+                        hvg_mask = adata.var['highly_variable']
+                        hvg_genes = adata.var_names[hvg_mask]
+                        
+                        # Sort by variance if available, otherwise just take first N
+                        if 'highly_variable_rank' in adata.var.columns:
+                            hvg_df = adata.var[hvg_mask].sort_values('highly_variable_rank')
+                            top_genes = hvg_df.index[:int(top_n)].tolist()
+                        else:
+                            top_genes = hvg_genes[:int(top_n)].tolist()
+                        
+                        result[sample_id] = top_genes
+                    else:
+                        # Fallback: return first N genes
+                        result[sample_id] = adata.var_names[:int(top_n)].tolist()
                     
             except Exception as e:
                 print(f"Error getting highly variable genes for sample {sample_id}: {e}")

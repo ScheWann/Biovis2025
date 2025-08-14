@@ -56,6 +56,27 @@ def validate_sample_id(sample_id):
         raise ValueError(f"Sample {sample_id} not found")
 
 
+def _search_genes_internal(sample_ids, query, limit=50):
+    """
+    Core gene search logic. Returns a dict mapping sample_id -> list of matching gene names.
+    """
+    if not sample_ids or not isinstance(sample_ids, list):
+        raise ValueError("sample_ids must be a non-empty list")
+    if not query or len(query) < 1:
+        return {sid: [] for sid in sample_ids}
+
+    sample_gene_dict = get_gene_list(sample_ids)
+    pattern = re.compile(re.escape(query), re.IGNORECASE)
+    results = {}
+    for sid in sample_ids:
+        genes = sample_gene_dict.get(sid, [])
+        matches = [g for g in genes if pattern.search(g)]
+        if isinstance(limit, int) and limit > 0:
+            matches = matches[:limit]
+        results[sid] = matches
+    return results
+
+
 def get_sample_scales(sample_id):
     """
     Get available scales for a given sample ID.
@@ -236,7 +257,45 @@ def get_highly_variable_genes_route():
     """
     sample_ids = request.json["sample_ids"]
     top_n = request.json.get("top_n", 20)  # Default to top 20
-    return jsonify(get_highly_variable_genes(sample_ids, top_n))
+    # Allow clients to request all genes by passing top_n as 'all', None, 0, or negative
+    if isinstance(top_n, str) and top_n.lower() == 'all':
+        top_n_value = 'all'
+    else:
+        top_n_value = top_n
+    return jsonify(get_highly_variable_genes(sample_ids, top_n_value))
+
+
+@app.route("/api/get_gene_name_search", methods=["POST"])
+def search_genes_unified_route():
+    """
+    Unified gene search endpoint.
+    - New style: { sample_ids: [..], query: string, limit?: int } -> returns { sample_id: [genes] }
+    - Legacy style: { sample_id: string, gene_name: string, limit?: int } -> returns [genes]
+    """
+    data = request.json or {}
+
+    # Legacy single-sample payload
+    if "sample_id" in data and "gene_name" in data:
+        sample_id = data.get("sample_id")
+        gene_name = data.get("gene_name", "")
+        limit = data.get("limit", 50)
+        try:
+            results = _search_genes_internal([sample_id], gene_name, limit)
+            return jsonify(results.get(sample_id, []))
+        except Exception:
+            return jsonify([])
+
+    # New multi-sample payload
+    sample_ids = data.get("sample_ids", [])
+    # Fallback: support 'gene_name' as alias for 'query'
+    query = data.get("query", data.get("gene_name", ""))
+    limit = data.get("limit", 50)
+
+    try:
+        results = _search_genes_internal(sample_ids, query, limit)
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/get_kosara_data", methods=["POST"])
@@ -334,31 +393,6 @@ def get_trajectory_data_route():
         return jsonify(trajectory_data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/get_gene_name_search", methods=["POST"])
-def get_gene_name_search():
-    """
-    Search for gene names based on a query string and return matching gene names.
-    """
-    sample_id = request.json["sample_id"]
-    gene_name = request.json["gene_name"]
-
-    if not gene_name or len(gene_name) < 2:
-        return jsonify([])
-
-    sample_gene_dict = get_gene_list([sample_id])
-
-    if sample_id not in sample_gene_dict:
-        return jsonify([])
-
-    gene_list = sample_gene_dict[sample_id]
-
-    # Filter genes that match the search query
-    pattern = re.compile(re.escape(gene_name), re.IGNORECASE)
-    matching_genes = [gene for gene in gene_list if pattern.search(gene)]
-
-    return jsonify(matching_genes)
 
 
 @app.route("/api/get_cell_types", methods=["POST"])

@@ -21,6 +21,12 @@ export const PseudotimeGlyphComponent = ({
     // State for highly variable genes
     const [highVariableGenes, setHighVariableGenes] = useState([]);
 
+    // Remote search state for gene Select
+    const [searchQuery, setSearchQuery] = useState('');
+    const [displayOptions, setDisplayOptions] = useState([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const searchTimerRef = useRef(null);
+
     // State for gene expression analysis
     const [geneExpressionData, setGeneExpressionData] = useState([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -109,10 +115,90 @@ export const PseudotimeGlyphComponent = ({
     }, {});
 
     // Convert to antd Select option format with groups
-    const selectOptions = Object.entries(geneOptions).map(([sampleId, genes]) => ({
+    const hvgGroupedOptions = Object.entries(geneOptions).map(([sampleId, genes]) => ({
         label: sampleId,
         options: genes
     }));
+
+    // Keep displayOptions in sync with HVGs when not actively searching
+    useEffect(() => {
+        if (!searchQuery) {
+            setDisplayOptions(hvgGroupedOptions);
+        }
+    }, [hvgGroupedOptions, searchQuery]);
+
+    // Helper to build grouped options from raw results
+    const buildGroupedOptions = (records) => {
+        const grouped = records.reduce((acc, item) => {
+            const sid = item.sampleId;
+            if (!acc[sid]) acc[sid] = [];
+            acc[sid].push({ label: item.label, value: item.value });
+            return acc;
+        }, {});
+        return Object.entries(grouped).map(([sampleId, genes]) => ({ label: sampleId, options: genes }));
+    };
+
+    // Debounced remote search for genes across provided samples
+    const handleGeneSearch = (value) => {
+        setSearchQuery(value);
+
+        // If search text is empty, show HVGs
+        if (!value || value.trim().length === 0) {
+            setSearchLoading(false);
+            if (searchTimerRef.current) {
+                clearTimeout(searchTimerRef.current);
+                searchTimerRef.current = null;
+            }
+            setDisplayOptions(hvgGroupedOptions);
+            return;
+        }
+
+        // Avoid spamming backend for very short queries
+        if (value.trim().length < 2) {
+            return;
+        }
+
+        if (searchTimerRef.current) {
+            clearTimeout(searchTimerRef.current);
+        }
+
+        searchTimerRef.current = setTimeout(async () => {
+            setSearchLoading(true);
+            try {
+                const response = await fetch('/api/get_gene_name_search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sample_ids: memoizedSampleIds,
+                        query: value,
+                        limit: 80,
+                    }),
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    // Transform to flat records then group
+                    const records = [];
+                    Object.entries(data || {}).forEach(([sid, genes]) => {
+                        (genes || []).forEach((g) => {
+                            records.push({
+                                value: `${sid}_${g}`,
+                                label: g,
+                                sampleId: sid,
+                            });
+                        });
+                    });
+                    setDisplayOptions(buildGroupedOptions(records));
+                } else {
+                    setDisplayOptions([]);
+                }
+            } catch (e) {
+                console.error('Gene search failed:', e);
+                setDisplayOptions([]);
+            } finally {
+                setSearchLoading(false);
+            }
+        }, 250); // debounce
+    };
 
     // Handle glyph selection
     const handleGlyphSelection = (glyphIndex, isSelected) => {
@@ -251,9 +337,15 @@ export const PseudotimeGlyphComponent = ({
 
             // Extract clean gene names from the selected gene values (format: sampleId_geneName)
             const geneNames = selectedGenes.map(geneValue => {
-                // The gene name is the label part, which should be just the gene name without sample ID
+                // Use label from HVG list when available
                 const geneInfo = highVariableGenes.find(g => g.value === geneValue);
-                return geneInfo ? geneInfo.label : geneValue; // Use label (clean gene name) or fallback to value
+                if (geneInfo) return geneInfo.label;
+                // Fallback: value pattern is `${sampleId}_${gene}`; sampleId may contain underscores, so take substring after last underscore
+                if (typeof geneValue === 'string' && geneValue.includes('_')) {
+                    const lastUnderscore = geneValue.lastIndexOf('_');
+                    return geneValue.slice(lastUnderscore + 1);
+                }
+                return geneValue;
             });
 
             // Create analysis requests for each selected glyph
@@ -410,15 +502,23 @@ export const PseudotimeGlyphComponent = ({
                     placeholder="Select genes"
                     value={selectedGenes}
                     onChange={setSelectedGenes}
-                    style={{ width: '200px' }}
+                    style={{ width: '220px' }}
                     size="small"
-                    options={selectOptions}
+                    options={displayOptions}
                     mode="multiple"
                     showSearch
-                    filterOption={(input, option) =>
-                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                    }
+                    filterOption={false}
+                    onSearch={handleGeneSearch}
+                    onDropdownVisibleChange={(open) => {
+                        if (!open) {
+                            // reset to HVGs when closing dropdown
+                            setSearchQuery('');
+                            setDisplayOptions(hvgGroupedOptions);
+                        }
+                    }}
+                    notFoundContent={searchLoading ? <Spin size="small" /> : null}
                     maxTagCount="responsive"
+                    allowClear
                 />
                 <Button
                     onClick={handleAnalyzeGeneExpression}
