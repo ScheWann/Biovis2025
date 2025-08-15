@@ -125,7 +125,7 @@ SKIN_GENE_SIGNATURES = {
         "KRT15",
         "KRT19",  # Basal layer keratin
         "TP63",
-        "TP73",  # Epidermal stem cell transcription factor
+        "TP73",  # Epidermal stem cell transcription factor(?)
         "ITGA6",
         "ITGB4",  # Epidermal stem cell marker
         "COL17A1",
@@ -138,23 +138,23 @@ SKIN_GENE_SIGNATURES = {
         "COL3A1",  # Collagen
         "VIM",
         "ACTA2",  # Fibroblast marker
-        "PDGFRA",
-        "PDGFRB",  # Fibroblast receptor
+        "PDGFRA",  # (?)
+        "PDGFRB",  # Fibroblast receptor(?)
         "ELN",
         "FBN1",  # Elastic fiber
     ],
     # Hair follicle-related genes
     "Hair_Follicle": [
         "LGR5",
-        "LGALS7",  # Hair follicle stem cells
+        "LGALS7",  # Hair follicle stem cells(?)
         "SOX9",
         "NFATC1",  # Hair follicle development
-        "BMP2",
-        "BMP4",  # Hair follicle morphogenesis
+        "BMP2",  # (?)
+        "BMP4",  # Hair follicle morphogenesis(?)
         "WNT3",
         "WNT10A",  # Wnt signaling pathway
     ],
-    # Sebaceous gland-related genes
+    # Sebaceous gland-related genes(?)
     "Sebaceous": [
         "BLIMP1",
         "CEBPA",  # Sebaceous gland differentiation
@@ -163,7 +163,7 @@ SKIN_GENE_SIGNATURES = {
         "FASN",
         "SCD",  # Fatty acid synthesis
     ],
-    # Immune/inflammation-related genes
+    # Immune/inflammation-related genes(?)
     "Immune": [
         "CD68",
         "CD163",  # Macrophages
@@ -173,7 +173,7 @@ SKIN_GENE_SIGNATURES = {
         "TNF",  # Inflammatory factors
         "PTPRC",  # Common leukocyte antigen
     ],
-    # Vascular-related genes
+    # Vascular-related genes(?)
     "Vascular": [
         "PECAM1",
         "CDH5",  # Endothelial cells
