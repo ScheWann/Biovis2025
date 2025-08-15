@@ -340,7 +340,10 @@ def intelligent_slingshot_analysis(
 def analyze_cluster_gene_signatures(
     adata, gene_signatures, cluster_key, min_cluster_size
 ):
-    """Analyzing cluster gene signatures"""
+    """
+    Analyzing cluster gene signatures
+    The average expression level of all cells and all signature genes in the cluster
+    """
 
     print("Calculating cluster gene signature scores...")
 
@@ -442,7 +445,10 @@ def auto_infer_developmental_trajectories(
 
 
 def calculate_cluster_primitiveness(cluster_info):
-    """Calculating the primitiveness scores for each cluster"""
+    """
+    Calculating the primitiveness scores for each cluster
+    The primitiveness score is the product of the developmental hierarchy and the gene signature strength
+    """
 
     # Defining the developmental hierarchy of cell types
     developmental_hierarchy = {
@@ -481,9 +487,10 @@ def calculate_cluster_primitiveness(cluster_info):
 def calculate_cluster_transcriptional_distances(adata, cluster_key, valid_clusters):
     """
     Calculating the transcriptional distances between clusters
+    The Pearson correlation coefficient between the gene expression profiles of two clusters
     """
 
-    print("   📊 Calculating transcriptional similarity between clusters...")
+    print("Calculating transcriptional similarity between clusters...")
 
     # Calculating the average gene expression for each cluster
     cluster_profiles = {}
@@ -527,13 +534,14 @@ def calculate_cluster_transcriptional_distances(adata, cluster_key, valid_cluste
 def calculate_cluster_spatial_adjacency(
     adata, cluster_key, embedding_key, valid_clusters
 ):
-    """Calculating the spatial adjacency of clusters"""
+    """
+    Calculating the spatial adjacency of clusters
+    The distance between the center points of two clusters
+    """
 
-    print("   🗺️  Calculating spatial adjacency...")
+    print("Calculating spatial adjacency...")
     if embedding_key not in adata.obsm:
-        print(
-            "      Warning: Embedding coordinates not found, skipping spatial analysis"
-        )
+        print("Warning: Embedding coordinates not found, skipping spatial analysis")
         return {}
 
     # Calculating the center point for each cluster
@@ -572,6 +580,9 @@ def infer_trajectories_from_analysis(
 ):
     """
     Based on multi-omics analysis to infer developmental trajectories
+    The primitiveness score is the product of the developmental hierarchy and the gene signature strength
+    The transcriptional similarity is the Pearson correlation coefficient between the gene expression profiles of two clusters
+    The spatial adjacency is the distance between the center points of two clusters
     """
 
     print("Integrating analysis results to infer trajectories...")
@@ -636,14 +647,14 @@ def infer_trajectories_from_analysis(
             if best_end["score"] > 0.2:
                 trajectories.append((start_type, best_end["type"]))
                 print(
-                    f"      Found trajectory: {start_type} → {best_end['type']} (Score: {best_end['score']:.3f})"
+                    f"Found trajectory: {start_type} → {best_end['type']} (Score: {best_end['score']:.3f})"
                 )
 
-    # Remove duplicates and limit the number
-    trajectories = list(set(trajectories))[:3]  # At most 3 trajectories
+    # Remove duplicates
+    trajectories = list(set(trajectories))
 
     if not trajectories:
-        print("      ⚠️  No clear trajectories found, using default strategy")
+        print("No clear trajectories found, using default strategy")
         # Backup strategy: Select the most primitive and most differentiated cell types
         if len(sorted_clusters) >= 2:
             start_type = cluster_info[sorted_clusters[0]]["dominant_signature"]
@@ -663,7 +674,7 @@ def is_biologically_plausible_transition(start_type, end_type):
         "Epidermis": ["Dermis"],
         "Dermis": ["Vascular"],
         "Vascular": [],
-        "Immune": [],  # Immune cells are usually not precursors to other cell types
+        "Immune": [],
     }
 
     # Check if the transition is in the known list
