@@ -1213,64 +1213,61 @@ def _run_slingshot_subprocess(
 
             # Create R script
             r_script = f"""
-# Install and load required packages
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
+                # Install and load required packages
+                if (!requireNamespace("BiocManager", quietly = TRUE))
+                    install.packages("BiocManager")
 
-required_packages <- c("slingshot", "SingleCellExperiment")
-for (pkg in required_packages) {{
-    if (!requireNamespace(pkg, quietly = TRUE)) {{
-        BiocManager::install(pkg)
-    }}
-}}
+                required_packages <- c("slingshot", "SingleCellExperiment")
+                for (pkg in required_packages) {{
+                    if (!requireNamespace(pkg, quietly = TRUE)) {{
+                        BiocManager::install(pkg)
+                    }}
+                }}
 
-library(slingshot)
-library(SingleCellExperiment)
+                library(slingshot)
+                library(SingleCellExperiment)
 
-# Load data
-expr_matrix <- as.matrix(read.csv("{expr_file}"))
-umap_coords <- as.matrix(read.csv("{umap_file}"))
-clusters <- read.csv("{clusters_file}")$clusters
+                # Load data
+                expr_matrix <- as.matrix(read.csv("{expr_file}"))
+                umap_coords <- as.matrix(read.csv("{umap_file}"))
+                clusters <- read.csv("{clusters_file}")$clusters
 
-# Transpose gene expression matrix (gene x cell)
-expr_matrix <- t(expr_matrix)
+                # Transpose gene expression matrix (gene x cell)
+                expr_matrix <- t(expr_matrix)
 
-# Create SingleCellExperiment object
-sce <- SingleCellExperiment(
-    assays = list(counts = expr_matrix)
-)
+                # Create SingleCellExperiment object
+                sce <- SingleCellExperiment(
+                    assays = list(counts = expr_matrix)
+                )
 
-# Add UMAP and cluster info
-reducedDims(sce) <- list(UMAP = umap_coords)
-colData(sce)$clusters <- clusters
-
-# Run Slingshot
-"""
+                # Add UMAP and cluster info
+                reducedDims(sce) <- list(UMAP = umap_coords)
+                colData(sce)$clusters <- clusters
+            """
 
             if start_cluster is not None:
                 r_script += f'''
-start_clus <- "{start_cluster}"
-sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP", start.clus = start_clus)
-'''
+                    start_clus <- "{start_cluster}"
+                    sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP", start.clus = start_clus)
+                '''
             else:
                 r_script += '''
-sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP")
-'''
+                    sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP")
+                '''
 
             r_script += f'''
+                    # Get results
+                    pseudotimes <- slingPseudotime(sce)
+                    weights <- slingCurveWeights(sce)
 
-# Get results
-pseudotimes <- slingPseudotime(sce)
-weights <- slingCurveWeights(sce)
+                    # Save results
+                    write.csv(pseudotimes, "{temp_dir}/pseudotimes.csv")
+                    write.csv(weights, "{temp_dir}/weights.csv")
 
-# Save results
-write.csv(pseudotimes, "{temp_dir}/pseudotimes.csv")
-write.csv(weights, "{temp_dir}/weights.csv")
-
-# Print number of trajectories
-n_lineages <- ncol(pseudotimes)
-cat("Found", n_lineages, "trajectories\\n")
-'''
+                    # Print number of trajectories
+                    n_lineages <- ncol(pseudotimes)
+                    cat("Found", n_lineages, "trajectories\\n")
+                '''
 
             # Write R script to file
             r_script_file = os.path.join(temp_dir, "slingshot_script.R")
