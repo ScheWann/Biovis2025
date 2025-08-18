@@ -1259,7 +1259,7 @@ def _run_slingshot_subprocess(
             if start_cluster is not None:
                 r_script += f'''
                     start_clus <- "{start_cluster}"
-                    sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP", start.clus = start_clus)
+                    sce <- slingshot(sce, clusterLabels = "clusters", omega = TRUE, reducedDim = "UMAP", start.clus = start_clus)
                 '''
             else:
                 r_script += '''
