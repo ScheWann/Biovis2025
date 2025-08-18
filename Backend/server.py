@@ -20,6 +20,7 @@ from process import (
     clear_adata_cache,
     get_pseudotime_data,
     get_trajectory_gene_expression,
+    get_direct_slingshot_data,
 )
 
 
@@ -541,6 +542,34 @@ def get_pseudotime_data_route():
             adata_umap_title=adata_umap_title,
             cell_ids=cell_ids,
             early_markers=early_markers,
+            n_neighbors=n_neighbors,
+            n_pcas=n_pcas,
+            resolutions=resolutions
+        )
+        return jsonify(pseudotime_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/get_direct_slingshot_data", methods=["POST"])
+def get_direct_slingshot_data_route():
+    """
+    Generate direct Slingshot analysis data with a specified start cluster
+    """
+    sample_id = request.json["sample_id"]
+    cell_ids = request.json["cell_ids"]
+    adata_umap_title = request.json["adata_umap_title"]
+    start_cluster = request.json["start_cluster"]
+    n_neighbors = request.json.get("n_neighbors", 15)
+    n_pcas = request.json.get("n_pcas", 30)
+    resolutions = request.json.get("resolutions", 1)
+    
+    try:
+        pseudotime_data = get_direct_slingshot_data(
+            sample_id=sample_id,
+            adata_umap_title=adata_umap_title,
+            cell_ids=cell_ids,
+            start_cluster=start_cluster,
             n_neighbors=n_neighbors,
             n_pcas=n_pcas,
             resolutions=resolutions

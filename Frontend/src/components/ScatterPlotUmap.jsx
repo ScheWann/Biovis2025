@@ -65,6 +65,9 @@ export const ScatterplotUmap = ({
       });
   };
 
+  // State to store cluster info for GO analysis window
+  const [currentClusterInfo, setCurrentClusterInfo] = useState(null);
+
   const fetchPseudotimeData = async (sampleId, cellIds) => {
     // Check if data for this adata_umap_title already exists
     if (pseudotimeDataSetsRef.current[adata_umap_title]) {
@@ -284,6 +287,14 @@ export const ScatterplotUmap = ({
               .map((d) => d.id || d.cell_id)
               .filter(Boolean);
             setCurrentCellIds(cellIds); // Store current cellIds
+            
+            // Extract cluster number and store cluster info
+            const clusterNumber = cluster.split(" ")[1];
+            setCurrentClusterInfo({
+              cluster_name: cluster,
+              cluster_number: clusterNumber
+            });
+            
             fetchGOAnalysisData(sampleId, cluster, adata_umap_title);
           })
           .on("mouseenter", (event) => {
@@ -653,6 +664,10 @@ export const ScatterplotUmap = ({
         cellTypeColors={cellTypeColors}
         setCellTypeColors={setCellTypeColors}
         sampleId={sampleId}
+        clusterInfo={currentClusterInfo}
+        adata_umap_title={adata_umap_title}
+        setPseudotimeDataSets={setPseudotimeDataSets}
+        setPseudotimeLoadingStates={setPseudotimeLoadingStates}
       />
     </div>
   );

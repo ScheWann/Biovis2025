@@ -19,12 +19,96 @@ export const GOAnalysisWindow = ({
     setSelectedCellTypes,
     cellTypeColors,
     setCellTypeColors,
-    sampleId // Add sampleId prop
+    sampleId, // Add sampleId prop
+    clusterInfo = null, // Add cluster information prop
+    adata_umap_title = null, // Add adata_umap_title prop
+    setPseudotimeDataSets = null, // Add setPseudotimeDataSets prop
+    setPseudotimeLoadingStates = null // Add setPseudotimeLoadingStates prop
 }) => {
     const tooltipRef = useRef();
     const svgRef = useRef();
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
     const [inputCellName, setInputCellName] = useState("");
+
+    // Function to handle title click for direct Slingshot analysis
+    const handleTitleClick = async () => {
+        if (!clusterInfo || !adata_umap_title || !setPseudotimeDataSets || !setPseudotimeLoadingStates) {
+            console.warn("Missing required props for direct Slingshot analysis");
+            return;
+        }
+
+        // Extract cluster number from cluster info
+        const clusterNumber = clusterInfo.cluster_number;
+        if (!clusterNumber) {
+            console.warn("No cluster number found in cluster info");
+            return;
+        }
+
+        console.log(`Starting direct Slingshot analysis with start cluster: ${clusterNumber}`);
+
+        // Parse parameters from adata_umap_title
+        let n_neighbors = 15;
+        let n_pcas = 30;
+        let resolutions = 1;
+
+        try {
+            const parts = adata_umap_title.split('_');
+            if (parts.length >= 5) {
+                // Extract the last 3 parts as the parameters
+                n_neighbors = parseInt(parts[parts.length - 3]) || 15;
+                n_pcas = parseInt(parts[parts.length - 2]) || 30;
+                resolutions = parseFloat(parts[parts.length - 1]) || 1;
+            }
+        } catch (error) {
+            console.warn("Could not parse parameters from adata_umap_title, using defaults", error);
+        }
+
+        // Set loading state for this specific dataset
+        setPseudotimeLoadingStates(prevStates => ({
+            ...prevStates,
+            [adata_umap_title]: true
+        }));
+
+        try {
+            const res = await fetch("/api/get_direct_slingshot_data", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    sample_id: sampleId,
+                    cell_ids: cellIds,
+                    adata_umap_title: adata_umap_title,
+                    start_cluster: clusterNumber,
+                    n_neighbors: n_neighbors,
+                    n_pcas: n_pcas,
+                    resolutions: resolutions,
+                }),
+            });
+            const data = await res.json();
+
+            if (data.error) {
+                console.error("Direct Slingshot analysis failed:", data.error);
+                alert(`Direct Slingshot analysis failed: ${data.error}`);
+                return;
+            }
+
+            // Add the new data to the datasets object
+            setPseudotimeDataSets(prevDataSets => {
+                const newDataSets = {
+                    ...prevDataSets,
+                    [adata_umap_title]: data
+                };
+                return newDataSets;
+            });
+        } catch (err) {
+            console.error("Failed to fetch direct Slingshot data", err);
+        } finally {
+            // Clear loading state for this specific dataset
+            setPseudotimeLoadingStates(prevStates => ({
+                ...prevStates,
+                [adata_umap_title]: false
+            }));
+        }
+    };
 
     const confirmCellName = () => {
         if (inputCellName.trim() && cellIds.length > 0) {
@@ -297,7 +381,17 @@ export const GOAnalysisWindow = ({
                     alignItems: "center",
                 }}
             >
-                <div style={{ fontSize: "14px", fontWeight: "600", color: "#262626" }}>
+                <div 
+                    style={{ 
+                        fontSize: "14px", 
+                        fontWeight: "600", 
+                        color: "#262626",
+                        cursor: clusterInfo ? "pointer" : "default",
+                        textDecoration: clusterInfo ? "underline" : "none"
+                    }}
+                    onClick={clusterInfo ? handleTitleClick : undefined}
+                    title={clusterInfo ? `Click to run Slingshot analysis starting from cluster ${clusterInfo.cluster_number}` : undefined}
+                >
                     {title}
                 </div>
                 <CloseOutlined
