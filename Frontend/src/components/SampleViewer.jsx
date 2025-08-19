@@ -34,6 +34,19 @@ export const SampleViewer = ({
         selectedSamples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {})
     );
 
+    // Update radioCellGeneModes when selectedSamples changes
+    useEffect(() => {
+        setRadioCellGeneModes(prev => {
+            const newModes = { ...prev };
+            selectedSamples.forEach(sample => {
+                if (!(sample.id in newModes)) {
+                    newModes[sample.id] = 'cellTypes';
+                }
+            });
+            return newModes;
+        });
+    }, [selectedSamples]);
+
     // Kosara gene expression data per sample returned from backend
     const [kosaraDataBySample, setKosaraDataBySample] = useState({}); // { sampleId: [ { id, cell_x, cell_y, cell_type, total_expression, angles:{}, radius:{}, ratios:{} }, ... ] }
 
@@ -144,8 +157,8 @@ export const SampleViewer = ({
     // Filter cell data for scatter plots
     const filteredCellData = useMemo(() => {
         return selectedSamples.reduce((acc, sample) => {
-            const cellData = coordinatesData[sample.id] || [];
-            const offset = sampleOffsets[sample.id] || [0, 0];
+            const cellData = coordinatesData && coordinatesData[sample.id] ? coordinatesData[sample.id] : [];
+            const offset = sampleOffsets && sampleOffsets[sample.id] ? sampleOffsets[sample.id] : [0, 0];
 
             acc[sample.id] = cellData.map(cell => ({
                 ...cell,
@@ -1112,16 +1125,16 @@ export const SampleViewer = ({
                     block
                     options={radioOptions}
                     size='small'
-                    value={radioCellGeneModes[sample.id]}
+                    value={radioCellGeneModes && radioCellGeneModes[sample.id] ? radioCellGeneModes[sample.id] : 'cellTypes'}
                     optionType="button"
                     style={{ marginBottom: 10 }}
                     onChange={(e) => changeCellGeneMode(sample.id, e)}
                 />
 
-                {radioCellGeneModes[sample.id] === 'cellTypes' ? (
+                {(radioCellGeneModes && radioCellGeneModes[sample.id] ? radioCellGeneModes[sample.id] : 'cellTypes') === 'cellTypes' ? (
                     <CellSettings
-                        cellTypesData={cellTypesData[sample.id] || []}
-                        selectedCellTypes={selectedCellTypes[sample.id] || []}
+                        cellTypesData={cellTypesData && cellTypesData[sample.id] ? cellTypesData[sample.id] : []}
+                        selectedCellTypes={selectedCellTypes && selectedCellTypes[sample.id] ? selectedCellTypes[sample.id] : []}
                         setSelectedCellTypes={(newSelectedTypes) => {
                             setSelectedCellTypes(prev => ({
                                 ...prev,
@@ -1188,8 +1201,8 @@ export const SampleViewer = ({
         if (!selectedAreaForEdit) return;
 
         // Get cells that are within the selected area BEFORE making the API call
-        const sampleCells = coordinatesData[selectedAreaForEdit.sampleId] || [];
-        const offset = sampleOffsets[selectedAreaForEdit.sampleId] || [0, 0];
+        const sampleCells = coordinatesData && coordinatesData[selectedAreaForEdit.sampleId] ? coordinatesData[selectedAreaForEdit.sampleId] : [];
+        const offset = sampleOffsets && sampleOffsets[selectedAreaForEdit.sampleId] ? sampleOffsets[selectedAreaForEdit.sampleId] : [0, 0];
 
         // Filter cells that are within the drawn polygon
         const cellsInArea = sampleCells.filter(cell => {
@@ -1444,7 +1457,7 @@ export const SampleViewer = ({
                 },
                 getFillColor: d => {
                     const cellType = d.cell_type;
-                    const sampleSelectedCellTypes = selectedCellTypes[sampleId] || [];
+                    const sampleSelectedCellTypes = selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [];
                     if (cellType && sampleSelectedCellTypes.includes(cellType)) {
                         const color = cellTypeColors[cellType];
                         if (color) {
@@ -1482,9 +1495,9 @@ export const SampleViewer = ({
                 pickable: true,
                 radiusUnits: 'pixels',
                 stroked: true,
-                filled: (!!hoveredSet) || (selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
+                filled: (!!hoveredSet) || (selectedCellTypes && selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
                 updateTriggers: {
-                    getFillColor: [hoveredCluster, selectedCellTypes[sampleId], cellTypeColors, sampleId],
+                    getFillColor: [hoveredCluster, selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [], cellTypeColors, sampleId],
                     getLineColor: [hoveredCluster, sampleId],
                     getRadius: [sampleId, mainViewState?.zoom, hoveredCluster],
                     getLineWidth: [hoveredCluster, sampleId],
