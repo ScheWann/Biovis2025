@@ -1054,7 +1054,7 @@ export const PseudotimeGlyph = ({
                 return (
                     <div style={{
                         position: 'absolute',
-                        top: '5px',
+                        top: '30px',
                         right: '5px',
                         zIndex: 1000,
                         backgroundColor: 'rgba(255, 255, 255, 0.85)',
