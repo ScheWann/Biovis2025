@@ -236,15 +236,17 @@ function App() {
   };
 
   // Handler for UMAP data updates from settings popup
-  const handleUmapDataUpdate = (newData, newAdataUmapTitle, newSettings, umapId) => {
+  const handleUmapDataUpdate = (newData, newAdataUmapTitle, newSettings, newName, umapId) => {
     setUmapDataSets(prev => 
       prev.map(dataset => 
         dataset.id === umapId 
           ? { 
               ...dataset, 
-              data: newData, 
-              adata_umap_title: newAdataUmapTitle,
-              title: `${dataset.title.split(' (')[0]} (${dataset.sampleId})`,
+              // Only update data if newData is provided (not null)
+              ...(newData && { data: newData }),
+              // Only update adata_umap_title if it's different (parameters changed)
+              ...(newData && { adata_umap_title: newAdataUmapTitle }),
+              title: `${newName} (${dataset.sampleId})`,
               loading: false,
               isUpdating: false
             }
@@ -522,8 +524,8 @@ function App() {
                                       cellTypeColors={cellTypeColors}
                                       setCellTypeColors={setCellTypeColors}
                                       pseudotimeDataSets={pseudotimeDataSets}
-                                      onUmapDataUpdate={(newData, newAdataUmapTitle, newSettings) => 
-                                        handleUmapDataUpdate(newData, newAdataUmapTitle, newSettings, dataset.id)
+                                      onUmapDataUpdate={(newData, newAdataUmapTitle, newSettings, newName) => 
+                                        handleUmapDataUpdate(newData, newAdataUmapTitle, newSettings, newName, dataset.id)
                                       }
                                       onUmapLoadingStart={() => handleUmapLoadingStart(dataset.id)}
                                       isUpdating={dataset.isUpdating || false}

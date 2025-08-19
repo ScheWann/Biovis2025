@@ -77,11 +77,11 @@ export const ScatterplotUmap = ({
   const [currentClusterInfo, setCurrentClusterInfo] = useState(null);
 
   // Handler for UMAP settings update
-  const handleUmapSettingsUpdate = (newData, newAdataUmapTitle, newSettings) => {
+  const handleUmapSettingsUpdate = (newData, newAdataUmapTitle, newSettings, newName) => {
     // Update the data prop by calling a callback from parent
     // This will need to be passed down from the parent component
     if (onUmapDataUpdate) {
-      onUmapDataUpdate(newData, newAdataUmapTitle, newSettings);
+      onUmapDataUpdate(newData, newAdataUmapTitle, newSettings, newName);
     }
   };
 
@@ -708,6 +708,7 @@ export const ScatterplotUmap = ({
         sampleId={sampleId}
         cellIds={currentCellIds.length > 0 ? currentCellIds : data.map(d => d.id || d.cell_id).filter(Boolean)}
         adata_umap_title={adata_umap_title}
+        currentTitle={title}
       />
     </div>
   );

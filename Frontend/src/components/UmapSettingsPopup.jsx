@@ -12,13 +12,15 @@ export const UmapSettingsPopup = ({
   onLoadingStart,
   sampleId,
   cellIds,
-  adata_umap_title
+  adata_umap_title,
+  currentTitle
 }) => {
   const [settings, setSettings] = useState({
     n_neighbors: 10,
     n_pcas: 30,
     resolutions: 1
   });
+  const [umapName, setUmapName] = useState('');
   const [loading, setLoading] = useState(false);
   const [pseudotimeLoading, setPseudotimeLoading] = useState(false);
 
@@ -45,6 +47,19 @@ export const UmapSettingsPopup = ({
     }
   }, [visible, adata_umap_title]);
 
+  // Initialize UMAP name when popup opens
+  useEffect(() => {
+    if (visible && currentTitle) {
+      // Extract the name part before the parentheses (e.g., "Area 1" from "Area 1 (sample_id)")
+      const nameMatch = currentTitle.match(/^(.+?)\s*\(/);
+      if (nameMatch) {
+        setUmapName(nameMatch[1].trim());
+      } else {
+        setUmapName(currentTitle);
+      }
+    }
+  }, [visible, currentTitle]);
+
   const handleInputChange = (field, value) => {
     setSettings(prev => ({
       ...prev,
@@ -55,6 +70,25 @@ export const UmapSettingsPopup = ({
   const handleUpdateUMAP = async () => {
     if (!sampleId || !cellIds || cellIds.length === 0) {
       alert('No cells selected for UMAP analysis');
+      return;
+    }
+
+    // Check if only the name has changed (no parameter changes)
+    const parts = adata_umap_title.split('_');
+    const currentNeighbors = parseInt(parts[parts.length - 3]) || 10;
+    const currentPcas = parseInt(parts[parts.length - 2]) || 30;
+    const currentResolutions = parseFloat(parts[parts.length - 1]) || 1;
+    
+    const onlyNameChanged = (
+      settings.n_neighbors === currentNeighbors &&
+      settings.n_pcas === currentPcas &&
+      settings.resolutions === currentResolutions
+    );
+
+    if (onlyNameChanged) {
+      // Only name changed, no need to call API
+      onUpdateSettings(null, adata_umap_title, settings, umapName);
+      setVisible(false);
       return;
     }
 
@@ -81,7 +115,6 @@ export const UmapSettingsPopup = ({
 
     try {
       // Generate new adata_umap_title with updated parameters
-      const parts = adata_umap_title.split('_');
       const baseName = parts.slice(0, -3).join('_'); // Remove the last 3 parts (parameters)
       const newAdataUmapTitle = `${baseName}_${settings.n_neighbors}_${settings.n_pcas}_${settings.resolutions}`;
 
@@ -109,8 +142,8 @@ export const UmapSettingsPopup = ({
         throw new Error(data.error);
       }
 
-      // Call the parent callback with new data and title
-      onUpdateSettings(data, newAdataUmapTitle, settings);
+      // Call the parent callback with new data, title, settings, and name
+      onUpdateSettings(data, newAdataUmapTitle, settings, umapName);
 
       // Close the popup
       setVisible(false);
@@ -209,6 +242,28 @@ export const UmapSettingsPopup = ({
           textAlign: 'left'
         }}>
           UMAP Settings
+        </div>
+
+        {/* UMAP Name Input */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: '#595959',
+              minWidth: '100px',
+              textAlign: 'left'
+            }}>
+              Name:
+            </label>
+            <Input
+              value={umapName}
+              onChange={(e) => setUmapName(e.target.value)}
+              size="small"
+              style={{ flex: 1 }}
+              placeholder="Enter UMAP name"
+            />
+          </div>
         </div>
 
         {/* Number of Neighbors Input */}
