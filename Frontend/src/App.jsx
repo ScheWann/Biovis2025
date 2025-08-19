@@ -244,7 +244,7 @@ function App() {
               ...dataset, 
               data: newData, 
               adata_umap_title: newAdataUmapTitle,
-              title: `${dataset.title.split(' (')[0]} (${newAdataUmapTitle})`,
+              title: `${dataset.title.split(' (')[0]} (${dataset.sampleId})`,
               loading: false,
               isUpdating: false
             }
