@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import '../styles/UmapSettingsPopup.css';
+import { Input, Button, AutoComplete } from 'antd';
+import { CloseOutlined } from '@ant-design/icons';
 
 export const UmapSettingsPopup = ({
   visible,
@@ -31,7 +32,7 @@ export const UmapSettingsPopup = ({
           const n_neighbors = parseInt(parts[parts.length - 3]) || 10;
           const n_pcas = parseInt(parts[parts.length - 2]) || 30;
           const resolutions = parseFloat(parts[parts.length - 1]) || 1;
-          
+
           setSettings({
             n_neighbors,
             n_pcas,
@@ -72,12 +73,12 @@ export const UmapSettingsPopup = ({
     }
 
     setLoading(true);
-    
+
     // Start the loading animation in the parent component
     if (onLoadingStart) {
       onLoadingStart();
     }
-    
+
     try {
       // Generate new adata_umap_title with updated parameters
       const parts = adata_umap_title.split('_');
@@ -103,17 +104,17 @@ export const UmapSettingsPopup = ({
       }
 
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error);
       }
 
       // Call the parent callback with new data and title
       onUpdateSettings(data, newAdataUmapTitle, settings);
-      
+
       // Close the popup
       setVisible(false);
-      
+
     } catch (error) {
       console.error('Error updating UMAP:', error);
       alert(`Failed to update UMAP: ${error.message}`);
@@ -129,7 +130,7 @@ export const UmapSettingsPopup = ({
     }
 
     setPseudotimeLoading(true);
-    
+
     try {
       await onPseudotimeAnalysis(sampleId, cellIds);
     } catch (error) {
@@ -143,94 +144,198 @@ export const UmapSettingsPopup = ({
   if (!visible) return null;
 
   return (
-    <div 
-      className="umap-settings-popup-overlay"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          setVisible(false);
-        }
-      }}
-    >
-      <div 
-        className="umap-settings-popup"
+    <>
+      {/* Overlay to prevent interactions with the map */}
+      <div
         style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 999,
+          backgroundColor: 'rgba(0, 0, 0, 0.1)',
+          cursor: 'default',
+          pointerEvents: 'auto'
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setVisible(false);
+        }}
+      />
+
+      <div
+        style={{
+          position: 'fixed',
           left: Math.min(position.x, window.innerWidth - 420),
-          top: Math.min(position.y, window.innerHeight - 400)
+          top: Math.min(position.y, window.innerHeight - 400),
+          zIndex: 1000,
+          background: '#ffffff',
+          border: '1px solid #d9d9d9',
+          borderRadius: 8,
+          boxShadow: '0 6px 16px rgba(0, 0, 0, 0.12)',
+          padding: 12,
+          minWidth: 240,
+          maxWidth: 320,
+          pointerEvents: 'auto'
         }}
       >
-        <div className="umap-settings-header">
-          <h3>UMAP Settings</h3>
-          <div className="umap-settings-current">
-            <small>Current: {settings.n_neighbors} neighbors, {settings.n_pcas} PCs, {settings.resolutions} resolution</small>
-          </div>
-          <button 
-            className="umap-settings-close"
-            onClick={() => setVisible(false)}
-          >
-            ×
-          </button>
+        {/* Close button */}
+        <div style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          cursor: 'pointer',
+          padding: 4,
+          borderRadius: 4,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+          onClick={() => setVisible(false)}
+          onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+          onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+        >
+          <CloseOutlined style={{ fontSize: 12, color: '#666' }} />
         </div>
-        
-        <div className="umap-settings-content">
-          <div className="umap-setting-group">
-            <label htmlFor="n_neighbors">Number of Neighbors:</label>
-            <input
-              id="n_neighbors"
-              type="number"
-              min="1"
-              max="50"
-              value={settings.n_neighbors}
-              onChange={(e) => handleInputChange('n_neighbors', parseInt(e.target.value) || 10)}
-            />
-            <small>Controls the number of neighbors for neighbor graph construction (1-50)</small>
-          </div>
 
-          <div className="umap-setting-group">
-            <label htmlFor="n_pcas">Number of PCs:</label>
-            <input
-              id="n_pcas"
-              type="number"
-              min="1"
-              max="100"
-              value={settings.n_pcas}
-              onChange={(e) => handleInputChange('n_pcas', parseInt(e.target.value) || 30)}
-            />
-            <small>Number of principal components to use (1-100)</small>
-          </div>
+        {/* Title */}
+        <div style={{
+          fontWeight: 'bold',
+          marginBottom: 5,
+          fontSize: 14,
+          color: '#262626',
+          paddingRight: 20,
+          textAlign: 'left'
+        }}>
+          UMAP Settings
+        </div>
 
-          <div className="umap-setting-group">
-            <label htmlFor="resolutions">Resolution:</label>
-            <input
-              id="resolutions"
-              type="number"
-              min="0.1"
-              max="5"
-              step="0.1"
-              value={settings.resolutions}
-              onChange={(e) => handleInputChange('resolutions', parseFloat(e.target.value) || 1)}
+        {/* Number of Neighbors Input */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: '#595959',
+              minWidth: '100px',
+              textAlign: 'left'
+            }}>
+              Neighbors:
+            </label>
+            <AutoComplete
+              value={settings.n_neighbors.toString()}
+              onChange={(value) => handleInputChange('n_neighbors', parseInt(value) || 10)}
+              options={[
+                { value: '5' },
+                { value: '10' },
+                { value: '15' },
+                { value: '20' },
+                { value: '25' },
+                { value: '30' },
+                { value: '40' },
+                { value: '50' }
+              ]}
+              size="small"
+              style={{ flex: 1 }}
+              placeholder="10"
             />
-            <small>Resolution parameter for Leiden clustering (0.1-5.0)</small>
           </div>
+        </div>
 
-          <div className="umap-settings-actions">
-            <button
-              className="umap-settings-btn umap-settings-btn-primary"
-              onClick={handleUpdateUMAP}
-              disabled={loading}
-            >
-              {loading ? 'Updating...' : 'Update UMAP'}
-            </button>
-            
-            <button
-              className="umap-settings-btn umap-settings-btn-secondary"
-              onClick={handlePseudotimeAnalysis}
-              disabled={pseudotimeLoading}
-            >
-              {pseudotimeLoading ? 'Analyzing...' : 'Pseudotime Analysis'}
-            </button>
+        {/* Number of PCs Input */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: '#595959',
+              minWidth: '100px',
+              textAlign: 'left'
+            }}>
+              N PCAs:
+            </label>
+            <AutoComplete
+              value={settings.n_pcas.toString()}
+              onChange={(value) => handleInputChange('n_pcas', parseInt(value) || 30)}
+              options={[
+                { value: '10' },
+                { value: '20' },
+                { value: '30' },
+                { value: '40' },
+                { value: '50' },
+                { value: '75' },
+                { value: '100' }
+              ]}
+              size="small"
+              style={{ flex: 1 }}
+              placeholder="30"
+            />
           </div>
+        </div>
+
+        {/* Resolution Input */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: '#595959',
+              minWidth: '100px',
+              textAlign: 'left'
+            }}>
+              Resolution:
+            </label>
+            <AutoComplete
+              value={settings.resolutions.toString()}
+              onChange={(value) => handleInputChange('resolutions', parseFloat(value) || 1)}
+              options={[
+                { value: '0.1' },
+                { value: '0.2' },
+                { value: '0.3' },
+                { value: '0.4' },
+                { value: '0.5' },
+                { value: '0.6' },
+                { value: '0.7' },
+                { value: '0.8' },
+                { value: '0.9' },
+                { value: '1.0' },
+                { value: '1.5' },
+                { value: '2.0' },
+                { value: '3.0' },
+                { value: '5.0' }
+              ]}
+              size="small"
+              style={{ flex: 1 }}
+              placeholder="1.0"
+            />
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <Button
+          size="small"
+          style={{ marginBottom: 5, width: '100%' }}
+          color="pink"
+          variant="outlined"
+          onClick={handleUpdateUMAP}
+          loading={loading}
+        >
+          {loading ? 'Updating...' : 'Update UMAP'}
+        </Button>
+
+        <div style={{ display: 'flex', gap: 5, justifyContent: 'space-between' }}>
+          <Button
+            size="small"
+            type="primary"
+            onClick={handlePseudotimeAnalysis}
+            loading={pseudotimeLoading}
+            style={{ flex: 1 }}
+          >
+            {pseudotimeLoading ? 'Analyzing...' : 'Pseudotime Analysis'}
+          </Button>
         </div>
       </div>
-    </div>
+    </>
   );
 };
