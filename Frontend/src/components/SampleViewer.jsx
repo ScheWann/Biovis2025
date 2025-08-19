@@ -13,7 +13,6 @@ export const SampleViewer = ({
     selectedSamples,
     coordinatesData,
     cellTypesData,
-    setCellTypesData,
     selectedCellTypes,
     setSelectedCellTypes,
     cellTypeColors,
@@ -22,8 +21,6 @@ export const SampleViewer = ({
     umapLoading,
     setUmapLoading,
     hoveredCluster,
-    cellName,
-    setCellName,
     onImagesLoaded
 }) => {
     const containerRef = useRef(null);

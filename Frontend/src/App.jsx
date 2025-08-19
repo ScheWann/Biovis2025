@@ -393,7 +393,6 @@ function App() {
                     <SampleViewer
                       selectedSamples={selectedSamples}
                       coordinatesData={coordinatesData}
-                      cellTypesData={cellTypesData}
                       setCellTypesData={setCellTypesData}
                       selectedCellTypes={selectedCellTypes}
                       setSelectedCellTypes={setSelectedCellTypes}
@@ -403,8 +402,6 @@ function App() {
                       umapLoading={umapLoading}
                       setUmapLoading={setUmapLoading}
                       hoveredCluster={hoveredCluster}
-                      cellName={cellName}
-                      setCellName={setCellName}
                       onImagesLoaded={onImagesLoaded}
                     />
                   </Splitter.Panel>

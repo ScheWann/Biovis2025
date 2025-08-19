@@ -4,7 +4,7 @@ import * as d3 from "d3";
 
 export const LineChart = ({
   data,
-  datasets, // New prop for multiple datasets
+  datasets, // for multiple datasets
   xAccessor,
   yAccessor,
   margin = { top: 40, right: 30, bottom: 50, left: 60 },

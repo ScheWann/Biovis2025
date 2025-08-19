@@ -6,7 +6,6 @@ export const UmapSettingsPopup = ({
   visible,
   setVisible,
   position,
-  currentSettings,
   onUpdateSettings,
   onPseudotimeAnalysis,
   onLoadingStart,

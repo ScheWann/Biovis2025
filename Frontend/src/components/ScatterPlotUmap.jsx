@@ -79,7 +79,6 @@ export const ScatterplotUmap = ({
   // Handler for UMAP settings update
   const handleUmapSettingsUpdate = (newData, newAdataUmapTitle, newSettings, newName) => {
     // Update the data prop by calling a callback from parent
-    // This will need to be passed down from the parent component
     if (onUmapDataUpdate) {
       onUmapDataUpdate(newData, newAdataUmapTitle, newSettings, newName);
     }
