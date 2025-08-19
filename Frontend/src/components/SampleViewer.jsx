@@ -95,9 +95,6 @@ export const SampleViewer = ({
     const fetchingImages = useRef(new Set()); // Track which images are currently being fetched
     const imagesLoadedCallbackCalled = useRef(false); // Track if callback has been called for current samples
 
-    // Add state for preloaded cell boundary images
-    // const [cellBoundaryImages, setCellBoundaryImages] = useState({}); // { sampleId: imageUrl }
-
     const radioOptions = [
         {
             label: 'Cell Type',
@@ -708,33 +705,7 @@ export const SampleViewer = ({
         return () => clearTimeout(timeoutId);
     }, [hiresImages, selectedSamples, onImagesLoaded]);
 
-    // Preload cell boundary images for all selected samples
-    // useEffect(() => {
-    //     let isMounted = true;
-    //     selectedSamples.forEach(sample => {
-    //         setCellBoundaryImages(prev => {
-    //             if (prev[sample.id]) return prev;
-    //             // Start fetching cell boundary image
-    //             fetch('/api/get_cell_boundary_image', {
-    //                 method: 'POST',
-    //                 headers: { 'Content-Type': 'application/json' },
-    //                 body: JSON.stringify({ sample_id: sample.id })
-    //             })
-    //                 .then(response => response.ok ? response.blob() : null)
-    //                 .then(blob => {
-    //                     if (blob && isMounted) {
-    //                         const imageUrl = URL.createObjectURL(blob);
-    //                         setCellBoundaryImages(prev2 => ({
-    //                             ...prev2,
-    //                             [sample.id]: imageUrl
-    //                         }));
-    //                     }
-    //                 });
-    //             return prev;
-    //         });
-    //     });
-    //     return () => { isMounted = false; };
-    // }, [selectedSamples]);
+
 
     // Update magnifier viewport based on mouse position
     const updateMagnifierViewport = useCallback((worldX, worldY, sampleId) => {
@@ -1346,30 +1317,6 @@ export const SampleViewer = ({
 
         return layers;
     }, [selectedSamples, imageSizes, sampleOffsets, hiresImages]);
-
-    // Generate cell boundary image layers
-    // const generateCellBoundaryLayers = useCallback(() => {
-    //     return selectedSamples.map(sample => {
-    //         const imageSize = imageSizes[sample.id];
-    //         const offset = sampleOffsets[sample.id] || [0, 0];
-    //         const cellBoundaryImage = cellBoundaryImages[sample.id];
-
-    //         if (!imageSize || !cellBoundaryImage) return null;
-
-    //         return new BitmapLayer({
-    //             id: `cell-boundary-${sample.id}`,
-    //             image: cellBoundaryImage,
-    //             bounds: [
-    //                 offset[0],
-    //                 offset[1] + imageSize[1],
-    //                 offset[0] + imageSize[0],
-    //                 offset[1]
-    //             ],
-    //             opacity: 0.6,
-    //             parameters: { depthTest: false }
-    //         });
-    //     }).filter(Boolean);
-    // }, [selectedSamples, imageSizes, sampleOffsets, cellBoundaryImages]);
 
     // Generate cell scatter layers and kosara polygons (gene mode)
     const kosaraPolygonsBySample = useMemo(() => {
