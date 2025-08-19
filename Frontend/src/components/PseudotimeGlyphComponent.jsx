@@ -1,5 +1,6 @@
 import { PseudotimeGlyph } from './PseudotimeGlyph';
 import { Empty, Spin, Select, Button } from 'antd';
+import { CloseOutlined } from '@ant-design/icons';
 import { useState, useEffect, useRef, useMemo } from 'react';
 
 export const PseudotimeGlyphComponent = ({
@@ -17,6 +18,9 @@ export const PseudotimeGlyphComponent = ({
 
     // State for selected genes (multiple selection)
     const [selectedGenes, setSelectedGenes] = useState([]);
+
+    // State for hiding/closing glyphs - tracked by stable key (source_title)
+    const [hiddenGlyphs, setHiddenGlyphs] = useState(new Set());
 
     // State for highly variable genes
     const [highVariableGenes, setHighVariableGenes] = useState([]);
@@ -212,6 +216,40 @@ export const PseudotimeGlyphComponent = ({
         }
         setSelectedGlyphs(newSelected);
     };
+
+    // Handle closing a glyph (hide it and unselect if selected)
+    const handleCloseGlyph = (glyphKey) => {
+        setHiddenGlyphs((prev) => {
+            const next = new Set(prev);
+            next.add(glyphKey);
+            return next;
+        });
+        // Unselect any glyphs that correspond to this key (by index)
+        setSelectedGlyphs((prev) => {
+            const next = new Set(prev);
+            // Selection is tracked by index; we cannot reliably map back here, so keep as-is.
+            return next;
+        });
+    };
+
+    // Reset or prune hidden glyphs when data regenerates or datasets change
+    useEffect(() => {
+        const anyLoadingNow = Object.values(pseudotimeLoadingStates || {}).some(Boolean);
+        if (anyLoadingNow) {
+            // When regeneration starts, show all so new results are visible
+            setHiddenGlyphs(new Set());
+            return;
+        }
+        // Prune hidden keys that are no longer present
+        const currentKeys = new Set(Object.keys(pseudotimeDataSets || {}));
+        setHiddenGlyphs((prev) => {
+            const next = new Set();
+            prev.forEach((k) => {
+                if (currentKeys.has(k)) next.add(k);
+            });
+            return next;
+        });
+    }, [pseudotimeDataSets, pseudotimeLoadingStates]);
 
     // Convert pseudotimeDataSets object to separate trajectory data for each UMAP
     const allPseudotimeData = [];
@@ -531,21 +569,35 @@ export const PseudotimeGlyphComponent = ({
                 >
                     Analyze
                 </Button>
+                <Button
+                    onClick={() => setHiddenGlyphs(new Set())}
+                    disabled={hiddenGlyphs.size === 0}
+                    size="small"
+                >
+                    Show All
+                </Button>
             </div>
 
-            <div style={{
-                width: '100%',
-                height: `calc(100% - 35px)`,
-                display: 'grid',
-                gridTemplateColumns: allPseudotimeData.length === 1 ? 'minmax(0, 1fr)' :
-                    allPseudotimeData.length === 2 ? 'repeat(2, minmax(0, 1fr))' :
-                        'repeat(3, minmax(0, 1fr))',
-                gridAutoRows: '1fr',
-                gap: '5px',
-                overflow: 'hidden',
-                boxSizing: 'border-box'
-            }}>
-                {allPseudotimeData.map((trajectoryData, index) => {
+            {(() => {
+                const indexToKey = (i) => (allPseudotimeData[i]?.source_title) || `${i}`;
+                const visibleIndices = allPseudotimeData.map((_, i) => i).filter(i => !hiddenGlyphs.has(indexToKey(i)));
+                const visibleCount = visibleIndices.length;
+                return (
+                    <div style={{
+                        width: '100%',
+                        height: `calc(100% - 35px)`,
+                        display: 'grid',
+                        gridTemplateColumns: visibleCount === 1 ? 'minmax(0, 1fr)' :
+                            visibleCount === 2 ? 'repeat(2, minmax(0, 1fr))' :
+                                'repeat(3, minmax(0, 1fr))',
+                        gridAutoRows: '1fr',
+                        gap: '5px',
+                        overflow: 'hidden',
+                        boxSizing: 'border-box'
+                    }}>
+                {visibleIndices.map((index) => {
+                    const trajectoryData = allPseudotimeData[index];
+                    const glyphKey = indexToKey(index);
                     return (
                         <div
                             key={index}
@@ -561,6 +613,22 @@ export const PseudotimeGlyphComponent = ({
                                 boxSizing: 'border-box'
                             }}
                         >
+                            {!trajectoryData.isPlaceholder && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '4px',
+                                    right: '4px',
+                                    zIndex: 1100,
+                                }}>
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<CloseOutlined />}
+                                        onClick={() => handleCloseGlyph(glyphKey)}
+                                        aria-label="Close glyph"
+                                    />
+                                </div>
+                            )}
                             {trajectoryData.isPlaceholder ? (
                                 <div style={{
                                     width: '100%',
@@ -667,7 +735,9 @@ export const PseudotimeGlyphComponent = ({
                         </div>
                     );
                 })}
-            </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 };

@@ -492,6 +492,7 @@ function App() {
                                       setSelectedCellTypes={setSelectedCellTypes}
                                       cellTypeColors={cellTypeColors}
                                       setCellTypeColors={setCellTypeColors}
+                                      pseudotimeDataSets={pseudotimeDataSets}
                                     />
                                   </div>
                                 );

@@ -21,7 +21,8 @@ export const UmapComponent = ({
   selectedCellTypes,
   setSelectedCellTypes,
   cellTypeColors,
-  setCellTypeColors
+  setCellTypeColors,
+  pseudotimeDataSets
 }) => {
   return (
     <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -66,6 +67,7 @@ export const UmapComponent = ({
           setSelectedCellTypes={setSelectedCellTypes}
           cellTypeColors={cellTypeColors}
           setCellTypeColors={setCellTypeColors}
+          pseudotimeDataSets={pseudotimeDataSets}
         />
       ) : null}
     </div>

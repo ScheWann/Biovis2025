@@ -28,7 +28,8 @@ export const ScatterplotUmap = ({
   selectedCellTypes,
   setSelectedCellTypes,
   cellTypeColors,
-  setCellTypeColors
+  setCellTypeColors,
+  pseudotimeDataSets
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -69,9 +70,18 @@ export const ScatterplotUmap = ({
   const [currentClusterInfo, setCurrentClusterInfo] = useState(null);
 
   const fetchPseudotimeData = async (sampleId, cellIds) => {
-    // Check if data for this adata_umap_title already exists
+    // Use cached data when available; do not call API again
     if (pseudotimeDataSetsRef.current[adata_umap_title]) {
-      return pseudotimeDataSetsRef.current[adata_umap_title];
+      const cached = pseudotimeDataSetsRef.current[adata_umap_title];
+      // Briefly toggle loading to signal regeneration and unhide glyphs
+      setPseudotimeLoadingStates(prev => ({ ...prev, [adata_umap_title]: true }));
+      // Refresh datasets reference to notify dependents
+      setPseudotimeDataSets(prev => ({ ...prev }));
+      // Turn off loading on next tick
+      setTimeout(() => {
+        setPseudotimeLoadingStates(prev => ({ ...prev, [adata_umap_title]: false }));
+      }, 0);
+      return cached;
     }
 
     // Parse parameters from adata_umap_title
@@ -668,6 +678,7 @@ export const ScatterplotUmap = ({
         adata_umap_title={adata_umap_title}
         setPseudotimeDataSets={setPseudotimeDataSets}
         setPseudotimeLoadingStates={setPseudotimeLoadingStates}
+        pseudotimeDataSets={pseudotimeDataSets}
       />
     </div>
   );

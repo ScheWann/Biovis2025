@@ -23,7 +23,8 @@ export const GOAnalysisWindow = ({
     clusterInfo = null, // Add cluster information prop
     adata_umap_title = null, // Add adata_umap_title prop
     setPseudotimeDataSets = null, // Add setPseudotimeDataSets prop
-    setPseudotimeLoadingStates = null // Add setPseudotimeLoadingStates prop
+    setPseudotimeLoadingStates = null, // Add setPseudotimeLoadingStates prop
+    pseudotimeDataSets = null // Add current pseudotime datasets for cache check
 }) => {
     const tooltipRef = useRef();
     const svgRef = useRef();
@@ -34,6 +35,26 @@ export const GOAnalysisWindow = ({
     const handleTitleClick = async () => {
         if (!clusterInfo || !adata_umap_title || !setPseudotimeDataSets || !setPseudotimeLoadingStates) {
             console.warn("Missing required props for direct Slingshot analysis");
+            return;
+        }
+
+        // Check if data for this adata_umap_title already exists in cache
+        if (pseudotimeDataSets && pseudotimeDataSets[adata_umap_title]) {
+            const cached = pseudotimeDataSets[adata_umap_title];
+            // Briefly toggle loading to signal regeneration and unhide glyphs
+            setPseudotimeLoadingStates(prevStates => ({
+                ...prevStates,
+                [adata_umap_title]: true
+            }));
+            // Refresh datasets reference to notify dependents
+            setPseudotimeDataSets(prevDataSets => ({ ...prevDataSets }));
+            // Turn off loading on next tick
+            setTimeout(() => {
+                setPseudotimeLoadingStates(prevStates => ({
+                    ...prevStates,
+                    [adata_umap_title]: false
+                }));
+            }, 0);
             return;
         }
 
