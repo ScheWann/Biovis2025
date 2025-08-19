@@ -38,13 +38,16 @@ export const GOAnalysisWindow = ({
             return;
         }
 
-        // Check if data for this adata_umap_title already exists in cache
-        if (pseudotimeDataSets && pseudotimeDataSets[adata_umap_title]) {
-            const cached = pseudotimeDataSets[adata_umap_title];
+        // Create a unique key for direct slingshot data to avoid conflicts with regular pseudotime data
+        const directSlingshotKey = `${adata_umap_title}_direct_slingshot`;
+        
+        // Check if data for this direct slingshot key already exists in cache
+        if (pseudotimeDataSets && pseudotimeDataSets[directSlingshotKey]) {
+            const cached = pseudotimeDataSets[directSlingshotKey];
             // Briefly toggle loading to signal regeneration and unhide glyphs
             setPseudotimeLoadingStates(prevStates => ({
                 ...prevStates,
-                [adata_umap_title]: true
+                [directSlingshotKey]: true
             }));
             // Refresh datasets reference to notify dependents
             setPseudotimeDataSets(prevDataSets => ({ ...prevDataSets }));
@@ -52,7 +55,7 @@ export const GOAnalysisWindow = ({
             setTimeout(() => {
                 setPseudotimeLoadingStates(prevStates => ({
                     ...prevStates,
-                    [adata_umap_title]: false
+                    [directSlingshotKey]: false
                 }));
             }, 0);
             return;
@@ -87,7 +90,7 @@ export const GOAnalysisWindow = ({
         // Set loading state for this specific dataset
         setPseudotimeLoadingStates(prevStates => ({
             ...prevStates,
-            [adata_umap_title]: true
+            [directSlingshotKey]: true
         }));
 
         try {
@@ -112,11 +115,11 @@ export const GOAnalysisWindow = ({
                 return;
             }
 
-            // Add the new data to the datasets object
+            // Add the new data to the datasets object with the unique key
             setPseudotimeDataSets(prevDataSets => {
                 const newDataSets = {
                     ...prevDataSets,
-                    [adata_umap_title]: data
+                    [directSlingshotKey]: data
                 };
                 return newDataSets;
             });
@@ -126,7 +129,7 @@ export const GOAnalysisWindow = ({
             // Clear loading state for this specific dataset
             setPseudotimeLoadingStates(prevStates => ({
                 ...prevStates,
-                [adata_umap_title]: false
+                [directSlingshotKey]: false
             }));
         }
     };

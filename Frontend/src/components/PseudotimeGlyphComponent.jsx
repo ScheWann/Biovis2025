@@ -269,16 +269,25 @@ export const PseudotimeGlyphComponent = ({
             }
 
             if (hasValidData) {
+                // Determine if this is direct slingshot data or regular pseudotime data
+                const isDirectSlingshot = title.endsWith('_direct_slingshot');
+                const baseTitle = isDirectSlingshot ? title.replace('_direct_slingshot', '') : title;
+                
                 // Find the corresponding UMAP dataset for display title
-                let displayTitle = title;
+                let displayTitle = baseTitle;
                 if (umapDataSets && Array.isArray(umapDataSets)) {
                     const matchingUmapDataset = umapDataSets.find(dataset =>
-                        dataset.adata_umap_title === title || dataset.title === title
+                        dataset.adata_umap_title === baseTitle || dataset.title === baseTitle
                     );
 
                     if (matchingUmapDataset) {
                         displayTitle = matchingUmapDataset.title;
                     }
+                }
+
+                // Add suffix to distinguish between regular and direct slingshot data
+                if (isDirectSlingshot) {
+                    displayTitle = `${displayTitle} (Direct Slingshot)`;
                 }
 
                 // Process trajectories for this specific UMAP dataset
@@ -293,7 +302,7 @@ export const PseudotimeGlyphComponent = ({
 
                     // Second fallback: try to extract from title (format: prefix_sampleId_suffix)
                     if (!sampleId) {
-                        const titleToCheck = title || adata_umap_title;
+                        const titleToCheck = baseTitle || adata_umap_title;
                         if (titleToCheck && typeof titleToCheck === 'string') {
                             // Look for patterns like skin_TXK6Z4X_A1 or similar
                             const match = titleToCheck.match(/(skin_[A-Z0-9]+_[A-Z0-9]+)/);
@@ -316,7 +325,8 @@ export const PseudotimeGlyphComponent = ({
                     display_title: displayTitle,
                     isLoading: false,
                     isPlaceholder: false,
-                    fullPseudotimeData: pseudotimeData
+                    fullPseudotimeData: pseudotimeData,
+                    isDirectSlingshot: isDirectSlingshot
                 });
             }
         });
@@ -328,15 +338,31 @@ export const PseudotimeGlyphComponent = ({
         if (umapDataSets && Array.isArray(umapDataSets)) {
             umapDataSets.forEach((umapDataset) => {
                 const isThisDatasetLoading = pseudotimeLoadingStates[umapDataset.adata_umap_title];
+                const directSlingshotKey = `${umapDataset.adata_umap_title}_direct_slingshot`;
+                const isDirectSlingshotLoading = pseudotimeLoadingStates[directSlingshotKey];
+                
                 const hasDataForThisDataset = allPseudotimeData.some(data =>
                     data.source_title === umapDataset.adata_umap_title
                 );
+                const hasDirectSlingshotData = allPseudotimeData.some(data =>
+                    data.source_title === directSlingshotKey
+                );
 
-                // If this dataset is loading and we don't have data for it yet, add a loading placeholder
+                // If regular pseudotime is loading and we don't have data for it yet, add a loading placeholder
                 if (isThisDatasetLoading && !hasDataForThisDataset) {
                     allPseudotimeData.push({
                         source_title: umapDataset.adata_umap_title,
                         display_title: umapDataset.title || umapDataset.adata_umap_title,
+                        isLoading: true,
+                        isPlaceholder: true
+                    });
+                }
+
+                // If direct slingshot is loading and we don't have data for it yet, add a loading placeholder
+                if (isDirectSlingshotLoading && !hasDirectSlingshotData) {
+                    allPseudotimeData.push({
+                        source_title: directSlingshotKey,
+                        display_title: `${umapDataset.title || umapDataset.adata_umap_title} (Direct Slingshot)`,
                         isLoading: true,
                         isPlaceholder: true
                     });
