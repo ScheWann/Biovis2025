@@ -235,6 +235,35 @@ function App() {
     }
   };
 
+  // Handler for UMAP data updates from settings popup
+  const handleUmapDataUpdate = (newData, newAdataUmapTitle, newSettings, umapId) => {
+    setUmapDataSets(prev => 
+      prev.map(dataset => 
+        dataset.id === umapId 
+          ? { 
+              ...dataset, 
+              data: newData, 
+              adata_umap_title: newAdataUmapTitle,
+              title: `${dataset.title.split(' (')[0]} (${newAdataUmapTitle})`,
+              loading: false,
+              isUpdating: false
+            }
+          : dataset
+      )
+    );
+  };
+
+  // Handler to set loading state for UMAP updates
+  const handleUmapLoadingStart = (umapId) => {
+    setUmapDataSets(prev => 
+      prev.map(dataset => 
+        dataset.id === umapId 
+          ? { ...dataset, loading: true, isUpdating: true }
+          : dataset
+      )
+    );
+  };
+
   return (
     <ConfigProvider theme={customTheme}>
       <div className="App">
@@ -493,6 +522,11 @@ function App() {
                                       cellTypeColors={cellTypeColors}
                                       setCellTypeColors={setCellTypeColors}
                                       pseudotimeDataSets={pseudotimeDataSets}
+                                      onUmapDataUpdate={(newData, newAdataUmapTitle, newSettings) => 
+                                        handleUmapDataUpdate(newData, newAdataUmapTitle, newSettings, dataset.id)
+                                      }
+                                      onUmapLoadingStart={() => handleUmapLoadingStart(dataset.id)}
+                                      isUpdating={dataset.isUpdating || false}
                                     />
                                   </div>
                                 );
