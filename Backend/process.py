@@ -865,19 +865,29 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
         if leiden_col not in adata.obs.columns:
             raise ValueError(f"No clustering results found for {adata_umap_title}. Please generate UMAP first.")
         
+        # Filter adata to only include cells that were part of this UMAP analysis
+        # Cells that weren't part of the UMAP analysis have pd.NA values in the leiden column
+        valid_cells = adata.obs[leiden_col].notna()
+        adata_filtered = adata[valid_cells].copy()
+        
+        print(f"Filtered adata from {adata.n_obs} to {adata_filtered.n_obs} cells for GO analysis")
+        
         # Convert leiden column to categorical if it isn't already
-        if not pd.api.types.is_categorical_dtype(adata.obs[leiden_col]):
-            adata.obs[leiden_col] = adata.obs[leiden_col].astype('category')
+        if not pd.api.types.is_categorical_dtype(adata_filtered.obs[leiden_col]):
+            adata_filtered.obs[leiden_col] = adata_filtered.obs[leiden_col].astype('category')
         
-        sc.tl.rank_genes_groups(adata, groupby=leiden_col, method='wilcoxon')
+        # Gene ranking
+        sc.tl.rank_genes_groups(adata_filtered, groupby=leiden_col, method='wilcoxon')
         cluster_name = str(cluster_id)
-        top_genes = adata.uns['rank_genes_groups']['names'][cluster_name][:100].tolist()
+        top_genes = adata_filtered.uns['rank_genes_groups']['names'][cluster_name][:100].tolist()
 
+        # GO enrichment analysis
         enr = gp.enrichr(gene_list=top_genes,
-                     gene_sets='GO_Biological_Process_2023',
-                     organism='Human',
-                     cutoff=0.05)
+                    gene_sets='GO_Biological_Process_2025',
+                    organism='Human',
+                    cutoff=0.05)
         
+        # Results processing
         go_results = enr.results.sort_values(by='Combined Score', ascending=False)
         go_results.rename(columns={'Term': 'term', 'Adjusted P-value': 'adjusted_p_value', 'Combined Score': 'combined_score', 'P-value': 'p_value', "Genes": "genes", "Odds Ratio": "odds_ratio"}, inplace=True)
         top_df = go_results.head(top_n)

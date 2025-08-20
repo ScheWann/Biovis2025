@@ -705,7 +705,7 @@ export const ScatterplotUmap = ({
         onPseudotimeAnalysis={handlePseudotimeFromSettings}
         onLoadingStart={onUmapLoadingStart}
         sampleId={sampleId}
-        cellIds={currentCellIds.length > 0 ? currentCellIds : data.map(d => d.id || d.cell_id).filter(Boolean)}
+        cellIds={data.map(d => d.id || d.cell_id).filter(Boolean)}
         adata_umap_title={adata_umap_title}
         currentTitle={title}
       />
