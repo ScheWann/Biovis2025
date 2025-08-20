@@ -377,7 +377,7 @@ export const UmapSettingsPopup = ({
         >
           {loading ? 'Updating...' : 'Update UMAP'}
         </Button>
-
+{/* 
         <div style={{ display: 'flex', gap: 5, justifyContent: 'space-between' }}>
           <Button
             size="small"
@@ -388,7 +388,7 @@ export const UmapSettingsPopup = ({
           >
             {pseudotimeLoading ? 'Analyzing...' : 'Pseudotime Analysis'}
           </Button>
-        </div>
+        </div> */}
       </div>
     </>
   );
