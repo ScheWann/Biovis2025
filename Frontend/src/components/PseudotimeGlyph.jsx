@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
-import { Empty, Spin, Checkbox } from 'antd';
+import { Empty, Spin, Checkbox, Tooltip } from 'antd';
 
 // Custom hook for debounced trajectory hovering
 const useDebounceTrajectoryHover = (setHoveredTrajectory, delay = 100) => {
@@ -516,6 +516,7 @@ export const PseudotimeGlyph = ({
 
                 bottomSection.append("path")
                     .datum(pathData)
+                    .attr("class", `trajectory-path trajectory-path-${trajIndex}`)
                     .attr("d", line)
                     .attr("fill", "none")
                     .attr("stroke", finalColor)
@@ -1009,6 +1010,78 @@ export const PseudotimeGlyph = ({
                     size="small"
                 />
             </div>
+            {/* Legend in upper right corner */}
+            {(() => {
+                // Build legend items from pseudotime data
+                const legendItems = (() => {
+                    if (!pseudotimeData || !pseudotimeData.trajectory_objects || !Array.isArray(pseudotimeData.trajectory_objects)) return [];
+                    const tc = d3.schemeCategory10;
+                    return pseudotimeData.trajectory_objects.map((traj, i) => ({
+                        index: i,
+                        name: traj.name || `Trajectory ${i + 1}`,
+                        color: tc[i % tc.length],
+                        sequence: Array.isArray(traj.path) ? traj.path.join(' \u2192 ') : ''
+                    }));
+                })();
+
+                const handleLegendEnter = (i) => {
+                    const svg = d3.select(svgRef.current);
+                    const path = svg.select(`.trajectory-path-${i}`);
+                    if (!path.empty()) {
+                        path.attr('stroke', d3.schemeCategory10[i % d3.schemeCategory10.length])
+                            .attr('stroke-width', 4)
+                            .attr('opacity', 0.95);
+                    }
+                };
+                const handleLegendLeave = (i) => {
+                    const svg = d3.select(svgRef.current);
+                    const path = svg.select(`.trajectory-path-${i}`);
+                    if (!path.empty()) {
+                        if (i === selectedTrajectory) {
+                            path.attr('stroke', d3.schemeCategory10[i % d3.schemeCategory10.length])
+                                .attr('stroke-width', 5)
+                                .attr('opacity', 1);
+                        } else {
+                            path.attr('stroke', '#CCCCCC')
+                                .attr('stroke-width', 3)
+                                .attr('opacity', 0.8);
+                        }
+                    }
+                };
+
+                if (legendItems.length === 0) return null;
+
+                return (
+                    <div style={{
+                        position: 'absolute',
+                        top: '30px',
+                        right: '5px',
+                        zIndex: 1000,
+                        backgroundColor: 'rgba(255, 255, 255, 0.85)',
+                        borderRadius: '4px',
+                        padding: '6px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                        maxWidth: '48%'
+                    }}>
+                        {legendItems.map(item => (
+                            <div
+                                key={item.index}
+                                onMouseEnter={() => handleLegendEnter(item.index)}
+                                onMouseLeave={() => handleLegendLeave(item.index)}
+                                onClick={() => setSelectedTrajectory(item.index)}
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', cursor: 'pointer' }}
+                            >
+                                <div style={{ width: 10, height: 10, backgroundColor: item.color, border: '1px solid #aaa', flexShrink: 0 }} />
+                                <Tooltip placement="left" title={`Clusters: ${item.sequence}`}>
+                                    <span style={{ fontSize: '11px', color: '#333', fontWeight: item.index === selectedTrajectory ? 600 : 400 }}>
+                                        {item.name}
+                                    </span>
+                                </Tooltip>
+                            </div>
+                        ))}
+                    </div>
+                );
+            })()}
             {pseudotimeLoading && (
                 <div style={{
                     position: 'absolute',

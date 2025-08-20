@@ -340,7 +340,10 @@ def intelligent_slingshot_analysis(
 def analyze_cluster_gene_signatures(
     adata, gene_signatures, cluster_key, min_cluster_size
 ):
-    """Analyzing cluster gene signatures"""
+    """
+    Analyzing cluster gene signatures
+    The average expression level of all cells and all signature genes in the cluster
+    """
 
     print("Calculating cluster gene signature scores...")
 
@@ -442,7 +445,10 @@ def auto_infer_developmental_trajectories(
 
 
 def calculate_cluster_primitiveness(cluster_info):
-    """Calculating the primitiveness scores for each cluster"""
+    """
+    Calculating the primitiveness scores for each cluster
+    The primitiveness score is the product of the developmental hierarchy and the gene signature strength
+    """
 
     # Defining the developmental hierarchy of cell types
     developmental_hierarchy = {
@@ -481,9 +487,10 @@ def calculate_cluster_primitiveness(cluster_info):
 def calculate_cluster_transcriptional_distances(adata, cluster_key, valid_clusters):
     """
     Calculating the transcriptional distances between clusters
+    The Pearson correlation coefficient between the gene expression profiles of two clusters
     """
 
-    print("   📊 Calculating transcriptional similarity between clusters...")
+    print("Calculating transcriptional similarity between clusters...")
 
     # Calculating the average gene expression for each cluster
     cluster_profiles = {}
@@ -527,13 +534,14 @@ def calculate_cluster_transcriptional_distances(adata, cluster_key, valid_cluste
 def calculate_cluster_spatial_adjacency(
     adata, cluster_key, embedding_key, valid_clusters
 ):
-    """Calculating the spatial adjacency of clusters"""
+    """
+    Calculating the spatial adjacency of clusters
+    The distance between the center points of two clusters
+    """
 
-    print("   🗺️  Calculating spatial adjacency...")
+    print("Calculating spatial adjacency...")
     if embedding_key not in adata.obsm:
-        print(
-            "      Warning: Embedding coordinates not found, skipping spatial analysis"
-        )
+        print("Warning: Embedding coordinates not found, skipping spatial analysis")
         return {}
 
     # Calculating the center point for each cluster
@@ -572,6 +580,9 @@ def infer_trajectories_from_analysis(
 ):
     """
     Based on multi-omics analysis to infer developmental trajectories
+    The primitiveness score is the product of the developmental hierarchy and the gene signature strength
+    The transcriptional similarity is the Pearson correlation coefficient between the gene expression profiles of two clusters
+    The spatial adjacency is the distance between the center points of two clusters
     """
 
     print("Integrating analysis results to infer trajectories...")
@@ -636,14 +647,14 @@ def infer_trajectories_from_analysis(
             if best_end["score"] > 0.2:
                 trajectories.append((start_type, best_end["type"]))
                 print(
-                    f"      Found trajectory: {start_type} → {best_end['type']} (Score: {best_end['score']:.3f})"
+                    f"Found trajectory: {start_type} → {best_end['type']} (Score: {best_end['score']:.3f})"
                 )
 
-    # Remove duplicates and limit the number
-    trajectories = list(set(trajectories))[:3]  # At most 3 trajectories
+    # Remove duplicates
+    trajectories = list(set(trajectories))
 
     if not trajectories:
-        print("      ⚠️  No clear trajectories found, using default strategy")
+        print("No clear trajectories found, using default strategy")
         # Backup strategy: Select the most primitive and most differentiated cell types
         if len(sorted_clusters) >= 2:
             start_type = cluster_info[sorted_clusters[0]]["dominant_signature"]
@@ -663,7 +674,7 @@ def is_biologically_plausible_transition(start_type, end_type):
         "Epidermis": ["Dermis"],
         "Dermis": ["Vascular"],
         "Vascular": [],
-        "Immune": [],  # Immune cells are usually not precursors to other cell types
+        "Immune": [],
     }
 
     # Check if the transition is in the known list
@@ -1213,64 +1224,61 @@ def _run_slingshot_subprocess(
 
             # Create R script
             r_script = f"""
-# Install and load required packages
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
+                # Install and load required packages
+                if (!requireNamespace("BiocManager", quietly = TRUE))
+                    install.packages("BiocManager")
 
-required_packages <- c("slingshot", "SingleCellExperiment")
-for (pkg in required_packages) {{
-    if (!requireNamespace(pkg, quietly = TRUE)) {{
-        BiocManager::install(pkg)
-    }}
-}}
+                required_packages <- c("slingshot", "SingleCellExperiment")
+                for (pkg in required_packages) {{
+                    if (!requireNamespace(pkg, quietly = TRUE)) {{
+                        BiocManager::install(pkg)
+                    }}
+                }}
 
-library(slingshot)
-library(SingleCellExperiment)
+                library(slingshot)
+                library(SingleCellExperiment)
 
-# Load data
-expr_matrix <- as.matrix(read.csv("{expr_file}"))
-umap_coords <- as.matrix(read.csv("{umap_file}"))
-clusters <- read.csv("{clusters_file}")$clusters
+                # Load data
+                expr_matrix <- as.matrix(read.csv("{expr_file}"))
+                umap_coords <- as.matrix(read.csv("{umap_file}"))
+                clusters <- read.csv("{clusters_file}")$clusters
 
-# Transpose gene expression matrix (gene x cell)
-expr_matrix <- t(expr_matrix)
+                # Transpose gene expression matrix (gene x cell)
+                expr_matrix <- t(expr_matrix)
 
-# Create SingleCellExperiment object
-sce <- SingleCellExperiment(
-    assays = list(counts = expr_matrix)
-)
+                # Create SingleCellExperiment object
+                sce <- SingleCellExperiment(
+                    assays = list(counts = expr_matrix)
+                )
 
-# Add UMAP and cluster info
-reducedDims(sce) <- list(UMAP = umap_coords)
-colData(sce)$clusters <- clusters
-
-# Run Slingshot
-"""
+                # Add UMAP and cluster info
+                reducedDims(sce) <- list(UMAP = umap_coords)
+                colData(sce)$clusters <- clusters
+            """
 
             if start_cluster is not None:
                 r_script += f'''
-start_clus <- "{start_cluster}"
-sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP", start.clus = start_clus)
-'''
+                    start_clus <- "{start_cluster}"
+                    sce <- slingshot(sce, clusterLabels = "clusters", omega = TRUE, reducedDim = "UMAP", start.clus = start_clus)
+                '''
             else:
                 r_script += '''
-sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP")
-'''
+                    sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP")
+                '''
 
             r_script += f'''
+                    # Get results
+                    pseudotimes <- slingPseudotime(sce)
+                    weights <- slingCurveWeights(sce)
 
-# Get results
-pseudotimes <- slingPseudotime(sce)
-weights <- slingCurveWeights(sce)
+                    # Save results
+                    write.csv(pseudotimes, "{temp_dir}/pseudotimes.csv")
+                    write.csv(weights, "{temp_dir}/weights.csv")
 
-# Save results
-write.csv(pseudotimes, "{temp_dir}/pseudotimes.csv")
-write.csv(weights, "{temp_dir}/weights.csv")
-
-# Print number of trajectories
-n_lineages <- ncol(pseudotimes)
-cat("Found", n_lineages, "trajectories\\n")
-'''
+                    # Print number of trajectories
+                    n_lineages <- ncol(pseudotimes)
+                    cat("Found", n_lineages, "trajectories\\n")
+                '''
 
             # Write R script to file
             r_script_file = os.path.join(temp_dir, "slingshot_script.R")
@@ -1944,3 +1952,219 @@ def analyze_gene_expression_along_trajectories(
         gene_results[gene] = trajectory_data
 
     return gene_results
+
+
+def direct_slingshot_analysis(
+    adata,
+    start_cluster,
+    cluster_key="leiden",
+    embedding_key="X_umap",
+    end_clusters=None,
+    **kwargs
+):
+    """
+    Direct Slingshot Analysis with a specified start cluster.
+    
+    This function bypasses the intelligent analysis workflow and directly runs
+    Slingshot with the specified starting cluster. Use this when you already
+    know which cluster should be the starting point for trajectory analysis.
+    
+    Parameters:
+    -----------
+    adata : AnnData
+        Single-cell data
+    start_cluster : str or int
+        The cluster ID to use as the starting point for trajectory analysis
+    cluster_key : str
+        Clustering information key in adata.obs
+    embedding_key : str
+        Embedding coordinates key in adata.obsm
+    end_clusters : list, optional
+        List of cluster IDs to use as end points. If None, Slingshot will
+        automatically determine end points.
+    **kwargs : dict
+        Additional arguments passed to run_slingshot_via_rpy2_improved
+        
+    Returns:
+    --------
+    dict : containing analysis results and updated adata
+    """
+    
+    print("=====Direct Slingshot Analysis=====")
+    print("=" * 50)
+    print(f"Start cluster: {start_cluster}")
+    print(f"Cluster key: {cluster_key}")
+    print(f"Embedding key: {embedding_key}")
+    if end_clusters:
+        print(f"End clusters: {end_clusters}")
+    else:
+        print("End clusters: Auto-determined by Slingshot")
+    print("=" * 50)
+    
+    # Validate start_cluster exists in the data
+    unique_clusters = adata.obs[cluster_key].unique()
+    unique_clusters = [str(c) for c in unique_clusters if pd.notna(c)]
+    
+    if str(start_cluster) not in unique_clusters:
+        print(f"Error: Start cluster '{start_cluster}' not found in data.")
+        print(f"Available clusters: {unique_clusters}")
+        return None
+    
+    # Check cluster size
+    cluster_mask = adata.obs[cluster_key] == start_cluster
+    cluster_size = cluster_mask.sum()
+    print(f"Start cluster size: {cluster_size} cells")
+    
+    if cluster_size < 5:
+        print(f"Warning: Start cluster has only {cluster_size} cells, which may be too small for reliable trajectory analysis.")
+    
+    # Validate embedding exists
+    if embedding_key not in adata.obsm:
+        print(f"Error: Embedding '{embedding_key}' not found in adata.obsm")
+        print(f"Available embeddings: {list(adata.obsm.keys())}")
+        return None
+    
+    # Run Slingshot analysis directly
+    print("Running Slingshot analysis...")
+    try:
+        result_adata = run_slingshot_via_rpy2_improved(
+            adata.copy(),
+            cluster_key=cluster_key,
+            embedding_key=embedding_key,
+            start_cluster=str(start_cluster),
+            end_clusters=end_clusters,
+            **kwargs
+        )
+        
+        if result_adata is None:
+            print("Slingshot analysis failed.")
+            return None
+        
+        # Get pseudotime columns
+        pt_cols = [col for col in result_adata.obs.columns if col.startswith("slingshot_pseudotime")]
+        weight_cols = [col for col in result_adata.obs.columns if col.startswith("slingshot_weight")]
+        
+        print(f"Analysis completed successfully!")
+        print(f"Found {len(pt_cols)} trajectories")
+        
+        # Basic trajectory information
+        trajectory_info = {}
+        for i, pt_col in enumerate(pt_cols):
+            traj_name = f"Trajectory_{i+1}"
+            valid_mask = ~np.isnan(result_adata.obs[pt_col])
+            valid_cells = valid_mask.sum()
+            
+            trajectory_info[traj_name] = {
+                "pseudotime_column": pt_col,
+                "weight_column": weight_cols[i] if i < len(weight_cols) else None,
+                "valid_cells": valid_cells,
+                "total_cells": len(result_adata),
+                "coverage": valid_cells / len(result_adata)
+            }
+            
+            print(f"  {traj_name}: {valid_cells} cells ({trajectory_info[traj_name]['coverage']:.1%} coverage)")
+        
+        # Analyze cluster transitions for each trajectory
+        print("\nAnalyzing cluster transitions...")
+        cluster_transitions = {}
+        
+        for traj_name, traj_info in trajectory_info.items():
+            pt_col = traj_info["pseudotime_column"]
+            valid_mask = ~np.isnan(result_adata.obs[pt_col])
+            
+            if valid_mask.sum() == 0:
+                continue
+            
+            # Get trajectory data
+            traj_data = result_adata.obs[valid_mask].copy()
+            traj_data = traj_data.sort_values(pt_col)
+            
+            # Calculate cluster statistics along trajectory
+            cluster_stats = traj_data.groupby(cluster_key)[pt_col].agg([
+                "mean", "std", "min", "max", "count"
+            ]).sort_values("mean")
+            
+            # Filter out clusters with NaN mean pseudotime
+            valid_clusters = cluster_stats[~np.isnan(cluster_stats["mean"])]
+            
+            if len(valid_clusters) > 0:
+                cluster_transitions[traj_name] = {
+                    "ordered_clusters": valid_clusters.index.tolist(),
+                    "cluster_statistics": valid_clusters.to_dict(),
+                    "transition_path": " → ".join([str(c) for c in valid_clusters.index])
+                }
+                
+                print(f"  {traj_name}: {cluster_transitions[traj_name]['transition_path']}")
+        
+        return {
+            "adata": result_adata,
+            "start_cluster": start_cluster,
+            "trajectory_info": trajectory_info,
+            "cluster_transitions": cluster_transitions,
+            "analysis_type": "direct",
+            "parameters": {
+                "cluster_key": cluster_key,
+                "embedding_key": embedding_key,
+                "end_clusters": end_clusters,
+                **kwargs
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error during Slingshot analysis: {e}")
+        return None
+
+
+def quick_slingshot_analysis(
+    adata,
+    start_cluster,
+    cluster_key="leiden",
+    embedding_key="X_umap",
+    **kwargs
+):
+    """
+    Quick Slingshot analysis with minimal output.
+    
+    A simplified version of direct_slingshot_analysis that returns just the
+    updated AnnData object with pseudotime information.
+    
+    Parameters:
+    -----------
+    adata : AnnData
+        Single-cell data
+    start_cluster : str or int
+        The cluster ID to use as the starting point
+    cluster_key : str
+        Clustering information key
+    embedding_key : str
+        Embedding coordinates key
+    **kwargs : dict
+        Additional arguments for Slingshot
+        
+    Returns:
+    --------
+    AnnData or None : Updated AnnData with pseudotime information, or None if failed
+    """
+    
+    print(f"Quick Slingshot analysis with start cluster: {start_cluster}")
+    
+    try:
+        result_adata = run_slingshot_via_rpy2_improved(
+            adata.copy(),
+            cluster_key=cluster_key,
+            embedding_key=embedding_key,
+            start_cluster=str(start_cluster),
+            **kwargs
+        )
+        
+        if result_adata is not None:
+            pt_cols = [col for col in result_adata.obs.columns if col.startswith("slingshot_pseudotime")]
+            print(f"Analysis completed: {len(pt_cols)} trajectories found")
+            return result_adata
+        else:
+            print("Analysis failed")
+            return None
+            
+    except Exception as e:
+        print(f"Error: {e}")
+        return None

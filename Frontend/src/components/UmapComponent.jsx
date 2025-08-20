@@ -21,7 +21,11 @@ export const UmapComponent = ({
   selectedCellTypes,
   setSelectedCellTypes,
   cellTypeColors,
-  setCellTypeColors
+  setCellTypeColors,
+  pseudotimeDataSets,
+  onUmapDataUpdate,
+  onUmapLoadingStart,
+  isUpdating = false
 }) => {
   return (
     <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -38,7 +42,7 @@ export const UmapComponent = ({
         }}>
           <Spin size="large" />
           <div style={{ fontSize: '12px', color: '#999' }}>
-            Generating {title}...
+            {isUpdating ? 'Updating' : 'Generating'} {title}...
           </div>
         </div>
       ) : umapData ? (
@@ -66,6 +70,9 @@ export const UmapComponent = ({
           setSelectedCellTypes={setSelectedCellTypes}
           cellTypeColors={cellTypeColors}
           setCellTypeColors={setCellTypeColors}
+          pseudotimeDataSets={pseudotimeDataSets}
+          onUmapDataUpdate={onUmapDataUpdate}
+          onUmapLoadingStart={onUmapLoadingStart}
         />
       ) : null}
     </div>

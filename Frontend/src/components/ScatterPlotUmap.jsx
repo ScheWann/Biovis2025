@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
 import { GOAnalysisWindow } from "./GOAnalysisWindow";
+import { UmapSettingsPopup } from "./UmapSettingsPopup";
 
 const COLORS = d3.schemeCategory10;
 
@@ -28,7 +29,10 @@ export const ScatterplotUmap = ({
   selectedCellTypes,
   setSelectedCellTypes,
   cellTypeColors,
-  setCellTypeColors
+  setCellTypeColors,
+  pseudotimeDataSets,
+  onUmapDataUpdate,
+  onUmapLoadingStart
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -41,6 +45,10 @@ export const ScatterplotUmap = ({
   const [GOAnalysisData, setGOAnalysisData] = useState(null);
   const [GOAnalysisLoading, setGOAnalysisLoading] = useState(false);
   const [GOAnalysisVisible, setGOAnalysisVisible] = useState(false);
+
+  // UMAP settings popup state
+  const [umapSettingsVisible, setUmapSettingsVisible] = useState(false);
+  const [umapSettingsPosition, setUmapSettingsPosition] = useState({ x: 0, y: 0 });
 
   const fetchGOAnalysisData = (sampleId, cluster, adata_umap_title) => {
     setGOAnalysisLoading(true);
@@ -65,10 +73,35 @@ export const ScatterplotUmap = ({
       });
   };
 
+  // State to store cluster info for GO analysis window
+  const [currentClusterInfo, setCurrentClusterInfo] = useState(null);
+
+  // Handler for UMAP settings update
+  const handleUmapSettingsUpdate = (newData, newAdataUmapTitle, newSettings, newName) => {
+    // Update the data prop by calling a callback from parent
+    if (onUmapDataUpdate) {
+      onUmapDataUpdate(newData, newAdataUmapTitle, newSettings, newName);
+    }
+  };
+
+  // Handler for pseudotime analysis from settings popup
+  const handlePseudotimeFromSettings = async (sampleId, cellIds) => {
+    return await fetchPseudotimeData(sampleId, cellIds);
+  };
+
   const fetchPseudotimeData = async (sampleId, cellIds) => {
-    // Check if data for this adata_umap_title already exists
+    // Use cached data when available; do not call API again
     if (pseudotimeDataSetsRef.current[adata_umap_title]) {
-      return pseudotimeDataSetsRef.current[adata_umap_title];
+      const cached = pseudotimeDataSetsRef.current[adata_umap_title];
+      // Briefly toggle loading to signal regeneration and unhide glyphs
+      setPseudotimeLoadingStates(prev => ({ ...prev, [adata_umap_title]: true }));
+      // Refresh datasets reference to notify dependents
+      setPseudotimeDataSets(prev => ({ ...prev }));
+      // Turn off loading on next tick
+      setTimeout(() => {
+        setPseudotimeLoadingStates(prev => ({ ...prev, [adata_umap_title]: false }));
+      }, 0);
+      return cached;
     }
 
     // Parse parameters from adata_umap_title
@@ -284,6 +317,14 @@ export const ScatterplotUmap = ({
               .map((d) => d.id || d.cell_id)
               .filter(Boolean);
             setCurrentCellIds(cellIds); // Store current cellIds
+            
+            // Extract cluster number and store cluster info
+            const clusterNumber = cluster.split(" ")[1];
+            setCurrentClusterInfo({
+              cluster_name: cluster,
+              cluster_number: clusterNumber
+            });
+            
             fetchGOAnalysisData(sampleId, cluster, adata_umap_title);
           })
           .on("mouseenter", (event) => {
@@ -402,13 +443,10 @@ export const ScatterplotUmap = ({
       .attr("font-weight", 600)
       .text(title)
       .style("cursor", "pointer")
-      .on("click", () => {
-        // Pseudotime analysis for current cells
-        // If no specific cluster selected, use all cells
-        const cellIds = currentCellIds.length > 0
-          ? currentCellIds
-          : data.map(d => d.id || d.cell_id).filter(Boolean);
-        fetchPseudotimeData(sampleId, cellIds);
+      .on("click", (event) => {
+        // Open UMAP settings popup
+        setUmapSettingsPosition({ x: event.clientX, y: event.clientY });
+        setUmapSettingsVisible(true);
       });
 
     // Legend
@@ -653,6 +691,23 @@ export const ScatterplotUmap = ({
         cellTypeColors={cellTypeColors}
         setCellTypeColors={setCellTypeColors}
         sampleId={sampleId}
+        clusterInfo={currentClusterInfo}
+        adata_umap_title={adata_umap_title}
+        setPseudotimeDataSets={setPseudotimeDataSets}
+        setPseudotimeLoadingStates={setPseudotimeLoadingStates}
+        pseudotimeDataSets={pseudotimeDataSets}
+      />
+      <UmapSettingsPopup
+        visible={umapSettingsVisible}
+        setVisible={setUmapSettingsVisible}
+        position={umapSettingsPosition}
+        onUpdateSettings={handleUmapSettingsUpdate}
+        onPseudotimeAnalysis={handlePseudotimeFromSettings}
+        onLoadingStart={onUmapLoadingStart}
+        sampleId={sampleId}
+        cellIds={currentCellIds.length > 0 ? currentCellIds : data.map(d => d.id || d.cell_id).filter(Boolean)}
+        adata_umap_title={adata_umap_title}
+        currentTitle={title}
       />
     </div>
   );

@@ -235,6 +235,37 @@ function App() {
     }
   };
 
+  // Handler for UMAP data updates from settings popup
+  const handleUmapDataUpdate = (newData, newAdataUmapTitle, newSettings, newName, umapId) => {
+    setUmapDataSets(prev => 
+      prev.map(dataset => 
+        dataset.id === umapId 
+          ? { 
+              ...dataset, 
+              // Only update data if newData is provided (not null)
+              ...(newData && { data: newData }),
+              // Only update adata_umap_title if it's different (parameters changed)
+              ...(newData && { adata_umap_title: newAdataUmapTitle }),
+              title: `${newName} (${dataset.sampleId})`,
+              loading: false,
+              isUpdating: false
+            }
+          : dataset
+      )
+    );
+  };
+
+  // Handler to set loading state for UMAP updates
+  const handleUmapLoadingStart = (umapId) => {
+    setUmapDataSets(prev => 
+      prev.map(dataset => 
+        dataset.id === umapId 
+          ? { ...dataset, loading: true, isUpdating: true }
+          : dataset
+      )
+    );
+  };
+
   return (
     <ConfigProvider theme={customTheme}>
       <div className="App">
@@ -362,7 +393,6 @@ function App() {
                     <SampleViewer
                       selectedSamples={selectedSamples}
                       coordinatesData={coordinatesData}
-                      cellTypesData={cellTypesData}
                       setCellTypesData={setCellTypesData}
                       selectedCellTypes={selectedCellTypes}
                       setSelectedCellTypes={setSelectedCellTypes}
@@ -372,8 +402,6 @@ function App() {
                       umapLoading={umapLoading}
                       setUmapLoading={setUmapLoading}
                       hoveredCluster={hoveredCluster}
-                      cellName={cellName}
-                      setCellName={setCellName}
                       onImagesLoaded={onImagesLoaded}
                     />
                   </Splitter.Panel>
@@ -492,6 +520,12 @@ function App() {
                                       setSelectedCellTypes={setSelectedCellTypes}
                                       cellTypeColors={cellTypeColors}
                                       setCellTypeColors={setCellTypeColors}
+                                      pseudotimeDataSets={pseudotimeDataSets}
+                                      onUmapDataUpdate={(newData, newAdataUmapTitle, newSettings, newName) => 
+                                        handleUmapDataUpdate(newData, newAdataUmapTitle, newSettings, newName, dataset.id)
+                                      }
+                                      onUmapLoadingStart={() => handleUmapLoadingStart(dataset.id)}
+                                      isUpdating={dataset.isUpdating || false}
                                     />
                                   </div>
                                 );
