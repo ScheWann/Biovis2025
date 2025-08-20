@@ -41,6 +41,10 @@ export const ScatterplotUmap = ({
   const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
   const [currentCellIds, setCurrentCellIds] = useState([]);
 
+  // Local hover state management to prevent flickering
+  const [localHoveredCluster, setLocalHoveredCluster] = useState(null);
+  const hoverTimeoutRef = useRef(null);
+
   // Local GO analysis state for this ScatterPlotUmap instance
   const [GOAnalysisData, setGOAnalysisData] = useState(null);
   const [GOAnalysisLoading, setGOAnalysisLoading] = useState(false);
@@ -49,6 +53,45 @@ export const ScatterplotUmap = ({
   // UMAP settings popup state
   const [umapSettingsVisible, setUmapSettingsVisible] = useState(false);
   const [umapSettingsPosition, setUmapSettingsPosition] = useState({ x: 0, y: 0 });
+
+  // Helper function to manage hover state changes
+  const updateHoverState = (cluster, points, cellIds) => {
+    // Clear any existing timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+
+    // If hovering the same cluster, do nothing
+    if (localHoveredCluster?.cluster === cluster && localHoveredCluster?.umapId === umapId) {
+      return;
+    }
+
+    // Update local state immediately
+    const newHoverState = cluster ? {
+      cluster: cluster,
+      cellIds: cellIds,
+      points: points,
+      umapId: umapId,
+      sampleId: sampleId,
+    } : null;
+
+    setLocalHoveredCluster(newHoverState);
+    setHoveredCluster(newHoverState);
+  };
+
+  // Helper function to clear hover state with delay
+  const clearHoverState = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    
+    hoverTimeoutRef.current = setTimeout(() => {
+      setLocalHoveredCluster(null);
+      setHoveredCluster(null);
+      hoverTimeoutRef.current = null;
+    }, 50); // Small delay to prevent flickering
+  };
 
   const fetchGOAnalysisData = (sampleId, cluster, adata_umap_title) => {
     setGOAnalysisLoading(true);
@@ -261,9 +304,7 @@ export const ScatterplotUmap = ({
       .attr("height", height)
       .on("mouseleave", () => {
         // Clear hover state when mouse leaves the entire SVG area
-        if (hoveredCluster && hoveredCluster.umapId === umapId) {
-          setHoveredCluster(null);
-        }
+        clearHoverState();
       });
 
     const g = svg
@@ -300,13 +341,14 @@ export const ScatterplotUmap = ({
         g.append("path")
           .datum(hull)
           .attr("d", line)
+          .attr("data-cluster", cluster)
           .attr("fill", color(cluster))
-          .attr("fill-opacity", (hoveredCluster?.cluster === cluster && hoveredCluster?.umapId === umapId) ? 0.4 : 0.2)
+          .attr("fill-opacity", (localHoveredCluster?.cluster === cluster && localHoveredCluster?.umapId === umapId) ? 0.4 : 0.2)
           .attr("stroke", color(cluster))
-          .attr("stroke-width", (hoveredCluster?.cluster === cluster && hoveredCluster?.umapId === umapId) ? 3.5 : 2.5)
+          .attr("stroke-width", (localHoveredCluster?.cluster === cluster && localHoveredCluster?.umapId === umapId) ? 3.5 : 2.5)
           .attr(
             "stroke-opacity",
-            (hoveredCluster?.cluster === cluster && hoveredCluster?.umapId === umapId) ? 0.8 : 0.3
+            (localHoveredCluster?.cluster === cluster && localHoveredCluster?.umapId === umapId) ? 0.8 : 0.3
           )
           .style("cursor", "pointer")
           .style("pointer-events", "visibleFill")
@@ -331,40 +373,17 @@ export const ScatterplotUmap = ({
             // Stop event propagation to prevent conflicts
             event.stopPropagation();
 
-            d3.select(event.currentTarget)
-              .attr("fill-opacity", 0.4)
-              .attr("stroke-width", 3.5)
-              .attr("stroke-opacity", 0.8);
-
             const cellIds = points
               .map((d) => d.id || d.cell_id)
               .filter(Boolean);
 
-            if (!hoveredCluster || hoveredCluster.cluster !== cluster || hoveredCluster.umapId !== umapId) {
-              setHoveredCluster({
-                cluster: cluster,
-                cellIds: cellIds,
-                points: points,
-                umapId: umapId,
-                sampleId: sampleId,
-              });
-            }
+            updateHoverState(cluster, points, cellIds);
           })
           .on("mouseleave", (event) => {
             // Stop event propagation to prevent conflicts
             event.stopPropagation();
 
-            d3.select(event.currentTarget)
-              .attr("fill-opacity", 0.2)
-              .attr("stroke-width", 2.5)
-              .attr("stroke-opacity", 0.3);
-
-            // Use a small delay to prevent flickering when moving between related elements
-            setTimeout(() => {
-              if (hoveredCluster && hoveredCluster.cluster === cluster && hoveredCluster.umapId === umapId) {
-                setHoveredCluster(null);
-              }
-            }, 10);
+            clearHoverState();
           });
       }
     });
@@ -379,16 +398,16 @@ export const ScatterplotUmap = ({
       .attr("r", pointSize)
       .attr("fill", (d) => color(clusterAccessor(d)))
       .attr("opacity", (d) => {
-        if (!hoveredCluster || hoveredCluster.umapId !== umapId) return 0.5;
-        return hoveredCluster.cluster === clusterAccessor(d) ? 0.8 : 0.05;
+        if (!localHoveredCluster || localHoveredCluster.umapId !== umapId) return 0.5;
+        return localHoveredCluster.cluster === clusterAccessor(d) ? 0.8 : 0.05;
       })
       .attr("stroke", (d) => {
-        if (!hoveredCluster || hoveredCluster.umapId !== umapId) return "none";
-        return hoveredCluster.cluster === clusterAccessor(d) ? "#fff" : "none";
+        if (!localHoveredCluster || localHoveredCluster.umapId !== umapId) return "none";
+        return localHoveredCluster.cluster === clusterAccessor(d) ? "#fff" : "none";
       })
       .attr("stroke-width", (d) => {
-        if (!hoveredCluster || hoveredCluster.umapId !== umapId) return 0;
-        return hoveredCluster.cluster === clusterAccessor(d) ? 1 : 0;
+        if (!localHoveredCluster || localHoveredCluster.umapId !== umapId) return 0;
+        return localHoveredCluster.cluster === clusterAccessor(d) ? 1 : 0;
       })
       .style("cursor", "pointer")
       .on("mouseenter", (event, d) => {
@@ -404,27 +423,13 @@ export const ScatterplotUmap = ({
           .map((p) => p.id || p.cell_id)
           .filter(Boolean);
 
-        if (!hoveredCluster || hoveredCluster.cluster !== cluster || hoveredCluster.umapId !== umapId) {
-          setHoveredCluster({
-            cluster: cluster,
-            cellIds: cellIds,
-            points: clusterPoints,
-            umapId: umapId,
-            sampleId: sampleId,
-          });
-        }
+        updateHoverState(cluster, clusterPoints, cellIds);
       })
       .on("mouseleave", (event, d) => {
         // Stop event propagation to prevent conflicts
         event.stopPropagation();
 
-        const cluster = clusterAccessor(d);
-        // Use a small delay to prevent flickering when moving between points in the same cluster
-        setTimeout(() => {
-          if (hoveredCluster && hoveredCluster.cluster === cluster && hoveredCluster.umapId === umapId) {
-            setHoveredCluster(null);
-          }
-        }, 10);
+        clearHoverState();
       });
 
     // Axes
@@ -474,26 +479,13 @@ export const ScatterplotUmap = ({
             .map((p) => p.id || p.cell_id)
             .filter(Boolean);
 
-          if (!hoveredCluster || hoveredCluster.cluster !== cl || hoveredCluster.umapId !== umapId) {
-            setHoveredCluster({
-              cluster: cl,
-              cellIds: cellIds,
-              points: clusterPoints,
-              umapId: umapId,
-              sampleId: sampleId,
-            });
-          }
+          updateHoverState(cl, clusterPoints, cellIds);
         })
         .on("mouseleave", (event) => {
           // Stop event propagation to prevent conflicts
           event.stopPropagation();
 
-          // Use a small delay to prevent flickering
-          setTimeout(() => {
-            if (hoveredCluster && hoveredCluster.cluster === cl && hoveredCluster.umapId === umapId) {
-              setHoveredCluster(null);
-            }
-          }, 10);
+          clearHoverState();
         });
 
       legendGroup
@@ -504,7 +496,7 @@ export const ScatterplotUmap = ({
         .attr("fill", color(cl))
         .attr(
           "opacity",
-          (!hoveredCluster || hoveredCluster.umapId !== umapId) || hoveredCluster.cluster === cl ? 1 : 0.3
+          (!localHoveredCluster || localHoveredCluster.umapId !== umapId) || localHoveredCluster.cluster === cl ? 1 : 0.3
         );
       legendGroup
         .append("text")
@@ -514,7 +506,7 @@ export const ScatterplotUmap = ({
         .attr("font-size", 9)
         .attr(
           "opacity",
-          (!hoveredCluster || hoveredCluster.umapId !== umapId) || hoveredCluster.cluster === cl ? 1 : 0.3
+          (!localHoveredCluster || localHoveredCluster.umapId !== umapId) || localHoveredCluster.cluster === cl ? 1 : 0.3
         );
     });
 
@@ -658,7 +650,7 @@ export const ScatterplotUmap = ({
     yAccessor,
     title,
     margin,
-    hoveredCluster,
+    localHoveredCluster,
     hoveredTrajectory,
     adata_umap_title,
     sampleId,
@@ -670,9 +662,7 @@ export const ScatterplotUmap = ({
       style={{ width: "100%", height: "100%" }}
       onMouseLeave={() => {
         // Clear hover state when mouse leaves the entire container
-        if (hoveredCluster && hoveredCluster.umapId === umapId) {
-          setHoveredCluster(null);
-        }
+        clearHoverState();
       }}
     >
       <svg ref={svgRef}></svg>
