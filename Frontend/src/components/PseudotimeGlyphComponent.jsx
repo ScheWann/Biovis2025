@@ -595,13 +595,6 @@ export const PseudotimeGlyphComponent = ({
                 >
                     Analyze
                 </Button>
-                <Button
-                    onClick={() => setHiddenGlyphs(new Set())}
-                    disabled={hiddenGlyphs.size === 0}
-                    size="small"
-                >
-                    Show All
-                </Button>
             </div>
 
             {(() => {
