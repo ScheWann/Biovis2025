@@ -317,14 +317,14 @@ export const ScatterplotUmap = ({
               .map((d) => d.id || d.cell_id)
               .filter(Boolean);
             setCurrentCellIds(cellIds); // Store current cellIds
-            
+
             // Extract cluster number and store cluster info
             const clusterNumber = cluster.split(" ")[1];
             setCurrentClusterInfo({
               cluster_name: cluster,
               cluster_number: clusterNumber
             });
-            
+
             fetchGOAnalysisData(sampleId, cluster, adata_umap_title);
           })
           .on("mouseenter", (event) => {
@@ -455,7 +455,9 @@ export const ScatterplotUmap = ({
       .attr(
         "transform",
         `translate(${width - margin.right - 70}, ${margin.top - 20})`
-      );
+      )
+      .style("z-index", 10);
+
     clusters.forEach((cl, i) => {
       const legendGroup = legend
         .append("g")
