@@ -693,11 +693,6 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
     return results
 
 
-# get selected region's gene expression data
-def get_selected_region_data(sample_id, cell_ids):
-    return "not finished yet"
-
-
 def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutions=1, adata_umap_title=None):
     """
     Generate UMAP data from gene expression data.

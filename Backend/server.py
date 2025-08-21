@@ -10,7 +10,6 @@ from process import (
     get_gene_list,
     get_cell_types_data,
     get_kosara_data,
-    get_selected_region_data,
     get_umap_data,
     perform_go_analysis,
     get_trajectory_data,
@@ -308,16 +307,6 @@ def get_kosara_data_route():
     gene_list = request.json["gene_list"]
 
     return jsonify(get_kosara_data(sample_ids, gene_list))
-
-
-@app.route("/api/get_selected_region_data", methods=["POST"])
-def get_selected_region_data_route():
-    """
-    Get gene expression data for the selected regions
-    """
-    sample_id = request.json["sample_id"]
-    cell_list = request.json["cell_list"]
-    return jsonify(get_selected_region_data(sample_id, cell_list))
 
 
 @app.route("/api/get_umap_data", methods=["POST"])
