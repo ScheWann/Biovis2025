@@ -410,6 +410,33 @@ export const ScatterplotUmap = ({
         return localHoveredCluster.cluster === clusterAccessor(d) ? 1 : 0;
       })
       .style("cursor", "pointer")
+      .on("click", function (event, d) {
+        // Stop event propagation to prevent conflicts with hull events
+        event.stopPropagation();
+        
+        // Capture click position relative to viewport
+        setClickPosition({ x: event.clientX, y: event.clientY });
+        
+        // Get cluster information for this point
+        const cluster = clusterAccessor(d);
+        const clusterPoints = data.filter(
+          (point) => clusterAccessor(point) === cluster
+        );
+        const cellIds = clusterPoints
+          .map((p) => p.id || p.cell_id)
+          .filter(Boolean);
+        
+        setCurrentCellIds(cellIds); // Store current cellIds
+
+        // Extract cluster number and store cluster info
+        const clusterNumber = cluster.split(" ")[1];
+        setCurrentClusterInfo({
+          cluster_name: cluster,
+          cluster_number: clusterNumber
+        });
+
+        fetchGOAnalysisData(sampleId, cluster, adata_umap_title);
+      })
       .on("mouseenter", (event, d) => {
         // Stop event propagation to prevent conflicts with hull events
         event.stopPropagation();
