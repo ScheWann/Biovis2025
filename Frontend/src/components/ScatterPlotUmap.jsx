@@ -411,7 +411,6 @@ export const ScatterplotUmap = ({
       })
       .style("cursor", "pointer")
       .on("click", function (event, d) {
-        // Stop event propagation to prevent conflicts with hull events
         event.stopPropagation();
         
         // Capture click position relative to viewport
