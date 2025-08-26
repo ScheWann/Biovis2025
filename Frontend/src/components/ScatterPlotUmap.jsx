@@ -6,7 +6,7 @@ import { UmapSettingsPopup } from "./UmapSettingsPopup";
 const COLORS = d3.schemeCategory10;
 
 export const ScatterplotUmap = ({
-  data, // [{x, y, cluster}]
+  data,
   pointSize = 5,
   clusterAccessor = (d) => d.cluster,
   xAccessor = (d) => d.x,
@@ -14,7 +14,6 @@ export const ScatterplotUmap = ({
   title = "UMAP",
   adata_umap_title,
   margin = { top: 25, right: 10, bottom: 25, left: 25 },
-  hoveredCluster,
   setHoveredCluster,
   umapId,
   sampleId,
@@ -54,6 +53,41 @@ export const ScatterplotUmap = ({
   const [umapSettingsVisible, setUmapSettingsVisible] = useState(false);
   const [umapSettingsPosition, setUmapSettingsPosition] = useState({ x: 0, y: 0 });
 
+  // State to store cluster info for GO analysis window
+  const [currentClusterInfo, setCurrentClusterInfo] = useState(null);
+
+
+  const fetchGOAnalysisData = (sampleId, cluster, adata_umap_title) => {
+    setGOAnalysisLoading(true);
+    setGOAnalysisVisible(true);
+    setGOAnalysisData(null);
+
+    const cluster_id = cluster.split(" ")[1]
+    fetch("/api/get_go_analysis", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sample_id: sampleId, cluster_id: cluster_id, adata_umap_title: adata_umap_title }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setGOAnalysisData(data);
+        setGOAnalysisLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch GO analysis data", err);
+        setGOAnalysisLoading(false);
+        setGOAnalysisData(null);
+      });
+  };
+
+  // Handler for UMAP settings update
+  const handleUmapSettingsUpdate = (newData, newAdataUmapTitle, newSettings, newName) => {
+    // Update the data prop by calling a callback from parent
+    if (onUmapDataUpdate) {
+      onUmapDataUpdate(newData, newAdataUmapTitle, newSettings, newName);
+    }
+  };
+
   // Helper function to manage hover state changes
   const updateHoverState = (cluster, points, cellIds) => {
     // Clear any existing timeout
@@ -92,127 +126,6 @@ export const ScatterplotUmap = ({
       hoverTimeoutRef.current = null;
     }, 50); // Small delay to prevent flickering
   };
-
-  const fetchGOAnalysisData = (sampleId, cluster, adata_umap_title) => {
-    setGOAnalysisLoading(true);
-    setGOAnalysisVisible(true);
-    setGOAnalysisData(null); // Clear previous data
-
-    const cluster_id = cluster.split(" ")[1]
-    fetch("/api/get_go_analysis", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sample_id: sampleId, cluster_id: cluster_id, adata_umap_title: adata_umap_title }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setGOAnalysisData(data);
-        setGOAnalysisLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch GO analysis data", err);
-        setGOAnalysisLoading(false);
-        setGOAnalysisData(null);
-      });
-  };
-
-  // State to store cluster info for GO analysis window
-  const [currentClusterInfo, setCurrentClusterInfo] = useState(null);
-
-  // Handler for UMAP settings update
-  const handleUmapSettingsUpdate = (newData, newAdataUmapTitle, newSettings, newName) => {
-    // Update the data prop by calling a callback from parent
-    if (onUmapDataUpdate) {
-      onUmapDataUpdate(newData, newAdataUmapTitle, newSettings, newName);
-    }
-  };
-
-  // Handler for pseudotime analysis from settings popup
-  const handlePseudotimeFromSettings = async (sampleId, cellIds) => {
-    return await fetchPseudotimeData(sampleId, cellIds);
-  };
-
-  const fetchPseudotimeData = async (sampleId, cellIds) => {
-    // Use cached data when available; do not call API again
-    if (pseudotimeDataSetsRef.current[adata_umap_title]) {
-      const cached = pseudotimeDataSetsRef.current[adata_umap_title];
-      // Briefly toggle loading to signal regeneration and unhide glyphs
-      setPseudotimeLoadingStates(prev => ({ ...prev, [adata_umap_title]: true }));
-      // Refresh datasets reference to notify dependents
-      setPseudotimeDataSets(prev => ({ ...prev }));
-      // Turn off loading on next tick
-      setTimeout(() => {
-        setPseudotimeLoadingStates(prev => ({ ...prev, [adata_umap_title]: false }));
-      }, 0);
-      return cached;
-    }
-
-    // Parse parameters from adata_umap_title
-    // Format: ${formattedName}_${sampleId}_${editNeighbors}_${editNPcas}_${editResolutions}
-    let n_neighbors;
-    let n_pcas;
-    let resolutions;
-
-    // Set loading state for this specific dataset
-    setPseudotimeLoadingStates(prevStates => ({
-      ...prevStates,
-      [adata_umap_title]: true
-    }));
-
-    try {
-      const parts = adata_umap_title.split('_');
-      if (parts.length >= 5) {
-        // Extract the last 3 parts as the parameters
-        n_neighbors = parseInt(parts[parts.length - 3]) || 10;
-        n_pcas = parseInt(parts[parts.length - 2]) || 30;
-        resolutions = parseFloat(parts[parts.length - 1]) || 1;
-      }
-    } catch (error) {
-      console.warn("Could not parse parameters from adata_umap_title, using defaults", error);
-    }
-
-    try {
-      const res = await fetch("/api/get_pseudotime_data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sample_id: sampleId,
-          cell_ids: cellIds,
-          adata_umap_title: adata_umap_title,
-          n_neighbors: n_neighbors,
-          n_pcas: n_pcas,
-          resolutions: resolutions,
-        }),
-      });
-      const data = await res.json();
-
-      // Add the new data to the datasets object
-      setPseudotimeDataSets(prevDataSets => {
-        const newDataSets = {
-          ...prevDataSets,
-          [adata_umap_title]: data
-        };
-        pseudotimeDataSetsRef.current = newDataSets;
-        return newDataSets;
-      });
-
-      // Clear loading state for this specific dataset
-      setPseudotimeLoadingStates(prevStates => ({
-        ...prevStates,
-        [adata_umap_title]: false
-      }));
-
-      return data;
-    } catch (err) {
-      console.error("Failed to fetch pseudotime data", err);
-      // Clear loading state for this specific dataset on error
-      setPseudotimeLoadingStates(prevStates => ({
-        ...prevStates,
-        [adata_umap_title]: false
-      }));
-      throw err;
-    }
-  }
 
   // Detect container size changes
   useEffect(() => {
@@ -303,7 +216,6 @@ export const ScatterplotUmap = ({
       .attr("width", width)
       .attr("height", height)
       .on("mouseleave", () => {
-        // Clear hover state when mouse leaves the entire SVG area
         clearHoverState();
       });
 
@@ -353,14 +265,12 @@ export const ScatterplotUmap = ({
           .style("cursor", "pointer")
           .style("pointer-events", "visibleFill")
           .on("click", function (event) {
-            // Capture click position relative to viewport
             setClickPosition({ x: event.clientX, y: event.clientY });
             const cellIds = points
               .map((d) => d.id || d.cell_id)
               .filter(Boolean);
-            setCurrentCellIds(cellIds); // Store current cellIds
+            setCurrentCellIds(cellIds); 
 
-            // Extract cluster number and store cluster info
             const clusterNumber = cluster.split(" ")[1];
             setCurrentClusterInfo({
               cluster_name: cluster,
@@ -370,7 +280,6 @@ export const ScatterplotUmap = ({
             fetchGOAnalysisData(sampleId, cluster, adata_umap_title);
           })
           .on("mouseenter", (event) => {
-            // Stop event propagation to prevent conflicts
             event.stopPropagation();
 
             const cellIds = points
@@ -380,7 +289,6 @@ export const ScatterplotUmap = ({
             updateHoverState(cluster, points, cellIds);
           })
           .on("mouseleave", (event) => {
-            // Stop event propagation to prevent conflicts
             event.stopPropagation();
 
             clearHoverState();
@@ -413,10 +321,8 @@ export const ScatterplotUmap = ({
       .on("click", function (event, d) {
         event.stopPropagation();
         
-        // Capture click position relative to viewport
         setClickPosition({ x: event.clientX, y: event.clientY });
         
-        // Get cluster information for this point
         const cluster = clusterAccessor(d);
         const clusterPoints = data.filter(
           (point) => clusterAccessor(point) === cluster
@@ -425,9 +331,8 @@ export const ScatterplotUmap = ({
           .map((p) => p.id || p.cell_id)
           .filter(Boolean);
         
-        setCurrentCellIds(cellIds); // Store current cellIds
+        setCurrentCellIds(cellIds); 
 
-        // Extract cluster number and store cluster info
         const clusterNumber = cluster.split(" ")[1];
         setCurrentClusterInfo({
           cluster_name: cluster,
@@ -437,10 +342,8 @@ export const ScatterplotUmap = ({
         fetchGOAnalysisData(sampleId, cluster, adata_umap_title);
       })
       .on("mouseenter", (event, d) => {
-        // Stop event propagation to prevent conflicts with hull events
         event.stopPropagation();
 
-        // Highlight points of the same cluster
         const cluster = clusterAccessor(d);
         const clusterPoints = data.filter(
           (point) => clusterAccessor(point) === cluster
@@ -452,7 +355,6 @@ export const ScatterplotUmap = ({
         updateHoverState(cluster, clusterPoints, cellIds);
       })
       .on("mouseleave", (event, d) => {
-        // Stop event propagation to prevent conflicts
         event.stopPropagation();
 
         clearHoverState();
@@ -494,13 +396,8 @@ export const ScatterplotUmap = ({
         .append("g")
         .style("cursor", "pointer")
         .on("mouseenter", (event) => {
-          // Stop event propagation to prevent conflicts
           event.stopPropagation();
-
-          // Find all points in this cluster
-          const clusterPoints = data.filter(
-            (point) => clusterAccessor(point) === cl
-          );
+          const clusterPoints = data.filter(point => clusterAccessor(point) === cl);
           const cellIds = clusterPoints
             .map((p) => p.id || p.cell_id)
             .filter(Boolean);
@@ -508,9 +405,7 @@ export const ScatterplotUmap = ({
           updateHoverState(cl, clusterPoints, cellIds);
         })
         .on("mouseleave", (event) => {
-          // Stop event propagation to prevent conflicts
           event.stopPropagation();
-
           clearHoverState();
         });
 
@@ -535,138 +430,6 @@ export const ScatterplotUmap = ({
           (!localHoveredCluster || localHoveredCluster.umapId !== umapId) || localHoveredCluster.cluster === cl ? 1 : 0.3
         );
     });
-
-    // Trajectory visualization - draw stars and arrows when trajectory is hovered
-    if (hoveredTrajectory &&
-      hoveredTrajectory.adata_umap_title === adata_umap_title &&
-      hoveredTrajectory.path &&
-      hoveredTrajectory.path.length > 1) {
-
-      // Calculate cluster centers
-      const clusterCenters = new Map();
-      clusters.forEach(cluster => {
-        const clusterPoints = data.filter(d => clusterAccessor(d) === cluster);
-
-        if (clusterPoints.length > 0) {
-          const centerX = d3.mean(clusterPoints, xAccessor);
-          const centerY = d3.mean(clusterPoints, yAccessor);
-          clusterCenters.set(cluster, {
-            x: xScale(centerX),
-            y: yScale(centerY)
-          });
-        }
-      });
-
-      // Create trajectory group
-      const trajectoryGroup = g.append("g").attr("class", "trajectory-visualization");
-
-      // Draw stars at cluster centers for clusters in the trajectory path
-      hoveredTrajectory.path.forEach((clusterId, index) => {
-        // Convert numeric cluster ID to "Cluster X" format to match UMAP data
-        const clusterName = `Cluster ${clusterId}`;
-        const center = clusterCenters.get(clusterName);
-
-        if (center) {
-          // Draw star shape
-          const starPoints = [];
-          const outerRadius = 12;
-          const innerRadius = 6;
-          const numPoints = 2;
-
-          for (let i = 0; i < numPoints * 2; i++) {
-            const angle = (i * Math.PI) / numPoints;
-            const radius = i % 2 === 0 ? outerRadius : innerRadius;
-            const x = center.x + Math.cos(angle - Math.PI / 2) * radius;
-            const y = center.y + Math.sin(angle - Math.PI / 2) * radius;
-            starPoints.push([x, y]);
-          }
-
-          trajectoryGroup
-            .append("polygon")
-            .attr("points", starPoints.map(p => p.join(",")).join(" "))
-            .attr("fill", "#4F46E5")
-            .attr("stroke", "#312E81")
-            .attr("stroke-width", 1)
-            .attr("opacity", 0.95);
-
-          // Add cluster label on the star
-          trajectoryGroup
-            .append("text")
-            .attr("x", center.x)
-            .attr("y", center.y + 4)
-            .attr("text-anchor", "middle")
-            .attr("font-size", "10px")
-            .attr("font-weight", "bold")
-            .attr("fill", "#FFFFFF")
-            .attr("stroke", "#312E81")
-            .attr("stroke-width", "0.5")
-            .style("paint-order", "stroke")
-            .text(hoveredTrajectory.path[index]);
-        }
-      });
-
-      // Draw arrows between consecutive clusters in the trajectory
-      for (let i = 0; i < hoveredTrajectory.path.length - 1; i++) {
-        const fromClusterId = hoveredTrajectory.path[i];
-        const toClusterId = hoveredTrajectory.path[i + 1];
-        // Convert numeric cluster IDs to "Cluster X" format
-        const fromClusterName = `Cluster ${fromClusterId}`;
-        const toClusterName = `Cluster ${toClusterId}`;
-        const fromCenter = clusterCenters.get(fromClusterName);
-        const toCenter = clusterCenters.get(toClusterName);
-
-        if (fromCenter && toCenter) {
-          // Calculate arrow direction
-          const dx = toCenter.x - fromCenter.x;
-          const dy = toCenter.y - fromCenter.y;
-          const length = Math.sqrt(dx * dx + dy * dy);
-
-          if (length > 24) { // Only draw arrow if clusters are far enough apart
-            const unitX = dx / length;
-            const unitY = dy / length;
-
-            // Adjust start and end points to avoid overlapping with stars
-            const startX = fromCenter.x + unitX * 15;
-            const startY = fromCenter.y + unitY * 15;
-            const endX = toCenter.x - unitX * 15;
-            const endY = toCenter.y - unitY * 15;
-
-            // Draw arrow line
-            trajectoryGroup
-              .append("line")
-              .attr("x1", startX)
-              .attr("y1", startY)
-              .attr("x2", endX)
-              .attr("y2", endY)
-              .attr("stroke", "#6366F1")
-              .attr("stroke-width", 3)
-              .attr("opacity", 0.9)
-              .attr("marker-end", "url(#arrowhead)");
-
-            // Create arrowhead marker if it doesn't exist
-            let defs = svg.select("defs");
-            if (defs.empty()) {
-              defs = svg.append("defs");
-            }
-
-            if (defs.select("#arrowhead").empty()) {
-              defs.append("marker")
-                .attr("id", "arrowhead")
-                .attr("viewBox", "0 -2 4 4")
-                .attr("refX", 3)
-                .attr("refY", 0)
-                .attr("markerWidth", 3)
-                .attr("markerHeight", 3)
-                .attr("orient", "auto")
-                .append("path")
-                .attr("d", "M0,-2L4,0L0,2")
-                .attr("fill", "#4F46E5")
-                .style("filter", "drop-shadow(1px 1px 2px rgba(79, 70, 229, 0.4))");
-            }
-          }
-        }
-      }
-    }
   }, [
     data,
     dimensions,
@@ -687,7 +450,6 @@ export const ScatterplotUmap = ({
       ref={containerRef}
       style={{ width: "100%", height: "100%" }}
       onMouseLeave={() => {
-        // Clear hover state when mouse leaves the entire container
         clearHoverState();
       }}
     >
@@ -704,9 +466,7 @@ export const ScatterplotUmap = ({
         coordinatesData={coordinatesData}
         cellTypesData={cellTypesData}
         setCellTypesData={setCellTypesData}
-        selectedCellTypes={selectedCellTypes}
         setSelectedCellTypes={setSelectedCellTypes}
-        cellTypeColors={cellTypeColors}
         setCellTypeColors={setCellTypeColors}
         sampleId={sampleId}
         clusterInfo={currentClusterInfo}
@@ -720,7 +480,6 @@ export const ScatterplotUmap = ({
         setVisible={setUmapSettingsVisible}
         position={umapSettingsPosition}
         onUpdateSettings={handleUmapSettingsUpdate}
-        onPseudotimeAnalysis={handlePseudotimeFromSettings}
         onLoadingStart={onUmapLoadingStart}
         sampleId={sampleId}
         cellIds={data.map(d => d.id || d.cell_id).filter(Boolean)}

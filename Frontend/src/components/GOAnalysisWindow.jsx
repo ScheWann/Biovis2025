@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from "react";
 import { Spin, Empty, Input, Button } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
 import * as d3 from "d3";
+import { defaultColors } from "./Utils";
 
 export const GOAnalysisWindow = ({
     visible,
@@ -13,11 +14,8 @@ export const GOAnalysisWindow = ({
     setCellName,
     cellIds = [],
     coordinatesData,
-    cellTypesData,
     setCellTypesData,
-    selectedCellTypes,
     setSelectedCellTypes,
-    cellTypeColors,
     setCellTypeColors,
     sampleId, // Add sampleId prop
     clusterInfo = null, // Add cluster information prop
@@ -38,24 +36,17 @@ export const GOAnalysisWindow = ({
             return;
         }
 
-        // Create a unique key for direct slingshot data to avoid conflicts with regular pseudotime data
-        const directSlingshotKey = `${adata_umap_title}_direct_slingshot`;
-        
         // Check if data for this direct slingshot key already exists in cache
-        if (pseudotimeDataSets && pseudotimeDataSets[directSlingshotKey]) {
-            const cached = pseudotimeDataSets[directSlingshotKey];
-            // Briefly toggle loading to signal regeneration and unhide glyphs
+        if (pseudotimeDataSets && pseudotimeDataSets[adata_umap_title]) {
             setPseudotimeLoadingStates(prevStates => ({
                 ...prevStates,
-                [directSlingshotKey]: true
+                [adata_umap_title]: true
             }));
-            // Refresh datasets reference to notify dependents
             setPseudotimeDataSets(prevDataSets => ({ ...prevDataSets }));
-            // Turn off loading on next tick
             setTimeout(() => {
                 setPseudotimeLoadingStates(prevStates => ({
                     ...prevStates,
-                    [directSlingshotKey]: false
+                    [adata_umap_title]: false
                 }));
             }, 0);
             return;
@@ -67,8 +58,6 @@ export const GOAnalysisWindow = ({
             console.warn("No cluster number found in cluster info");
             return;
         }
-
-        console.log(`Starting direct Slingshot analysis with start cluster: ${clusterNumber}`);
 
         // Parse parameters from adata_umap_title
         let n_neighbors = 15;
@@ -90,7 +79,7 @@ export const GOAnalysisWindow = ({
         // Set loading state for this specific dataset
         setPseudotimeLoadingStates(prevStates => ({
             ...prevStates,
-            [directSlingshotKey]: true
+            [adata_umap_title]: true
         }));
 
         try {
@@ -111,7 +100,6 @@ export const GOAnalysisWindow = ({
 
             if (data.error) {
                 console.error("Direct Slingshot analysis failed:", data.error);
-                alert(`Direct Slingshot analysis failed: ${data.error}`);
                 return;
             }
 
@@ -119,7 +107,7 @@ export const GOAnalysisWindow = ({
             setPseudotimeDataSets(prevDataSets => {
                 const newDataSets = {
                     ...prevDataSets,
-                    [directSlingshotKey]: data
+                    [adata_umap_title]: data
                 };
                 return newDataSets;
             });
@@ -129,7 +117,7 @@ export const GOAnalysisWindow = ({
             // Clear loading state for this specific dataset
             setPseudotimeLoadingStates(prevStates => ({
                 ...prevStates,
-                [directSlingshotKey]: false
+                [adata_umap_title]: false
             }));
         }
     };
@@ -217,13 +205,6 @@ export const GOAnalysisWindow = ({
             // Set color for new cell type if it doesn't have one
             setCellTypeColors(prevColors => {
                 if (!prevColors[newCellTypeName]) {
-                    // Default color palette for new cell types
-                    const defaultColors = [
-                        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-                        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
-                        '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
-                        '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
-                    ];
                     const colorIndex = Object.keys(prevColors).length % defaultColors.length;
                     return {
                         ...prevColors,

@@ -7,7 +7,6 @@ export const UmapSettingsPopup = ({
   setVisible,
   position,
   onUpdateSettings,
-  onPseudotimeAnalysis,
   onLoadingStart,
   sampleId,
   cellIds,
@@ -21,7 +20,6 @@ export const UmapSettingsPopup = ({
   });
   const [umapName, setUmapName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [pseudotimeLoading, setPseudotimeLoading] = useState(false);
 
   // Initialize settings from current adata_umap_title when popup opens
   useEffect(() => {
@@ -152,24 +150,6 @@ export const UmapSettingsPopup = ({
       alert(`Failed to update UMAP: ${error.message}`);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handlePseudotimeAnalysis = async () => {
-    if (!sampleId || !cellIds || cellIds.length === 0) {
-      alert('No cells selected for pseudotime analysis');
-      return;
-    }
-
-    setPseudotimeLoading(true);
-
-    try {
-      await onPseudotimeAnalysis(sampleId, cellIds);
-    } catch (error) {
-      console.error('Error in pseudotime analysis:', error);
-      alert(`Failed to perform pseudotime analysis: ${error.message}`);
-    } finally {
-      setPseudotimeLoading(false);
     }
   };
 
@@ -377,18 +357,6 @@ export const UmapSettingsPopup = ({
         >
           {loading ? 'Updating...' : 'Update UMAP'}
         </Button>
-{/* 
-        <div style={{ display: 'flex', gap: 5, justifyContent: 'space-between' }}>
-          <Button
-            size="small"
-            type="primary"
-            onClick={handlePseudotimeAnalysis}
-            loading={pseudotimeLoading}
-            style={{ flex: 1 }}
-          >
-            {pseudotimeLoading ? 'Analyzing...' : 'Pseudotime Analysis'}
-          </Button>
-        </div> */}
       </div>
     </>
   );

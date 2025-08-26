@@ -2,6 +2,7 @@ import { PseudotimeGlyph } from './PseudotimeGlyph';
 import { Empty, Spin, Select, Button } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { debounce } from './Utils';
 
 export const PseudotimeGlyphComponent = ({
     adata_umap_title,
@@ -29,7 +30,6 @@ export const PseudotimeGlyphComponent = ({
     const [searchQuery, setSearchQuery] = useState('');
     const [displayOptions, setDisplayOptions] = useState([]);
     const [searchLoading, setSearchLoading] = useState(false);
-    const searchTimerRef = useRef(null);
 
     // State for gene expression analysis
     const [geneExpressionData, setGeneExpressionData] = useState([]);
@@ -145,16 +145,55 @@ export const PseudotimeGlyphComponent = ({
     };
 
     // Debounced remote search for genes across provided samples
+    const performGeneSearch = async (value) => {
+        setSearchLoading(true);
+        try {
+            const response = await fetch('/api/get_gene_name_search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sample_ids: memoizedSampleIds,
+                    query: value,
+                    limit: 80,
+                }),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Transform to flat records then group
+                const records = [];
+                Object.entries(data || {}).forEach(([sid, genes]) => {
+                    (genes || []).forEach((g) => {
+                        records.push({
+                            value: `${sid}_${g}`,
+                            label: g,
+                            sampleId: sid,
+                        });
+                    });
+                });
+                setDisplayOptions(buildGroupedOptions(records));
+            } else {
+                setDisplayOptions([]);
+            }
+        } catch (e) {
+            console.error('Gene search failed:', e);
+            setDisplayOptions([]);
+        } finally {
+            setSearchLoading(false);
+        }
+    };
+
+    // Create debounced version of the search function
+    const debouncedGeneSearch = useMemo(() => 
+        debounce(performGeneSearch, 250), 
+        [memoizedSampleIds]
+    );
+
     const handleGeneSearch = (value) => {
         setSearchQuery(value);
 
         // If search text is empty, show HVGs
         if (!value || value.trim().length === 0) {
             setSearchLoading(false);
-            if (searchTimerRef.current) {
-                clearTimeout(searchTimerRef.current);
-                searchTimerRef.current = null;
-            }
             setDisplayOptions(hvgGroupedOptions);
             return;
         }
@@ -164,46 +203,8 @@ export const PseudotimeGlyphComponent = ({
             return;
         }
 
-        if (searchTimerRef.current) {
-            clearTimeout(searchTimerRef.current);
-        }
-
-        searchTimerRef.current = setTimeout(async () => {
-            setSearchLoading(true);
-            try {
-                const response = await fetch('/api/get_gene_name_search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sample_ids: memoizedSampleIds,
-                        query: value,
-                        limit: 80,
-                    }),
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    // Transform to flat records then group
-                    const records = [];
-                    Object.entries(data || {}).forEach(([sid, genes]) => {
-                        (genes || []).forEach((g) => {
-                            records.push({
-                                value: `${sid}_${g}`,
-                                label: g,
-                                sampleId: sid,
-                            });
-                        });
-                    });
-                    setDisplayOptions(buildGroupedOptions(records));
-                } else {
-                    setDisplayOptions([]);
-                }
-            } catch (e) {
-                console.error('Gene search failed:', e);
-                setDisplayOptions([]);
-            } finally {
-                setSearchLoading(false);
-            }
-        }, 250); // debounce
+        // Use the debounced search function
+        debouncedGeneSearch(value);
     };
 
     // Handle glyph selection
