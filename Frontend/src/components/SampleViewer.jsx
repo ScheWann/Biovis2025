@@ -1382,14 +1382,17 @@ export const SampleViewer = ({
                     if (hoveredSet) {
                         return [150, 150, 150, 100];
                     }
-                    return [150, 150, 150, 255];
+                    return [0, 0, 0, 0];
                 },
                 getLineWidth: d => {
                     const localId = d.id ?? d.cell_id;
                     if (hoveredSet && hoveredSet.has(String(localId))) {
                         return 2;
                     }
-                    return 1;
+                    if (hoveredSet) {
+                        return 1;
+                    }
+                    return 0;
                 },
                 lineWidthUnits: 'pixels',
                 pickable: true,
