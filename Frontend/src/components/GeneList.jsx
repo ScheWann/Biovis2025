@@ -1,20 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Checkbox, AutoComplete, ColorPicker } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
-import { GENE_COLOR_PALETTE } from './ColorUtils';
+import { COLOR_PALETTE, debounce } from './Utils';
 
 export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes, geneColorMap, setGeneColorMap, onKosaraData, onKosaraLoadingStart }) => {
     const [searchText, setSearchText] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
-
-    const debounce = (func, delay) => {
-        let timeoutId;
-        return (...args) => {
-            clearTimeout(timeoutId);
-            timeoutId = setTimeout(() => func.apply(null, args), delay);
-        };
-    };
 
     // Function to handle adding a gene to the visibility list
     const onVisibilityGeneChange = (gene) => {
@@ -48,7 +40,6 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
     // Function to confirm gene selection and fetch Kosara data
     const confirmGeneSelection = async (sampleId) => {
         try {
-            // Always start loading spinner when confirm is clicked
             if (onKosaraLoadingStart) {
                 onKosaraLoadingStart(sampleId);
             }
@@ -59,29 +50,23 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
                 body: JSON.stringify({
                     sample_ids: [sampleId],
                     gene_list: selectedGenes
-                    // Intentionally omit cell_list -> backend defaults to all cells
                 })
             });
             if (!response.ok) {
                 console.error('Failed to fetch Kosara data:', response.status, response.statusText);
-                // On error, still call onKosaraData with empty array to stop loading
                 if (onKosaraData) {
                     onKosaraData(sampleId, []);
                 }
                 return;
             }
             const data = await response.json();
-            // Notify parent with the array for this sample
             if (onKosaraData && data && data[sampleId]) {
                 onKosaraData(sampleId, data[sampleId]);
             } else if (onKosaraData) {
-                // If no data, pass empty array to stop loading
                 onKosaraData(sampleId, []);
             }
-            // console.log(data, 'data');
         } catch (err) {
             console.error('Error fetching Kosara data:', err);
-            // On error, still call onKosaraData with empty array to stop loading
             if (onKosaraData) {
                 onKosaraData(sampleId, []);
             }
@@ -130,12 +115,17 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
         [sampleId, availableGenes]
     );
 
+    const handleGeneSelect = (gene) => {
+        onVisibilityGeneChange(gene);
+        setSearchText('');
+    };
+
     // Effect to trigger search when searchText changes
     useEffect(() => {
         searchGenes(searchText);
     }, [searchText, searchGenes]);
 
-    // Initialize default colors for genes using GENE_COLOR_PALETTE
+    // Initialize default colors for genes using COLOR_PALETTE
     useEffect(() => {
         setGeneColorMap(prev => {
             const next = { ...prev };
@@ -145,7 +135,7 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
                     const position = selectedGenes.includes(gene)
                         ? selectedGenes.indexOf(gene)
                         : idx;
-                    next[gene] = GENE_COLOR_PALETTE[position % GENE_COLOR_PALETTE.length];
+                    next[gene] = COLOR_PALETTE[position % COLOR_PALETTE.length];
                 }
             });
             // Remove entries for removed genes
@@ -155,11 +145,6 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
             return next;
         });
     }, [availableGenes, selectedGenes]);
-
-    const handleGeneSelect = (gene) => {
-        onVisibilityGeneChange(gene);
-        setSearchText(''); // Clear search after selection
-    };
 
     return (
         <div style={{ maxHeight: 400 }}>

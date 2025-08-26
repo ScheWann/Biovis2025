@@ -2,46 +2,6 @@ import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as d3 from 'd3';
 import { Empty, Spin, Checkbox, Tooltip } from 'antd';
 
-// Custom hook for debounced trajectory hovering
-const useDebounceTrajectoryHover = (setHoveredTrajectory, delay = 100) => {
-    const timeoutRef = useRef();
-    const lastHoverRef = useRef(null);
-
-    const debouncedSetHover = useCallback((trajectoryData) => {
-        // Check if the trajectory data is the same to avoid unnecessary updates
-        const currentKey = trajectoryData ? `${trajectoryData.adata_umap_title}_${JSON.stringify(trajectoryData.path)}_${trajectoryData.trajectoryIndex}` : null;
-        const lastKey = lastHoverRef.current ? `${lastHoverRef.current.adata_umap_title}_${JSON.stringify(lastHoverRef.current.path)}_${lastHoverRef.current.trajectoryIndex}` : null;
-
-        if (currentKey === lastKey) {
-            return; // Same trajectory, no need to update
-        }
-
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-            setHoveredTrajectory(trajectoryData);
-            lastHoverRef.current = trajectoryData;
-        }, delay);
-    }, [setHoveredTrajectory, delay]);
-
-    const clearHover = useCallback(() => {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-            setHoveredTrajectory(null);
-            lastHoverRef.current = null;
-        }, 50); // Shorter delay for clearing
-    }, [setHoveredTrajectory]);
-
-    // Cleanup timeout on unmount
-    useEffect(() => {
-        return () => {
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-            }
-        };
-    }, []);
-
-    return { debouncedSetHover, clearHover };
-};
 
 export const PseudotimeGlyph = ({
     adata_umap_title,
@@ -51,10 +11,7 @@ export const PseudotimeGlyph = ({
     onSelectionChange,
     geneExpressionData = null,
     clusterColors = null,
-    setHoveredTrajectory,
-    trajectoryIndex,
-    // sampleId,
-    source_title
+    trajectoryIndex,    
 }) => {
     const containerRef = useRef();
     const svgRef = useRef(null);
@@ -75,9 +32,6 @@ export const PseudotimeGlyph = ({
             }
         }
     }, [pseudotimeData, selectedTrajectory]);
-
-    // Use the debounced hover hook
-    const { debouncedSetHover, clearHover } = useDebounceTrajectoryHover(setHoveredTrajectory);
 
     // Generate a unique ID for this component instance
     const [componentId] = useState(() => `pseudotime-glyph-${Math.random().toString(36).substr(2, 9)}`);

@@ -2,11 +2,11 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
 import { CellSettings } from './CellList';
-import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Checkbox, Spin } from "antd";
-import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Spin } from "antd";
+import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
-import { convertHEXToRGB, GENE_COLOR_PALETTE } from './ColorUtils';
+import { convertHEXToRGB, COLOR_PALETTE } from './Utils';
 
 
 export const SampleViewer = ({
@@ -95,15 +95,20 @@ export const SampleViewer = ({
     const [magnifierViewport, setMagnifierViewport] = useState({ x: 0.5, y: 0.5, size: 200 });
     const [magnifierMousePos, setMagnifierMousePos] = useState({ x: 0, y: 0 });
     const [keyPressed, setKeyPressed] = useState(false);
+
     const magnifierRef = useRef(null);
+
+    // Track previous image URL to only reset loading state when it truly changes
+    const prevMagnifierUrlRef = useRef(null);
     // Track if current magnifier image has finished loading
     const [magnifierImageLoaded, setMagnifierImageLoaded] = useState(false);
-    const magnifierLoadTimeoutRef = useRef(null);
+    const [magnifierImageVersion, setMagnifierImageVersion] = useState(0);
 
     // Add state for preloaded high-res images
     const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
     const fetchingImages = useRef(new Set()); // Track which images are currently being fetched
     const imagesLoadedCallbackCalled = useRef(false); // Track if callback has been called for current samples
+
 
     const radioOptions = [
         {
@@ -622,101 +627,6 @@ export const SampleViewer = ({
         }
     }, [minimapVisible]);
 
-    // Preload high-res images for all selected samples
-    useEffect(() => {
-        let isMounted = true;
-
-        // Reset callback flag when samples change
-        imagesLoadedCallbackCalled.current = false;
-
-        // Clean up images that are no longer needed
-        setHiresImages(prev => {
-            const currentSampleIds = new Set(selectedSamples.map(s => s.id));
-            const filteredImages = {};
-            Object.keys(prev).forEach(sampleId => {
-                if (currentSampleIds.has(sampleId)) {
-                    filteredImages[sampleId] = prev[sampleId];
-                } else {
-                    // Revoke the object URL to free memory
-                    try { URL.revokeObjectURL(prev[sampleId]); } catch (e) { }
-                }
-            });
-            return filteredImages;
-        });
-
-        selectedSamples.forEach(sample => {
-            // Check if image is already loaded or currently being fetched
-            setHiresImages(prev => {
-                // If image is already loaded, don't fetch again
-                if (prev[sample.id]) {
-                    return prev;
-                }
-
-                // If already fetching this image, don't start another request
-                if (fetchingImages.current.has(sample.id)) {
-                    return prev;
-                }
-
-                // Mark as being fetched
-                fetchingImages.current.add(sample.id);
-
-                // Start fetching asynchronously
-                fetch('/api/get_hires_image', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sample_id: sample.id })
-                })
-                    .then(response => {
-                        return response.ok ? response.blob() : null;
-                    })
-                    .then(blob => {
-                        if (blob && isMounted) {
-                            const imageUrl = URL.createObjectURL(blob);
-                            setHiresImages(currentState => {
-                                const newState = {
-                                    ...currentState,
-                                    [sample.id]: imageUrl
-                                };
-                                return newState;
-                            });
-                        }
-                    })
-                    .catch(error => {
-                        console.error(`Error fetching image for ${sample.id}:`, error);
-                    })
-                    .finally(() => {
-                        // Remove from fetching set when done
-                        fetchingImages.current.delete(sample.id);
-                    });
-
-                // Return current state immediately (fetch is async)
-                return prev;
-            });
-        });
-
-        return () => {
-            isMounted = false;
-        };
-    }, [selectedSamples]);
-
-    // Check if all images are loaded and call callback
-    useEffect(() => {
-        if (!onImagesLoaded || imagesLoadedCallbackCalled.current) return;
-
-        const timeoutId = setTimeout(() => {
-            const allImagesLoaded = selectedSamples.length > 0 && selectedSamples.every(sample => hiresImages[sample.id]);
-
-            if (allImagesLoaded) {
-                imagesLoadedCallbackCalled.current = true;
-                onImagesLoaded();
-            }
-        }, 2000);
-
-        return () => clearTimeout(timeoutId);
-    }, [hiresImages, selectedSamples, onImagesLoaded]);
-
-
-
     // Update magnifier viewport based on mouse position
     const updateMagnifierViewport = useCallback((worldX, worldY, sampleId) => {
         if (!sampleId) return;
@@ -1023,16 +933,6 @@ export const SampleViewer = ({
         setEditNeighbors(10);
         setEditNPcas(30);
         setEditResolutions(1);
-    };
-
-    // Convert hex color to RGB array
-    const hexToRgb = (hex) => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? [
-            parseInt(result[1], 16),
-            parseInt(result[2], 16),
-            parseInt(result[3], 16)
-        ] : [255, 0, 0];
     };
 
     // Memoize getSampleAtCoordinate to prevent infinite effect loops
@@ -1385,7 +1285,7 @@ export const SampleViewer = ({
                         if (d.gene) {
                             const hex = geneColorMap[d.gene] || (() => {
                                 const pos = selectedGenes.indexOf(d.gene);
-                                const fallback = GENE_COLOR_PALETTE[(pos >= 0 ? pos : 0) % GENE_COLOR_PALETTE.length];
+                                const fallback = COLOR_PALETTE[(pos >= 0 ? pos : 0) % COLOR_PALETTE.length];
                                 return fallback;
                             })();
                             const rgbColor = convertHEXToRGB(hex);
@@ -1516,7 +1416,7 @@ export const SampleViewer = ({
 
         // Completed custom areas
         customAreas.forEach(area => {
-            const areaColor = hexToRgb(area.color || '#ff0000');
+            const areaColor = convertHEXToRGB(area.color || '#ff0000');
 
             layers.push(new PolygonLayer({
                 id: `custom-area-${area.id}`,
@@ -1537,7 +1437,7 @@ export const SampleViewer = ({
 
             // When tooltip is visible, show the finalized area without animation effects
             if (isAreaTooltipVisible && pendingArea) {
-                const pendingAreaColor = hexToRgb(areaColor || pendingArea.color);
+                const pendingAreaColor = convertHEXToRGB(areaColor || pendingArea.color);
                 layers.push(new PolygonLayer({
                     id: 'pending-area-preview',
                     data: [{ polygon: pendingArea.points }],
@@ -1712,6 +1612,99 @@ export const SampleViewer = ({
 
     // Stable viewState wrapper to avoid creating a new object on every render
     const deckViewState = useMemo(() => ({ main: mainViewState }), [mainViewState]);
+
+    // Preload high-res images for all selected samples
+    useEffect(() => {
+        let isMounted = true;
+
+        // Reset callback flag when samples change
+        imagesLoadedCallbackCalled.current = false;
+
+        // Clean up images that are no longer needed
+        setHiresImages(prev => {
+            const currentSampleIds = new Set(selectedSamples.map(s => s.id));
+            const filteredImages = {};
+            Object.keys(prev).forEach(sampleId => {
+                if (currentSampleIds.has(sampleId)) {
+                    filteredImages[sampleId] = prev[sampleId];
+                } else {
+                    // Revoke the object URL to free memory
+                    try { URL.revokeObjectURL(prev[sampleId]); } catch (e) { }
+                }
+            });
+            return filteredImages;
+        });
+
+        selectedSamples.forEach(sample => {
+            // Check if image is already loaded or currently being fetched
+            setHiresImages(prev => {
+                // If image is already loaded, don't fetch again
+                if (prev[sample.id]) {
+                    return prev;
+                }
+
+                // If already fetching this image, don't start another request
+                if (fetchingImages.current.has(sample.id)) {
+                    return prev;
+                }
+
+                // Mark as being fetched
+                fetchingImages.current.add(sample.id);
+
+                // Start fetching asynchronously
+                fetch('/api/get_hires_image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sample_id: sample.id })
+                })
+                    .then(response => {
+                        return response.ok ? response.blob() : null;
+                    })
+                    .then(blob => {
+                        if (blob && isMounted) {
+                            const imageUrl = URL.createObjectURL(blob);
+                            setHiresImages(currentState => {
+                                const newState = {
+                                    ...currentState,
+                                    [sample.id]: imageUrl
+                                };
+                                return newState;
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error(`Error fetching image for ${sample.id}:`, error);
+                    })
+                    .finally(() => {
+                        // Remove from fetching set when done
+                        fetchingImages.current.delete(sample.id);
+                    });
+
+                // Return current state immediately (fetch is async)
+                return prev;
+            });
+        });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [selectedSamples]);
+
+    // Check if all images are loaded and call callback
+    useEffect(() => {
+        if (!onImagesLoaded || imagesLoadedCallbackCalled.current) return;
+
+        const timeoutId = setTimeout(() => {
+            const allImagesLoaded = selectedSamples.length > 0 && selectedSamples.every(sample => hiresImages[sample.id]);
+
+            if (allImagesLoaded) {
+                imagesLoadedCallbackCalled.current = true;
+                onImagesLoaded();
+            }
+        }, 2000);
+
+        return () => clearTimeout(timeoutId);
+    }, [hiresImages, selectedSamples, onImagesLoaded]);
 
     // Set container size
     useEffect(() => {
@@ -1953,10 +1946,6 @@ export const SampleViewer = ({
             setMagnifierData(prev => (prev === null ? prev : null));
         }
     }, [magnifierVisible, magnifierMousePos, selectedSamples, hiresImages, imageSizes, isDrawing, isAreaTooltipVisible, isAreaEditPopupVisible, getSampleAtCoordinate]);
-
-    // Track previous image URL to only reset loading state when it truly changes
-    const prevMagnifierUrlRef = useRef(null);
-    const [magnifierImageVersion, setMagnifierImageVersion] = useState(0); // force <img> remount when url changes
 
     useEffect(() => {
         const currentUrl = magnifierData?.imageUrl || null;
