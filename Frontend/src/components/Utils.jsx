@@ -22,13 +22,6 @@ export const COLOR_PALETTE = [
     '#c49c94', '#f7b6d3', '#c7c7c7', '#dbdb8d', '#9edae5'
 ];
 
-// // Predefined color palette for gene selection
-// export const COLOR_PALETTE = [
-//     '#FF6B6B', '#4ECDC4', '#45B7D1',
-//     '#96CEB4', '#FFEEAD', '#D4A5A5',
-//     '#88D8B0', '#FF9999', '#99CCFF'
-// ];
-
 // Debounce utility function
 export const debounce = (func, delay) => {
     let timeoutId;
