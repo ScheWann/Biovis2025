@@ -17,7 +17,7 @@ from process import (
     get_trajectory_gene_list,
     load_adata_to_cache,
     clear_adata_cache,
-    get_pseudotime_data,
+    # get_pseudotime_data,
     get_trajectory_gene_expression,
     get_direct_slingshot_data,
 )
@@ -28,32 +28,6 @@ CORS(app)
 
 UPLOAD_FOLDER = "../Uploaded_Data"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-
-def validate_sample_id(sample_id):
-    """
-    Validate sample ID and return sample info and scale info.
-    Returns (base_sample_id, scale, sample_info, scale_info) or raises ValueError.
-    """
-    # Handle new format: sample_id_scale
-    if "_" in sample_id:
-        base_sample_id, scale = sample_id.rsplit("_", 1)
-        if base_sample_id not in SAMPLES:
-            raise ValueError(f"Sample {base_sample_id} not found")
-        
-        sample_info = SAMPLES[base_sample_id]
-        if "scales" not in sample_info or scale not in sample_info["scales"]:
-            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
-        
-        scale_info = sample_info["scales"][scale]
-        return base_sample_id, scale, sample_info, scale_info
-    # Handle legacy format
-    elif sample_id in SAMPLES:
-        sample_info = SAMPLES[sample_id]
-        scale_info = sample_info
-        return sample_id, None, sample_info, scale_info
-    else:
-        raise ValueError(f"Sample {sample_id} not found")
 
 
 def _search_genes_internal(sample_ids, query, limit=50):
@@ -77,126 +51,6 @@ def _search_genes_internal(sample_ids, query, limit=50):
     return results
 
 
-def get_sample_scales(sample_id):
-    """
-    Get available scales for a given sample ID.
-    """
-    if sample_id in SAMPLES:
-        sample_info = SAMPLES[sample_id]
-        if "scales" in sample_info:
-            return list(sample_info["scales"].keys())
-        else:
-            # Legacy format - return the group as the scale
-            return [sample_info.get("group", "default")]
-    return []
-
-
-@app.route("/api/get_samples_option", methods=["GET"])
-def get_samples_option_route():
-    """
-    Get a list of available samples for the selector, grouped by cell scale(e.g., 2um, 8um)
-    """
-    return jsonify(get_samples_option())
-
-
-@app.route("/api/get_sample_info", methods=["POST"])
-def get_sample_info_route():
-    """
-    Get detailed information about a specific sample including available scales.
-    """
-    sample_id = request.json["sample_id"]
-    
-    try:
-        # Handle new format: sample_id_scale
-        if "_" in sample_id:
-            base_sample_id, scale = sample_id.rsplit("_", 1)
-            if base_sample_id not in SAMPLES:
-                return jsonify({"error": f"Sample {base_sample_id} not found"}), 404
-            
-            sample_info = SAMPLES[base_sample_id]
-            if "scales" not in sample_info or scale not in sample_info["scales"]:
-                return jsonify({"error": f"Scale {scale} not found for sample {base_sample_id}"}), 404
-            
-            available_scales = list(sample_info["scales"].keys())
-            scale_info = sample_info["scales"][scale]
-            
-            return jsonify({
-                "sample_id": base_sample_id,
-                "current_scale": scale,
-                "available_scales": available_scales,
-                "sample_name": sample_info["name"],
-                "scale_info": scale_info
-            })
-        # Handle legacy format
-        elif sample_id in SAMPLES:
-            sample_info = SAMPLES[sample_id]
-            return jsonify({
-                "sample_id": sample_id,
-                "current_scale": sample_info.get("group", "default"),
-                "available_scales": [sample_info.get("group", "default")],
-                "sample_name": sample_info["name"],
-                "scale_info": sample_info
-            })
-        else:
-            return jsonify({"error": f"Sample {sample_id} not found"}), 404
-            
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/get_available_scales", methods=["POST"])
-def get_available_scales_route():
-    """
-    Get available scales for a given sample ID.
-    """
-    sample_id = request.json["sample_id"]
-    
-    try:
-        # Extract base sample ID if it's in the new format
-        if "_" in sample_id:
-            base_sample_id = sample_id.rsplit("_", 1)[0]
-        else:
-            base_sample_id = sample_id
-        
-        scales = get_sample_scales(base_sample_id)
-        return jsonify({
-            "sample_id": base_sample_id,
-            "available_scales": scales
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/validate_sample", methods=["POST"])
-def validate_sample_route():
-    """
-    Validate a sample ID and return information about it.
-    """
-    sample_id = request.json["sample_id"]
-    
-    try:
-        base_sample_id, scale, sample_info, scale_info = validate_sample_id(sample_id)
-        
-        return jsonify({
-            "valid": True,
-            "sample_id": base_sample_id,
-            "scale": scale,
-            "sample_name": sample_info["name"],
-            "has_adata": "adata_path" in scale_info,
-            "has_trajectory_data": any(key in scale_info for key in [
-                "horizontal_non_random_gene_trajectory_expression_path",
-                "vertical_non_random_gene_trajectory_expression_path"
-            ])
-        })
-    except ValueError as e:
-        return jsonify({
-            "valid": False,
-            "error": str(e)
-        }), 400
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
 @app.route("/api/load_adata_cache", methods=["POST"])
 def load_adata_cache_route():
     """
@@ -206,7 +60,12 @@ def load_adata_cache_route():
     sample_ids = request.json["sample_ids"]
     try:
         load_adata_to_cache(sample_ids)
-        return jsonify({"status": "success", "message": f"Loaded AnnData for {len(sample_ids)} samples"})
+        return jsonify(
+            {
+                "status": "success",
+                "message": f"Loaded AnnData for {len(sample_ids)} samples",
+            }
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -223,10 +82,18 @@ def clear_adata_cache_route():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/get_samples_option", methods=["GET"])
+def get_samples_option_route():
+    """
+    Get a list of available samples for the selector, grouped by cell scale(e.g., 2um, 8um)
+    """
+    return jsonify(get_samples_option())
+
+
 @app.route("/api/get_hires_image_size", methods=["POST"])
 def get_hires_image_size_route():
     """
-    Get high-resolution image size for the selected samples
+    Get high-resolution image size(width, height) for the selected samples
     """
     sample_ids = request.json["sample_ids"]
     return jsonify(get_hires_image_size(sample_ids))
@@ -235,19 +102,10 @@ def get_hires_image_size_route():
 @app.route("/api/get_coordinates", methods=["POST"])
 def get_coordinates_route():
     """
-    Get coordinates for the selected samples
+    Get coordinates(x, y) for the selected samples
     """
     sample_ids = request.json["sample_ids"]
     return jsonify(get_coordinates(sample_ids))
-
-
-@app.route("/api/get_gene_list", methods=["POST"])
-def get_gene_list_route():
-    """
-    Get list of all genes for the selected samples
-    """
-    sample_ids = request.json["sample_ids"]
-    return jsonify(get_gene_list(sample_ids))
 
 
 @app.route("/api/get_highly_variable_genes", methods=["POST"])
@@ -256,10 +114,11 @@ def get_highly_variable_genes_route():
     Get list of highly variable genes for the selected samples
     """
     sample_ids = request.json["sample_ids"]
-    top_n = request.json.get("top_n", 20)  # Default to top 20
+    top_n = request.json.get("top_n", 20)
+
     # Allow clients to request all genes by passing top_n as 'all', None, 0, or negative
-    if isinstance(top_n, str) and top_n.lower() == 'all':
-        top_n_value = 'all'
+    if isinstance(top_n, str) and top_n.lower() == "all":
+        top_n_value = "all"
     else:
         top_n_value = top_n
     return jsonify(get_highly_variable_genes(sample_ids, top_n_value))
@@ -269,12 +128,12 @@ def get_highly_variable_genes_route():
 def search_genes_unified_route():
     """
     Unified gene search endpoint.
-    - New style: { sample_ids: [..], query: string, limit?: int } -> returns { sample_id: [genes] }
-    - Legacy style: { sample_id: string, gene_name: string, limit?: int } -> returns [genes]
+    - Multi-sample style: { sample_ids: [..], query: string, limit?: int } -> returns { sample_id: [genes] }
+    - Single-sample style: { sample_id: string, gene_name: string, limit?: int } -> returns [genes]
     """
     data = request.json or {}
 
-    # Legacy single-sample payload
+    # Single-sample payload
     if "sample_id" in data and "gene_name" in data:
         sample_id = data.get("sample_id")
         gene_name = data.get("gene_name", "")
@@ -315,7 +174,7 @@ def get_umap_data_route():
     Generate UMAP data from gene expression data
     """
     sample_id = request.json["sample_id"]
-    cell_ids = request.json.get("cell_ids", None)  # New parameter for specific cells
+    cell_ids = request.json.get("cell_ids", None)
     n_neighbors = request.json.get("n_neighbors", 10)
     n_pcas = request.json.get("n_pcas", 30)
     resolutions = request.json.get("resolutions", 1)
@@ -323,11 +182,11 @@ def get_umap_data_route():
     try:
         umap_data = get_umap_data(
             sample_id=sample_id,
-            cell_ids=cell_ids,  # Pass cell_ids to the backend function
+            cell_ids=cell_ids,
             n_neighbors=n_neighbors,
             n_pcas=n_pcas,
             resolutions=resolutions,
-            adata_umap_title=adata_umap_title
+            adata_umap_title=adata_umap_title,
         )
         return jsonify(umap_data)
     except Exception as e:
@@ -347,7 +206,7 @@ def get_go_analysis_route():
         go_results = perform_go_analysis(
             sample_id=sample_id,
             cluster_id=cluster_id,
-            adata_umap_title=adata_umap_title
+            adata_umap_title=adata_umap_title,
         )
         return jsonify(go_results)
     except Exception as e:
@@ -363,7 +222,9 @@ def get_trajectory_gene_list_route():
     is_vertical = request.json.get("is_vertical")
 
     try:
-        gene_list = get_trajectory_gene_list(sample_id=sample_id, is_vertical=is_vertical)
+        gene_list = get_trajectory_gene_list(
+            sample_id=sample_id, is_vertical=is_vertical
+        )
         return jsonify(gene_list)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -379,7 +240,9 @@ def get_trajectory_data_route():
     is_vertical = request.json.get("is_vertical")
 
     try:
-        trajectory_data = get_trajectory_data(sample_id=sample_id, selected_genes=selected_genes, is_vertical=is_vertical)
+        trajectory_data = get_trajectory_data(
+            sample_id=sample_id, selected_genes=selected_genes, is_vertical=is_vertical
+        )
         return jsonify(trajectory_data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -391,10 +254,10 @@ def get_cell_types():
     Get cell types and their counts from adata.obs['predicted_labels'].value_counts()
     """
     sample_ids = request.json["sample_ids"]
-    
+
     if not sample_ids:
         return jsonify({"error": "No sample IDs provided"}), 400
-    
+
     try:
         cell_types_data = get_cell_types_data(sample_ids)
         return jsonify(cell_types_data)
@@ -409,23 +272,21 @@ def get_hires_image_route():
     """
     sample_id = request.json["sample_id"]
 
-    # Handle new format: sample_id_scale
-    if "_" in sample_id:
-        base_sample_id, scale = sample_id.rsplit("_", 1)
-        if base_sample_id not in SAMPLES:
-            return jsonify({"error": f"Sample {base_sample_id} not found"}), 404
-        
-        sample_info = SAMPLES[base_sample_id]
-        if "scales" not in sample_info or scale not in sample_info["scales"]:
-            return jsonify({"error": f"Scale {scale} not found for sample {base_sample_id}"}), 404
-        
-        scale_info = sample_info["scales"][scale]
-        image_path = scale_info["image_jpeg_path"]
-    # Handle legacy format
-    elif sample_id in SAMPLES:
-        image_path = SAMPLES[sample_id]["image_jpeg_path"]
-    else:
-        return jsonify({"error": f"Sample {sample_id} not found"}), 404
+    base_sample_id, scale = sample_id.rsplit("_", 1)
+    if base_sample_id not in SAMPLES:
+        return jsonify({"error": f"Sample {base_sample_id} not found"}), 404
+
+    sample_info = SAMPLES[base_sample_id]
+    if "scales" not in sample_info or scale not in sample_info["scales"]:
+        return (
+            jsonify(
+                {"error": f"Scale {scale} not found for sample {base_sample_id}"}
+            ),
+            404,
+        )
+
+    scale_info = sample_info["scales"][scale]
+    image_path = scale_info["image_jpeg_path"]
 
     return send_file(image_path, mimetype="image/jpeg", as_attachment=False)
 
@@ -437,23 +298,21 @@ def get_cell_boundary_image_route():
     """
     sample_id = request.json["sample_id"]
 
-    # Handle new format: sample_id_scale
-    if "_" in sample_id:
-        base_sample_id, scale = sample_id.rsplit("_", 1)
-        if base_sample_id not in SAMPLES:
-            return jsonify({"error": f"Sample {base_sample_id} not found"}), 404
-        
-        sample_info = SAMPLES[base_sample_id]
-        if "scales" not in sample_info or scale not in sample_info["scales"]:
-            return jsonify({"error": f"Scale {scale} not found for sample {base_sample_id}"}), 404
-        
-        scale_info = sample_info["scales"][scale]
-        cell_boundary_path = scale_info["cell_boundary_path"]
-    # Handle legacy format
-    elif sample_id in SAMPLES:
-        cell_boundary_path = SAMPLES[sample_id]["cell_boundary_path"]
-    else:
-        return jsonify({"error": f"Sample {sample_id} not found"}), 404
+    base_sample_id, scale = sample_id.rsplit("_", 1)
+    if base_sample_id not in SAMPLES:
+        return jsonify({"error": f"Sample {base_sample_id} not found"}), 404
+
+    sample_info = SAMPLES[base_sample_id]
+    if "scales" not in sample_info or scale not in sample_info["scales"]:
+        return (
+            jsonify(
+                {"error": f"Scale {scale} not found for sample {base_sample_id}"}
+            ),
+            404,
+        )
+
+    scale_info = sample_info["scales"][scale]
+    cell_boundary_path = scale_info["cell_boundary_path"]
 
     return send_file(cell_boundary_path, mimetype="image/png", as_attachment=False)
 
@@ -473,7 +332,7 @@ def upload_spaceranger():
         re.compile(r"spatial/"),
     ]
 
-    uploaded_scales = set()  # Track which scales were uploaded
+    uploaded_scales = set()
 
     for file in files:
         rel_path = file.filename
@@ -505,39 +364,41 @@ def upload_spaceranger():
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             file.save(save_path)
 
-    return jsonify({
-        "status": "success", 
-        "uploaded_scales": list(uploaded_scales),
-        "message": f"Uploaded data for scales: {', '.join(uploaded_scales)}"
-    })
+    return jsonify(
+        {
+            "status": "success",
+            "uploaded_scales": list(uploaded_scales),
+            "message": f"Uploaded data for scales: {', '.join(uploaded_scales)}",
+        }
+    )
 
 
-@app.route("/api/get_pseudotime_data", methods=["POST"])
-def get_pseudotime_data_route():
-    """
-    Generate pseudotime analysis data using Slingshot trajectory inference
-    """
-    sample_id = request.json["sample_id"]
-    cell_ids = request.json["cell_ids"]
-    adata_umap_title = request.json["adata_umap_title"]
-    early_markers = request.json.get("early_markers", None)
-    n_neighbors = request.json.get("n_neighbors", 15)
-    n_pcas = request.json.get("n_pcas", 30)
-    resolutions = request.json.get("resolutions", 1)
-    
-    try:
-        pseudotime_data = get_pseudotime_data(
-            sample_id=sample_id,
-            adata_umap_title=adata_umap_title,
-            cell_ids=cell_ids,
-            early_markers=early_markers,
-            n_neighbors=n_neighbors,
-            n_pcas=n_pcas,
-            resolutions=resolutions
-        )
-        return jsonify(pseudotime_data)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# @app.route("/api/get_pseudotime_data", methods=["POST"])
+# def get_pseudotime_data_route():
+#     """
+#     Generate pseudotime analysis data using Slingshot trajectory inference
+#     """
+#     sample_id = request.json["sample_id"]
+#     cell_ids = request.json["cell_ids"]
+#     adata_umap_title = request.json["adata_umap_title"]
+#     early_markers = request.json.get("early_markers", None)
+#     n_neighbors = request.json.get("n_neighbors", 15)
+#     n_pcas = request.json.get("n_pcas", 30)
+#     resolutions = request.json.get("resolutions", 1)
+
+#     try:
+#         pseudotime_data = get_pseudotime_data(
+#             sample_id=sample_id,
+#             adata_umap_title=adata_umap_title,
+#             cell_ids=cell_ids,
+#             early_markers=early_markers,
+#             n_neighbors=n_neighbors,
+#             n_pcas=n_pcas,
+#             resolutions=resolutions,
+#         )
+#         return jsonify(pseudotime_data)
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/get_direct_slingshot_data", methods=["POST"])
@@ -552,7 +413,7 @@ def get_direct_slingshot_data_route():
     n_neighbors = request.json.get("n_neighbors", 15)
     n_pcas = request.json.get("n_pcas", 30)
     resolutions = request.json.get("resolutions", 1)
-    
+
     try:
         pseudotime_data = get_direct_slingshot_data(
             sample_id=sample_id,
@@ -561,7 +422,7 @@ def get_direct_slingshot_data_route():
             start_cluster=start_cluster,
             n_neighbors=n_neighbors,
             n_pcas=n_pcas,
-            resolutions=resolutions
+            resolutions=resolutions,
         )
         return jsonify(pseudotime_data)
     except Exception as e:
@@ -577,13 +438,13 @@ def get_trajectory_gene_expression_route():
     adata_umap_title = request.json["adata_umap_title"]
     gene_names = request.json["gene_names"]
     trajectory_path = request.json["trajectory_path"]
-    
+
     try:
         gene_expression_data = get_trajectory_gene_expression(
             sample_id=sample_id,
             adata_umap_title=adata_umap_title,
             gene_names=gene_names,
-            trajectory_path=trajectory_path
+            trajectory_path=trajectory_path,
         )
         return jsonify(gene_expression_data)
     except Exception as e:

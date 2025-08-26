@@ -50,44 +50,24 @@ def load_adata_to_cache(sample_ids):
     global ADATA_CACHE
     
     for sample_id in sample_ids:
-        # Handle new format: sample_id_scale
-        if "_" in sample_id:
-            base_sample_id, scale = sample_id.rsplit("_", 1)
-            if base_sample_id in SAMPLES and sample_id not in ADATA_CACHE:
-                sample_info = SAMPLES[base_sample_id]
-                if "scales" in sample_info and scale in sample_info["scales"]:
-                    scale_info = sample_info["scales"][scale]
-                    if "adata_path" in scale_info:
-                        try:
-                            adata = sc.read_h5ad(scale_info["adata_path"])
-                            ADATA_CACHE[sample_id] = adata
-                            print(f"Loaded AnnData for sample {sample_id}")
-                        except Exception as e:
-                            print(f"Error loading AnnData for sample {sample_id}: {e}")
-                            ADATA_CACHE[sample_id] = None
-                    else:
-                        print(f"No AnnData path found for sample {sample_id}")
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id in SAMPLES and sample_id not in ADATA_CACHE:
+            sample_info = SAMPLES[base_sample_id]
+            if "scales" in sample_info and scale in sample_info["scales"]:
+                scale_info = sample_info["scales"][scale]
+                if "adata_path" in scale_info:
+                    try:
+                        adata = sc.read_h5ad(scale_info["adata_path"])
+                        ADATA_CACHE[sample_id] = adata
+                        print(f"Loaded AnnData for sample {sample_id}")
+                    except Exception as e:
+                        print(f"Error loading AnnData for sample {sample_id}: {e}")
                         ADATA_CACHE[sample_id] = None
                 else:
-                    print(f"No scale {scale} found for sample {base_sample_id}")
+                    print(f"No AnnData path found for sample {sample_id}")
                     ADATA_CACHE[sample_id] = None
-        # Handle legacy format
-        elif sample_id in SAMPLES and sample_id not in ADATA_CACHE:
-            sample_info = SAMPLES[sample_id]
-            if "adata_path" in sample_info:
-                try:
-                    adata = sc.read_h5ad(sample_info["adata_path"])
-                    ADATA_CACHE[sample_id] = adata
-                    print(f"Loaded AnnData for sample {sample_id}")
-                except Exception as e:
-                    print(f"Error loading AnnData for sample {sample_id}: {e}")
-                    ADATA_CACHE[sample_id] = None
-            elif "gene_expression_path" in sample_info:
-                # Handle legacy format with gene_expression_path
-                print(f"Sample {sample_id} uses legacy format (gene_expression_path), skipping cache loading")
-                ADATA_CACHE[sample_id] = None
             else:
-                print(f"No AnnData path found for sample {sample_id}")
+                print(f"No scale {scale} found for sample {base_sample_id}")
                 ADATA_CACHE[sample_id] = None
 
 
@@ -125,23 +105,21 @@ def clear_processed_cache():
 def get_samples_option():
     """
     Return a list of tissue samples for selector, group by scale.
+
+    Returns:
+    - List of tissue samples grouped by scale
     """
     groups = defaultdict(list)
 
     for sample_id, sample in SAMPLES.items():
-        # Handle new structure with scales
         if "scales" in sample:
             for scale in sample["scales"].keys():
                 scale_key = f"{sample_id}_{scale}"
                 groups[scale].append(
                     {"value": scale_key, "label": f"{sample['name']} ({scale})"}
                 )
-        # Handle legacy structure for backward compatibility
-        elif "group" in sample:
-            cell_scale_group = sample.get("group", "default")
-            groups[cell_scale_group].append(
-                {"value": sample["id"], "label": sample["name"]}
-            )
+        else:
+            print("No found for sample", sample_id)
 
     return [
         {"label": group, "title": group, "options": options}
@@ -152,39 +130,34 @@ def get_samples_option():
 def get_hires_image_size(sample_ids):
     """
     Get the size of high-resolution images for the given sample IDs.
+
+    Parameters:
+    - sample_ids: List of sample IDs
+
+    Returns:
+    - Dictionary containing image size for each sample
     """
     tissue_image_size = {}
 
     for sample_id in sample_ids:
-        # Handle new format: sample_id_scale
-        if "_" in sample_id:
-            base_sample_id, scale = sample_id.rsplit("_", 1)
-            if base_sample_id in SAMPLES:
-                sample_info = SAMPLES[base_sample_id]
-                if "scales" in sample_info and scale in sample_info["scales"]:
-                    scale_info = sample_info["scales"][scale]
-                    if "image_tif_path" in scale_info:
-                        try:
-                            image = Image.open(scale_info["image_tif_path"])
-                            tissue_image_size[sample_id] = image.size
-                            image.close()  # Close the image to free memory
-                        except Exception as e:
-                            print(f"Error loading image for sample {sample_id}: {e}")
-                            tissue_image_size[sample_id] = (0, 0)
-                    else:
-                        print(f"No image path found for sample {sample_id}")
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id in SAMPLES:
+            sample_info = SAMPLES[base_sample_id]
+            if "scales" in sample_info and scale in sample_info["scales"]:
+                scale_info = sample_info["scales"][scale]
+                if "image_tif_path" in scale_info:
+                    try:
+                        image = Image.open(scale_info["image_tif_path"])
+                        tissue_image_size[sample_id] = image.size
+                        image.close()  # Close the image to free memory
+                    except Exception as e:
+                        print(f"Error loading image for sample {sample_id}: {e}")
                         tissue_image_size[sample_id] = (0, 0)
                 else:
-                    print(f"No scale {scale} found for sample {base_sample_id}")
+                    print(f"No image path found for sample {sample_id}")
                     tissue_image_size[sample_id] = (0, 0)
-        # Handle legacy format
-        elif sample_id in SAMPLES:
-            try:
-                image = Image.open(SAMPLES[sample_id]["image_tif_path"])
-                tissue_image_size[sample_id] = image.size
-                image.close()  # Close the image to free memory
-            except Exception as e:
-                print(f"Error loading image for sample {sample_id}: {e}")
+            else:
+                print(f"No scale {scale} found for sample {base_sample_id}")
                 tissue_image_size[sample_id] = (0, 0)
 
     return tissue_image_size
@@ -193,103 +166,63 @@ def get_hires_image_size(sample_ids):
 def get_coordinates(sample_ids):
     """
     Get cell coordinates for the given sample IDs.
+
+    Parameters:
+    - sample_ids: List of sample IDs
+
+    Returns:
+    - Dictionary containing cell coordinates for each sample
     """
     cell_coordinate_result = {}
 
     for sample_id in sample_ids:
-        # Handle new format: sample_id_scale
-        if "_" in sample_id:
-            base_sample_id, scale = sample_id.rsplit("_", 1)
-            if base_sample_id in SAMPLES:
-                sample_info = SAMPLES[base_sample_id]
-                if "scales" in sample_info and scale in sample_info["scales"]:
-                    scale_info = sample_info["scales"][scale]
-                    if "adata_path" in scale_info:
-                        try:
-                            adata = get_cached_adata(sample_id)
-                            # Use base_sample_id for spatial data access
-                            scalef = adata.uns['spatial'][base_sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
-                            # Use array_row and array_col from obs metadata
-                            if 'array_row' in adata.obs and 'array_col' in adata.obs:
-                                coords_df = pd.DataFrame({
-                                    'cell_x': adata.obsm['spatial_cropped_150_buffer'][:, 0] * scalef,
-                                    'cell_y': adata.obsm['spatial_cropped_150_buffer'][:, 1] * scalef
-                                }, index=adata.obs_names)
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id in SAMPLES:
+            sample_info = SAMPLES[base_sample_id]
+            if "scales" in sample_info and scale in sample_info["scales"]:
+                scale_info = sample_info["scales"][scale]
+                if "adata_path" in scale_info:
+                    try:
+                        adata = get_cached_adata(sample_id)
+
+                        scalef = adata.uns['spatial'][base_sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
+
+                        if 'array_row' in adata.obs and 'array_col' in adata.obs:
+                            coords_df = pd.DataFrame({
+                                'cell_x': adata.obsm['spatial_cropped_150_buffer'][:, 0] * scalef,
+                                'cell_y': adata.obsm['spatial_cropped_150_buffer'][:, 1] * scalef
+                            }, index=adata.obs_names)
+                        else:
+                            print(f"Warning: No spatial coordinates found for sample {sample_id}")
+                            coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'])
+                        
+                        # Add ID column and cell type information
+                        coords_df = coords_df.reset_index().rename(columns={'index': 'id'})
+                        
+                        # Add cell type information
+                        if 'predicted_labels' in adata.obs.columns:
+                            coords_df['cell_type'] = adata.obs['predicted_labels'].values
+                        elif 'cell_type' in adata.obs.columns:
+                            coords_df['cell_type'] = adata.obs['cell_type'].values
+                        else:
+                            # Look for leiden clustering columns
+                            leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
+                            if leiden_cols:
+                                leiden_col = leiden_cols[0]
+                                coords_df['cell_type'] = [f'Cluster {val}' for val in adata.obs[leiden_col].values]
                             else:
-                                print(f"Warning: No spatial coordinates found for sample {sample_id}")
-                                coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'])
-                            
-                            # Add ID column and cell type information
-                            coords_df = coords_df.reset_index().rename(columns={'index': 'id'})
-                            
-                            # Add cell type information if available
-                            if 'predicted_labels' in adata.obs.columns:
-                                coords_df['cell_type'] = adata.obs['predicted_labels'].values
-                            elif 'cell_type' in adata.obs.columns:
-                                coords_df['cell_type'] = adata.obs['cell_type'].values
-                            else:
-                                # Look for leiden clustering columns
-                                leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
-                                if leiden_cols:
-                                    leiden_col = leiden_cols[0]
-                                    coords_df['cell_type'] = [f'Cluster {val}' for val in adata.obs[leiden_col].values]
-                                else:
-                                    coords_df['cell_type'] = 'Unknown'
-                            
-                            cell_coordinate_result[sample_id] = coords_df.to_dict(orient="records")
-                            
-                        except Exception as e:
-                            print(f"Error loading adata coordinates for sample {sample_id}: {e}")
-                            cell_coordinate_result[sample_id] = []
-                    else:
-                        print(f"Warning: No coordinate data available for sample {sample_id}")
+                                coords_df['cell_type'] = 'Unknown'
+                        
+                        cell_coordinate_result[sample_id] = coords_df.to_dict(orient="records")
+                        
+                    except Exception as e:
+                        print(f"Error loading adata coordinates for sample {sample_id}: {e}")
                         cell_coordinate_result[sample_id] = []
                 else:
-                    print(f"No scale {scale} found for sample {base_sample_id}")
-                    cell_coordinate_result[sample_id] = []
-        # Handle legacy format
-        elif sample_id in SAMPLES:
-            sample_info = SAMPLES[sample_id]
-            
-            # Check if we have adata_path (new format)
-            if "adata_path" in sample_info:
-                try:
-                    adata = get_cached_adata(sample_id)
-                    scalef = adata.uns['spatial'][sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
-                    # Use array_row and array_col from obs metadata
-                    if 'array_row' in adata.obs and 'array_col' in adata.obs:
-                        coords_df = pd.DataFrame({
-                            'cell_x': adata.obsm['spatial_cropped_150_buffer'][:, 0] * scalef,
-                            'cell_y': adata.obsm['spatial_cropped_150_buffer'][:, 1] * scalef
-                        }, index=adata.obs_names)
-                    else:
-                        print(f"Warning: No spatial coordinates found for sample {sample_id}")
-                        coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'])
-                    
-                    # Add ID column and cell type information
-                    coords_df = coords_df.reset_index().rename(columns={'index': 'id'})
-                    
-                    # Add cell type information if available
-                    if 'predicted_labels' in adata.obs.columns:
-                        coords_df['cell_type'] = adata.obs['predicted_labels'].values
-                    elif 'cell_type' in adata.obs.columns:
-                        coords_df['cell_type'] = adata.obs['cell_type'].values
-                    else:
-                        # Look for leiden clustering columns
-                        leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
-                        if leiden_cols:
-                            leiden_col = leiden_cols[0]
-                            coords_df['cell_type'] = [f'Cluster {val}' for val in adata.obs[leiden_col].values]
-                        else:
-                            coords_df['cell_type'] = 'Unknown'
-                    
-                    cell_coordinate_result[sample_id] = coords_df.to_dict(orient="records")
-                    
-                except Exception as e:
-                    print(f"Error loading adata coordinates for sample {sample_id}: {e}")
+                    print(f"Warning: No coordinate data available for sample {sample_id}")
                     cell_coordinate_result[sample_id] = []
             else:
-                print(f"Warning: No coordinate data available for sample {sample_id}")
+                print(f"No scale {scale} found for sample {base_sample_id}")
                 cell_coordinate_result[sample_id] = []
 
     return cell_coordinate_result
@@ -298,46 +231,34 @@ def get_coordinates(sample_ids):
 def get_gene_list(sample_ids):
     """
     Get the list of genes for the given sample IDs.
+
+    Parameters:
+    - sample_ids: List of sample IDs
+
+    Returns:
+    - Dictionary containing gene list for each sample
     """
     sample_gene_dict = {}
 
     for sample_id in sample_ids:
-        # Handle new format: sample_id_scale
-        if "_" in sample_id:
-            base_sample_id, scale = sample_id.rsplit("_", 1)
-            if base_sample_id in SAMPLES:
-                sample_info = SAMPLES[base_sample_id]
-                if "scales" in sample_info and scale in sample_info["scales"]:
-                    scale_info = sample_info["scales"][scale]
-                    if "adata_path" in scale_info:
-                        try:
-                            adata = get_cached_adata(sample_id)
-                            gene_list = adata.var_names.tolist()
-                            sample_gene_dict[sample_id] = gene_list
-                        except Exception as e:
-                            print(f"Error loading adata gene list for sample {sample_id}: {e}")
-                            sample_gene_dict[sample_id] = []
-                    else:
-                        print(f"Warning: No gene list data available for sample {sample_id}")
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id in SAMPLES:
+            sample_info = SAMPLES[base_sample_id]
+            if "scales" in sample_info and scale in sample_info["scales"]:
+                scale_info = sample_info["scales"][scale]
+                if "adata_path" in scale_info:
+                    try:
+                        adata = get_cached_adata(sample_id)
+                        gene_list = adata.var_names.tolist()
+                        sample_gene_dict[sample_id] = gene_list
+                    except Exception as e:
+                        print(f"Error loading adata gene list for sample {sample_id}: {e}")
                         sample_gene_dict[sample_id] = []
                 else:
-                    print(f"No scale {scale} found for sample {base_sample_id}")
-                    sample_gene_dict[sample_id] = []
-        # Handle legacy format
-        elif sample_id in SAMPLES:
-            sample_info = SAMPLES[sample_id]
-            
-            if "adata_path" in sample_info:
-                try:
-                    adata = get_cached_adata(sample_id)
-                    gene_list = adata.var_names.tolist()
-                    sample_gene_dict[sample_id] = gene_list
-                except Exception as e:
-                    print(f"Error loading adata gene list for sample {sample_id}: {e}")
+                    print(f"Warning: No gene list data available for sample {sample_id}")
                     sample_gene_dict[sample_id] = []
             else:
-                print(f"Warning: No gene list data available for sample {sample_id}")
-                sample_gene_dict[sample_id] = []
+                print(f"No scale {scale} found for sample {base_sample_id}")
 
     return sample_gene_dict
 
@@ -346,96 +267,62 @@ def get_cell_types_data(sample_ids):
     """
     Get cell types and their counts from adata.obs['predicted_labels'].value_counts()
     for the given sample IDs. Returns per-sample cell types instead of a combined list.
+
+    Parameters:
+    - sample_ids: List of sample IDs
+
+    Returns:
+    - Dictionary containing cell types and their counts for each sample
     """
     # Dictionary to store cell types for each sample
     sample_cell_types = {}
 
     for sample_id in sample_ids:
         # Handle new format: sample_id_scale
-        if "_" in sample_id:
-            base_sample_id, scale = sample_id.rsplit("_", 1)
-            if base_sample_id in SAMPLES:
-                sample_info = SAMPLES[base_sample_id]
-                if "scales" in sample_info and scale in sample_info["scales"]:
-                    scale_info = sample_info["scales"][scale]
-                    if "adata_path" in scale_info:
-                        try:
-                            adata = get_cached_adata(sample_id)
-                            
-                            # Try to get predicted_labels first, then fall back to cell_type or leiden clustering
-                            if 'predicted_labels' in adata.obs.columns:
-                                cell_type_counts = adata.obs['predicted_labels'].value_counts()
-                            elif 'cell_type' in adata.obs.columns:
-                                cell_type_counts = adata.obs['cell_type'].value_counts()
+        # if "_" in sample_id:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id in SAMPLES:
+            sample_info = SAMPLES[base_sample_id]
+            if "scales" in sample_info and scale in sample_info["scales"]:
+                scale_info = sample_info["scales"][scale]
+                if "adata_path" in scale_info:
+                    try:
+                        adata = get_cached_adata(sample_id)
+                        
+                        # Try to get predicted_labels first, then fall back to cell_type or leiden clustering
+                        if 'predicted_labels' in adata.obs.columns:
+                            cell_type_counts = adata.obs['predicted_labels'].value_counts()
+                        elif 'cell_type' in adata.obs.columns:
+                            cell_type_counts = adata.obs['cell_type'].value_counts()
+                        else:
+                            # Look for leiden clustering columns
+                            leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
+                            if leiden_cols:
+                                # Use the first leiden clustering column found
+                                leiden_col = leiden_cols[0]
+                                cell_type_counts = adata.obs[leiden_col].value_counts()
+                                # Rename the clusters to be more descriptive
+                                cell_type_counts.index = [f'Cluster {idx}' for idx in cell_type_counts.index]
                             else:
-                                # Look for leiden clustering columns
-                                leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
-                                if leiden_cols:
-                                    # Use the first leiden clustering column found
-                                    leiden_col = leiden_cols[0]
-                                    cell_type_counts = adata.obs[leiden_col].value_counts()
-                                    # Rename the clusters to be more descriptive
-                                    cell_type_counts.index = [f'Cluster {idx}' for idx in cell_type_counts.index]
-                                else:
-                                    # No cell type information available
-                                    cell_type_counts = pd.Series([], dtype='int64')
-                            
-                            # Convert to list format sorted by count (descending)
-                            cell_types_list = [
-                                {'name': str(cell_type), 'count': int(count)} 
-                                for cell_type, count in sorted(cell_type_counts.items(), key=lambda x: x[1], reverse=True)
-                            ]
-                            
-                            sample_cell_types[sample_id] = cell_types_list
-                            
-                        except Exception as e:
-                            print(f"Error loading cell types for sample {sample_id}: {e}")
-                            sample_cell_types[sample_id] = []
-                    else:
-                        print(f"Warning: No adata available for sample {sample_id}")
+                                # No cell type information available
+                                cell_type_counts = pd.Series([], dtype='int64')
+                        
+                        # Convert to list format sorted by count (descending)
+                        cell_types_list = [
+                            {'name': str(cell_type), 'count': int(count)} 
+                            for cell_type, count in sorted(cell_type_counts.items(), key=lambda x: x[1], reverse=True)
+                        ]
+                        
+                        sample_cell_types[sample_id] = cell_types_list
+                        
+                    except Exception as e:
+                        print(f"Error loading cell types for sample {sample_id}: {e}")
                         sample_cell_types[sample_id] = []
                 else:
-                    print(f"No scale {scale} found for sample {base_sample_id}")
-                    sample_cell_types[sample_id] = []
-        # Handle legacy format
-        elif sample_id in SAMPLES:
-            sample_info = SAMPLES[sample_id]
-            
-            if "adata_path" in sample_info:
-                try:
-                    adata = get_cached_adata(sample_id)
-                    
-                    # Try to get predicted_labels first, then fall back to cell_type or leiden clustering
-                    if 'predicted_labels' in adata.obs.columns:
-                        cell_type_counts = adata.obs['predicted_labels'].value_counts()
-                    elif 'cell_type' in adata.obs.columns:
-                        cell_type_counts = adata.obs['cell_type'].value_counts()
-                    else:
-                        # Look for leiden clustering columns
-                        leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
-                        if leiden_cols:
-                            # Use the first leiden clustering column found
-                            leiden_col = leiden_cols[0]
-                            cell_type_counts = adata.obs[leiden_col].value_counts()
-                            # Rename the clusters to be more descriptive
-                            cell_type_counts.index = [f'Cluster {idx}' for idx in cell_type_counts.index]
-                        else:
-                            # No cell type information available
-                            cell_type_counts = pd.Series([], dtype='int64')
-                    
-                    # Convert to list format sorted by count (descending)
-                    cell_types_list = [
-                        {'name': str(cell_type), 'count': int(count)} 
-                        for cell_type, count in sorted(cell_type_counts.items(), key=lambda x: x[1], reverse=True)
-                    ]
-                    
-                    sample_cell_types[sample_id] = cell_types_list
-                    
-                except Exception as e:
-                    print(f"Error loading cell types for sample {sample_id}: {e}")
+                    print(f"Warning: No adata available for sample {sample_id}")
                     sample_cell_types[sample_id] = []
             else:
-                print(f"Warning: No adata available for sample {sample_id}")
+                print(f"No scale {scale} found for sample {base_sample_id}")
                 sample_cell_types[sample_id] = []
         else:
             sample_cell_types[sample_id] = []
@@ -446,6 +333,17 @@ def get_cell_types_data(sample_ids):
 
 # get kosara data
 def get_kosara_data(sample_ids, gene_list, cell_list=None):
+    """
+    Get Kosara data for the given sample IDs.
+
+    Parameters:
+    - sample_ids: List of sample IDs
+    - gene_list: List of gene names
+    - cell_list: List of cell IDs
+
+    Returns:
+    - Dictionary containing Kosara data for each sample
+    """
     radius = 5
     d = np.sqrt(2) * radius
 
@@ -595,39 +493,37 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
         return results
 
     def get_coordinates(sample_id):
-        # Handle new format: sample_id_scale
-        if "_" in sample_id:
-            base_sample_id, scale = sample_id.rsplit("_", 1)
-            if base_sample_id in SAMPLES:
-                adata = get_cached_adata(sample_id)
-                # Build coordinate DataFrame with standard column names
-                if 'spatial_cropped_150_buffer' in adata.obsm:
-                    # Use base_sample_id for spatial data access
-                    scalef = adata.uns['spatial'][base_sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
-                    coords_array = adata.obsm['spatial_cropped_150_buffer'] * scalef
-                    coords_df = pd.DataFrame(
-                        coords_array,
-                        columns=['cell_x', 'cell_y']
-                    )
-                else:
-                    coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'])
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id in SAMPLES:
+            adata = get_cached_adata(sample_id)
+            # Build coordinate DataFrame with standard column names
+            if 'spatial_cropped_150_buffer' in adata.obsm:
+                # Use base_sample_id for spatial data access
+                scalef = adata.uns['spatial'][base_sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
+                coords_array = adata.obsm['spatial_cropped_150_buffer'] * scalef
+                coords_df = pd.DataFrame(
+                    coords_array,
+                    columns=['cell_x', 'cell_y']
+                )
+            else:
+                coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'])
 
-                # Determine cell label column preference
-                if 'predicted_labels' in adata.obs.columns:
-                    cell_labels = adata.obs['predicted_labels'].astype(str).values
-                elif 'cell_type' in adata.obs.columns:
-                    cell_labels = adata.obs['cell_type'].astype(str).values
+            # Determine cell label column preference
+            if 'predicted_labels' in adata.obs.columns:
+                cell_labels = adata.obs['predicted_labels'].astype(str).values
+            elif 'cell_type' in adata.obs.columns:
+                cell_labels = adata.obs['cell_type'].astype(str).values
+            else:
+                leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
+                if leiden_cols:
+                    lc = leiden_cols[0]
+                    cell_labels = adata.obs[lc].astype(str).map(lambda v: f'Cluster {v}').values
                 else:
-                    leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
-                    if leiden_cols:
-                        lc = leiden_cols[0]
-                        cell_labels = adata.obs[lc].astype(str).map(lambda v: f'Cluster {v}').values
-                    else:
-                        cell_labels = np.array(['Unknown'] * adata.n_obs)
+                    cell_labels = np.array(['Unknown'] * adata.n_obs)
 
-                coords_df['cell_type'] = cell_labels
-                coords_df['id'] = adata.obs.index
-                return coords_df
+            coords_df['cell_type'] = cell_labels
+            coords_df['id'] = adata.obs.index
+            return coords_df
         
         # Handle legacy format
         elif sample_id in SAMPLES:
@@ -696,26 +592,29 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
 def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutions=1, adata_umap_title=None):
     """
     Generate UMAP data from gene expression data.
+
+    Parameters:
+    - sample_id: ID of the sample
+    - cell_ids: List of cell IDs to filter the UMAP data
+    - n_neighbors: Number of nearest neighbors to consider
+    - n_pcas: Number of principal components to use
+    - resolutions: Resolution parameter for Leiden clustering
+    - adata_umap_title: Title of the UMAP analysis
+
+    Returns:
+    - List of UMAP data points
     """
-    # Handle new format: sample_id_scale
-    if "_" in sample_id:
-        base_sample_id, scale = sample_id.rsplit("_", 1)
-        if base_sample_id not in SAMPLES:
-            raise ValueError(f"Sample {base_sample_id} not found")
-        
-        sample_info = SAMPLES[base_sample_id]
-        if "scales" not in sample_info or scale not in sample_info["scales"]:
-            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
-        
-        scale_info = sample_info["scales"][scale]
-    # Handle legacy format
-    elif sample_id in SAMPLES:
-        sample_info = SAMPLES[sample_id]
-        scale_info = sample_info
-    else:
-        raise ValueError(f"Sample {sample_id} not found")
+    base_sample_id, scale = sample_id.rsplit("_", 1)
+    if base_sample_id not in SAMPLES:
+        raise ValueError(f"Sample {base_sample_id} not found")
     
-    # Check if we have adata_path (new format)
+    sample_info = SAMPLES[base_sample_id]
+    if "scales" not in sample_info or scale not in sample_info["scales"]:
+        raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+    
+    scale_info = sample_info["scales"][scale]
+    
+    # Check adata_path
     if "adata_path" in scale_info:
         # Get cached AnnData
         adata = get_cached_adata(sample_id)
@@ -723,7 +622,6 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
         if cell_ids is not None:
             # Convert cell_ids to regular Python strings to avoid numpy string issues
             if hasattr(cell_ids, '__iter__') and not isinstance(cell_ids, str):
-                # Handle lists, numpy arrays, pandas series, etc.
                 cell_ids = [str(cell_id) for cell_id in cell_ids]
             else:
                 cell_ids = str(cell_ids)
@@ -747,10 +645,8 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
         # Check for excessive sparsity
         try:
             if issparse(adata.X):
-                # Sparse matrix
                 sparsity = 1 - (adata.X.nnz / (adata.X.shape[0] * adata.X.shape[1]))
             else:
-                # Dense numpy array
                 sparsity = 1 - (np.count_nonzero(adata.X) / (adata.X.shape[0] * adata.X.shape[1]))
             
             if sparsity > 0.99:
@@ -759,42 +655,13 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
             print(f"Warning: Could not calculate sparsity for sample {sample_id}: {e}")
 
         sc.tl.pca(adata, use_highly_variable=True)
-        
-        # Adaptive parameter selection based on data size
-        n_cells = adata.n_obs
-        if n_cells < 100:
-            # For small datasets, use more conservative parameters
-            adaptive_n_neighbors = min(n_neighbors, 5)
-            adaptive_n_pcas = min(n_pcas, 10)
-        elif n_cells < 1000:
-            # For medium datasets
-            adaptive_n_neighbors = min(n_neighbors, 8)
-            adaptive_n_pcas = min(n_pcas, 20)
-        else:
-            # For large datasets, use original parameters
-            adaptive_n_neighbors = n_neighbors
-            adaptive_n_pcas = n_pcas
-            
-        sc.pp.neighbors(adata, n_neighbors=adaptive_n_neighbors, n_pcs=adaptive_n_pcas)
-        
-        # Add error handling for UMAP computation
-        try:
-            sc.tl.umap(adata)
-        except Exception as e:
-            error_msg = str(e)
-            if "reciprocal condition number" in error_msg:
-                print(f"Warning: UMAP condition number error for sample {sample_id}. Trying with adjusted parameters...")
-                # Try with even more conservative parameters
-                sc.pp.neighbors(adata, n_neighbors=min(adaptive_n_neighbors, 3), n_pcs=min(adaptive_n_pcas, 5))
-                sc.tl.umap(adata, min_dist=0.5, spread=1.0)
-            else:
-                raise e
-                
+        sc.pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcas)   
+        sc.tl.umap(adata)    
         adata.obsm[f'X_umap_{adata_umap_title}'] = adata.obsm['X_umap'].copy()
 
         sc.tl.leiden(adata, resolution=resolutions, key_added=f'leiden_{adata_umap_title}')
 
-        embedding = adata.obsm[f'X_umap_{adata_umap_title}'] # shape: (n_cells, 2)
+        embedding = adata.obsm[f'X_umap_{adata_umap_title}']
         cluster_labels = adata.obs[f'leiden_{adata_umap_title}'].astype(int).values
         cell_ids_filtered = adata.obs_names.tolist()
 
@@ -808,7 +675,6 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
             })
 
         # Add cluster information back to the original cached AnnData for GO analysis
-        # but don't replace the entire object to preserve all cells for future UMAP generations
         original_adata = get_cached_adata(sample_id)
         
         # Add the leiden clustering results to the original cached AnnData
@@ -832,24 +698,26 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
 def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
     """
     Perform GO analysis on the selected cluster cells and return top GO terms.
+
+    Parameters:
+    - sample_id: ID of the sample
+    - cluster_id: ID of the cluster
+    - adata_umap_title: Title of the UMAP analysis
+    - top_n: Number of top GO terms to return
+
+    Returns:
+    - List of top GO terms
     """
-    # Handle new format: sample_id_scale
-    if "_" in sample_id:
-        base_sample_id, scale = sample_id.rsplit("_", 1)
-        if base_sample_id not in SAMPLES:
-            raise ValueError(f"Sample {base_sample_id} not found")
+
+    base_sample_id, scale = sample_id.rsplit("_", 1)
+    if base_sample_id not in SAMPLES:
+        raise ValueError(f"Sample {base_sample_id} not found")
+    
+    sample_info = SAMPLES[base_sample_id]
+    if "scales" not in sample_info or scale not in sample_info["scales"]:
+        raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
         
-        sample_info = SAMPLES[base_sample_id]
-        if "scales" not in sample_info or scale not in sample_info["scales"]:
-            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
-        
-        scale_info = sample_info["scales"][scale]
-    # Handle legacy format
-    elif sample_id in SAMPLES:
-        sample_info = SAMPLES[sample_id]
-        scale_info = sample_info
-    else:
-        raise ValueError(f"Sample {sample_id} not found")
+    scale_info = sample_info["scales"][scale]
     
     if "adata_path" in scale_info:
         # Get cached AnnData
@@ -864,8 +732,6 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
         # Cells that weren't part of the UMAP analysis have pd.NA values in the leiden column
         valid_cells = adata.obs[leiden_col].notna()
         adata_filtered = adata[valid_cells].copy()
-        
-        print(f"Filtered adata from {adata.n_obs} to {adata_filtered.n_obs} cells for GO analysis")
         
         # Convert leiden column to categorical if it isn't already
         if not pd.api.types.is_categorical_dtype(adata_filtered.obs[leiden_col]):
@@ -895,23 +761,23 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
 def get_trajectory_gene_list(sample_id, is_vertical=False):
     """
     Get list of available genes from trajectory data for the given sample ID.
+
+    Parameters:
+    - sample_id: ID of the sample
+    - is_vertical: Boolean flag indicating if the trajectory is vertical
+
+    Returns:
+    - List of available gene names
     """
-    # Handle new format: sample_id_scale
-    if "_" in sample_id:
-        base_sample_id, scale = sample_id.rsplit("_", 1)
-        if base_sample_id not in SAMPLES:
-            raise ValueError(f"Sample {base_sample_id} not found")
-        
-        sample_info = SAMPLES[base_sample_id]
-        if "scales" not in sample_info or scale not in sample_info["scales"]:
-            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
-        
-        scale_info = sample_info["scales"][scale]
-    # Handle legacy format
-    elif sample_id in SAMPLES:
-        scale_info = SAMPLES[sample_id]
-    else:
-        raise ValueError(f"Sample {sample_id} not found")
+    base_sample_id, scale = sample_id.rsplit("_", 1)
+    if base_sample_id not in SAMPLES:
+        raise ValueError(f"Sample {base_sample_id} not found")
+    
+    sample_info = SAMPLES[base_sample_id]
+    if "scales" not in sample_info or scale not in sample_info["scales"]:
+        raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+    
+    scale_info = sample_info["scales"][scale]
     
     # Select the appropriate trajectory data path based on is_vertical flag
     if is_vertical:
@@ -933,7 +799,7 @@ def get_trajectory_gene_list(sample_id, is_vertical=False):
         
         # Return unique gene names
         gene_list = df["variables"].unique().tolist()
-        return sorted(gene_list)  # Sort alphabetically for better UX
+        return sorted(gene_list)
         
     except Exception as e:
         data_type = "vertical" if is_vertical else "horizontal"
@@ -944,23 +810,24 @@ def get_trajectory_gene_list(sample_id, is_vertical=False):
 def get_trajectory_data(sample_id, selected_genes=None, is_vertical=False):
     """
     Get trajectory gene expression data for the given sample ID.
+
+    Parameters:
+    - sample_id: ID of the sample
+    - selected_genes: List of gene names to filter the trajectory data
+    - is_vertical: Boolean flag indicating if the trajectory is vertical
+
+    Returns:
+    - Dictionary containing trajectory data for each gene
     """
-    # Handle new format: sample_id_scale
-    if "_" in sample_id:
-        base_sample_id, scale = sample_id.rsplit("_", 1)
-        if base_sample_id not in SAMPLES:
-            raise ValueError(f"Sample {base_sample_id} not found")
-        
-        sample_info = SAMPLES[base_sample_id]
-        if "scales" not in sample_info or scale not in sample_info["scales"]:
-            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
-        
-        scale_info = sample_info["scales"][scale]
-    # Handle legacy format
-    elif sample_id in SAMPLES:
-        scale_info = SAMPLES[sample_id]
-    else:
-        raise ValueError(f"Sample {sample_id} not found")
+    base_sample_id, scale = sample_id.rsplit("_", 1)
+    if base_sample_id not in SAMPLES:
+        raise ValueError(f"Sample {base_sample_id} not found")
+    
+    sample_info = SAMPLES[base_sample_id]
+    if "scales" not in sample_info or scale not in sample_info["scales"]:
+        raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+    
+    scale_info = sample_info["scales"][scale]
     
     # Select the appropriate trajectory data path based on is_vertical flag
     if is_vertical:
@@ -1005,229 +872,221 @@ def get_trajectory_data(sample_id, selected_genes=None, is_vertical=False):
         raise ValueError(f"Error loading {data_type} trajectory data: {str(e)}")
 
 
-def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=None, n_neighbors=15, n_pcas=30, resolutions=1):
-    """
-    Get pseudotime data using Slingshot trajectory inference.
+# def get_pseudotime_data(sample_id, cell_ids, adata_umap_title, early_markers=None, n_neighbors=15, n_pcas=30, resolutions=1):
+#     """
+#     Get pseudotime data using Slingshot trajectory inference.
     
-    Parameters:
-    - sample_id: ID of the sample
-    - cell_ids: List of cell IDs to analyze
-    - adata_umap_title: Title for the UMAP analysis
-    - early_markers: Optional list of early marker genes for root identification
-    - n_neighbors: Number of neighbors for neighbor graph construction (default: 15)
-    - n_pcas: Number of principal components to use (default: 30)
-    - resolutions: Resolution parameter for Leiden clustering (default: 1)
-    """
-    # Handle new format: sample_id_scale
-    if "_" in sample_id:
-        base_sample_id, scale = sample_id.rsplit("_", 1)
-        if base_sample_id not in SAMPLES:
-            raise ValueError(f"Sample {base_sample_id} not found")
+#     Parameters:
+#     - sample_id: ID of the sample
+#     - cell_ids: List of cell IDs to analyze
+#     - adata_umap_title: Title for the UMAP analysis
+#     - early_markers: Optional list of early marker genes for root identification
+#     - n_neighbors: Number of neighbors for neighbor graph construction (default: 15)
+#     - n_pcas: Number of principal components to use (default: 30)
+#     - resolutions: Resolution parameter for Leiden clustering (default: 1)
+#     """
+#         base_sample_id, scale = sample_id.rsplit("_", 1)
+#         if base_sample_id not in SAMPLES:
+#             raise ValueError(f"Sample {base_sample_id} not found")
         
-        sample_info = SAMPLES[base_sample_id]
-        if "scales" not in sample_info or scale not in sample_info["scales"]:
-            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+#         sample_info = SAMPLES[base_sample_id]
+#         if "scales" not in sample_info or scale not in sample_info["scales"]:
+#             raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
         
-        scale_info = sample_info["scales"][scale]
-    # Handle legacy format
-    elif sample_id in SAMPLES:
-        sample_info = SAMPLES[sample_id]
-        scale_info = sample_info
-    else:
-        raise ValueError(f"Sample {sample_id} not found")
+#         scale_info = sample_info["scales"][scale]
     
-    if "adata_path" in scale_info:
-        adata = get_cached_adata(sample_id)
+#     if "adata_path" in scale_info:
+#         adata = get_cached_adata(sample_id)
 
-        if cell_ids is not None:
-            # Convert cell_ids to regular Python strings to avoid numpy string issues
-            if hasattr(cell_ids, '__iter__') and not isinstance(cell_ids, str):
-                # Handle lists, numpy arrays, pandas series, etc.
-                cell_ids = [str(cell_id) for cell_id in cell_ids]
-            else:
-                cell_ids = str(cell_ids)
-            adata = adata[cell_ids].copy()
-        else:
-            raise ValueError(f"No gene expression data available for sample {sample_id}")
+#         if cell_ids is not None:
+#             # Convert cell_ids to regular Python strings to avoid numpy string issues
+#             if hasattr(cell_ids, '__iter__') and not isinstance(cell_ids, str):
+#                 # Handle lists, numpy arrays, pandas series, etc.
+#                 cell_ids = [str(cell_id) for cell_id in cell_ids]
+#             else:
+#                 cell_ids = str(cell_ids)
+#             adata = adata[cell_ids].copy()
+#         else:
+#             raise ValueError(f"No gene expression data available for sample {sample_id}")
             
-        # Check if adata is empty after filtering
-        if adata.n_obs == 0:
-            raise ValueError("No cells remaining after filtering. Please check your cell_ids parameter.")
+#         # Check if adata is empty after filtering
+#         if adata.n_obs == 0:
+#             raise ValueError("No cells remaining after filtering. Please check your cell_ids parameter.")
 
-        # Preprocessing pipeline
-        sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
-        sc.pp.normalize_total(adata)
-        sc.pp.log1p(adata)
-        sc.pp.scale(adata, max_value=10)
-        sc.tl.pca(adata, use_highly_variable=True)
-        sc.pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcas)
-        sc.tl.umap(adata)
+#         # Preprocessing pipeline
+#         sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
+#         sc.pp.normalize_total(adata)
+#         sc.pp.log1p(adata)
+#         sc.pp.scale(adata, max_value=10)
+#         sc.tl.pca(adata, use_highly_variable=True)
+#         sc.pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcas)
+#         sc.tl.umap(adata)
         
-        # Store the UMAP for this subset
-        adata.obsm[f'X_umap_{adata_umap_title}'] = adata.obsm['X_umap'].copy()
+#         # Store the UMAP for this subset
+#         adata.obsm[f'X_umap_{adata_umap_title}'] = adata.obsm['X_umap'].copy()
         
-        # Perform clustering
-        sc.tl.leiden(adata, resolution=resolutions, key_added=f'leiden_{adata_umap_title}')
+#         # Perform clustering
+#         sc.tl.leiden(adata, resolution=resolutions, key_added=f'leiden_{adata_umap_title}')
 
-        leiden_col = f'leiden_{adata_umap_title}'
-        if not pd.api.types.is_categorical_dtype(adata.obs[leiden_col]):
-            adata.obs[leiden_col] = adata.obs[leiden_col].astype('category')
+#         leiden_col = f'leiden_{adata_umap_title}'
+#         if not pd.api.types.is_categorical_dtype(adata.obs[leiden_col]):
+#             adata.obs[leiden_col] = adata.obs[leiden_col].astype('category')
 
-        # Run Slingshot trajectory inference
-        try:
-            # adata_with_slingshot = run_slingshot_via_rpy2_improved(
-            #     adata,
-            #     cluster_key=leiden_col,
-            #     embedding_key=f'X_umap_{adata_umap_title}',
-            #     start_cluster=None,  # Let Slingshot auto-detect
-            #     end_clusters=None
-            # )
-            results = smart_slingshot_skin_analysis(
-                adata,
-                cluster_key=leiden_col,
-                embedding_key=f'X_umap_{adata_umap_title}',
-                auto_infer=True,
-                expected_trajectories=None
-            )
+#         # Run Slingshot trajectory inference
+#         try:
+#             # adata_with_slingshot = run_slingshot_via_rpy2_improved(
+#             #     adata,
+#             #     cluster_key=leiden_col,
+#             #     embedding_key=f'X_umap_{adata_umap_title}',
+#             #     start_cluster=None,  # Let Slingshot auto-detect
+#             #     end_clusters=None
+#             # )
+#             results = smart_slingshot_skin_analysis(
+#                 adata,
+#                 cluster_key=leiden_col,
+#                 embedding_key=f'X_umap_{adata_umap_title}',
+#                 auto_infer=True,
+#                 expected_trajectories=None
+#             )
             
-            adata_with_slingshot = results['final_adata']
-            if adata_with_slingshot is None:
-                raise ValueError("Slingshot analysis failed")
+#             adata_with_slingshot = results['final_adata']
+#             if adata_with_slingshot is None:
+#                 raise ValueError("Slingshot analysis failed")
             
-            # First, rename pseudotime columns to include embedding key for consistency
-            pseudotime_cols = [col for col in adata_with_slingshot.obs.columns if col.startswith("slingshot_pseudotime_")]
-            print(f"Found pseudotime columns: {pseudotime_cols}")
+#             # First, rename pseudotime columns to include embedding key for consistency
+#             pseudotime_cols = [col for col in adata_with_slingshot.obs.columns if col.startswith("slingshot_pseudotime_")]
+#             print(f"Found pseudotime columns: {pseudotime_cols}")
             
-            for col in pseudotime_cols:
-                # Extract trajectory number from column name (e.g., "slingshot_pseudotime_1" -> "1")
-                traj_num = col.replace("slingshot_pseudotime_", "")
-                new_col_name = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
-                adata_with_slingshot.obs[new_col_name] = adata_with_slingshot.obs[col]
-                print(f"Renamed {col} to {new_col_name}")
+#             for col in pseudotime_cols:
+#                 # Extract trajectory number from column name (e.g., "slingshot_pseudotime_1" -> "1")
+#                 traj_num = col.replace("slingshot_pseudotime_", "")
+#                 new_col_name = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
+#                 adata_with_slingshot.obs[new_col_name] = adata_with_slingshot.obs[col]
+#                 print(f"Renamed {col} to {new_col_name}")
                 
-            # Analyze trajectory cluster transitions
-            trajectory_analysis = analyze_trajectory_cluster_transitions(
-                adata_with_slingshot, 
-                cluster_key=leiden_col, 
-                embedding_key=f'X_umap_{adata_umap_title}'
-            )
+#             # Analyze trajectory cluster transitions
+#             trajectory_analysis = analyze_trajectory_cluster_transitions(
+#                 adata_with_slingshot, 
+#                 cluster_key=leiden_col, 
+#                 embedding_key=f'X_umap_{adata_umap_title}'
+#             )
             
-            # Analyze relationships between trajectories
-            relationships = analyze_trajectory_relationships(trajectory_analysis)
+#             # Analyze relationships between trajectories
+#             relationships = analyze_trajectory_relationships(trajectory_analysis)
             
-            # Merge subset trajectories if any exist
-            merged_analysis = merge_subset_trajectories(
-                adata_with_slingshot, 
-                trajectory_analysis, 
-                relationships, 
-                merge_strategy="keep_longer"
-            )
+#             # Merge subset trajectories if any exist
+#             merged_analysis = merge_subset_trajectories(
+#                 adata_with_slingshot, 
+#                 trajectory_analysis, 
+#                 relationships, 
+#                 merge_strategy="keep_longer"
+#             )
             
-            print(f"Original trajectory analysis keys: {list(trajectory_analysis.keys())}")
-            print(f"Merged analysis keys: {list(merged_analysis.keys())}")
-            print(f"Number of relationships found: {len(relationships)}")
+#             print(f"Original trajectory analysis keys: {list(trajectory_analysis.keys())}")
+#             print(f"Merged analysis keys: {list(merged_analysis.keys())}")
+#             print(f"Number of relationships found: {len(relationships)}")
             
-            # Convert to the expected format
-            trajectory_objects = []
+#             # Convert to the expected format
+#             trajectory_objects = []
             
-            # Use merged_analysis if available, otherwise fall back to original trajectory_analysis
-            analysis_to_use = merged_analysis if merged_analysis else trajectory_analysis
-            print(f"Processing {len(analysis_to_use)} trajectories from analysis")
+#             # Use merged_analysis if available, otherwise fall back to original trajectory_analysis
+#             analysis_to_use = merged_analysis if merged_analysis else trajectory_analysis
+#             print(f"Processing {len(analysis_to_use)} trajectories from analysis")
             
-            for traj_key, traj_info in analysis_to_use.items():
-                print(f"Processing trajectory key: {traj_key}")
-                if "clusters_involved" in traj_info:
-                    clusters_path = traj_info["clusters_involved"]
-                    print(f"  Clusters involved: {clusters_path}")
+#             for traj_key, traj_info in analysis_to_use.items():
+#                 print(f"Processing trajectory key: {traj_key}")
+#                 if "clusters_involved" in traj_info:
+#                     clusters_path = traj_info["clusters_involved"]
+#                     print(f"  Clusters involved: {clusters_path}")
                     
-                    # Get the trajectory number
-                    traj_num = traj_key.split("_")[-1] if "_" in traj_key else traj_key
-                    pseudotime_col = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
-                    print(f"  Expected pseudotime column: {pseudotime_col}")
+#                     # Get the trajectory number
+#                     traj_num = traj_key.split("_")[-1] if "_" in traj_key else traj_key
+#                     pseudotime_col = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
+#                     print(f"  Expected pseudotime column: {pseudotime_col}")
                     
-                    # Calculate pseudotime for each cluster in the path
-                    path_pseudotimes = []
-                    print(f"  Checking if pseudotime column exists: {pseudotime_col in adata_with_slingshot.obs.columns}")
-                    if pseudotime_col not in adata_with_slingshot.obs.columns:
-                        print(f"  Available pseudotime columns: {[col for col in adata_with_slingshot.obs.columns if col.startswith('slingshot_pseudotime')]}")
-                        # Try to find the original column name
-                        original_col = f"slingshot_pseudotime_{traj_num}"
-                        if original_col in adata_with_slingshot.obs.columns:
-                            print(f"  Found original column: {original_col}")
-                            pseudotime_col = original_col
+#                     # Calculate pseudotime for each cluster in the path
+#                     path_pseudotimes = []
+#                     print(f"  Checking if pseudotime column exists: {pseudotime_col in adata_with_slingshot.obs.columns}")
+#                     if pseudotime_col not in adata_with_slingshot.obs.columns:
+#                         print(f"  Available pseudotime columns: {[col for col in adata_with_slingshot.obs.columns if col.startswith('slingshot_pseudotime')]}")
+#                         # Try to find the original column name
+#                         original_col = f"slingshot_pseudotime_{traj_num}"
+#                         if original_col in adata_with_slingshot.obs.columns:
+#                             print(f"  Found original column: {original_col}")
+#                             pseudotime_col = original_col
                     
-                    for cluster in clusters_path:
-                        cluster_cells = adata_with_slingshot.obs[leiden_col] == str(cluster)
-                        if cluster_cells.sum() > 0 and pseudotime_col in adata_with_slingshot.obs.columns:
-                            cluster_pt = adata_with_slingshot.obs.loc[cluster_cells, pseudotime_col]
-                            valid_pt = cluster_pt.dropna()
-                            if len(valid_pt) > 0:
-                                mean_pt = float(valid_pt.mean())
-                            else:
-                                mean_pt = 0.0
-                        else:
-                            mean_pt = 0.0
-                        path_pseudotimes.append(mean_pt)
+#                     for cluster in clusters_path:
+#                         cluster_cells = adata_with_slingshot.obs[leiden_col] == str(cluster)
+#                         if cluster_cells.sum() > 0 and pseudotime_col in adata_with_slingshot.obs.columns:
+#                             cluster_pt = adata_with_slingshot.obs.loc[cluster_cells, pseudotime_col]
+#                             valid_pt = cluster_pt.dropna()
+#                             if len(valid_pt) > 0:
+#                                 mean_pt = float(valid_pt.mean())
+#                             else:
+#                                 mean_pt = 0.0
+#                         else:
+#                             mean_pt = 0.0
+#                         path_pseudotimes.append(mean_pt)
                     
-                    # Normalize pseudotimes to [0, 1] range for this trajectory
-                    if len(path_pseudotimes) > 1:
-                        min_pt = min(path_pseudotimes)
-                        max_pt = max(path_pseudotimes)
-                        if max_pt > min_pt:
-                            normalized_pt = [(pt - min_pt) / (max_pt - min_pt) for pt in path_pseudotimes]
-                        else:
-                            normalized_pt = [0.0] * len(path_pseudotimes)
-                    else:
-                        normalized_pt = [0.0] * len(path_pseudotimes)
+#                     # Normalize pseudotimes to [0, 1] range for this trajectory
+#                     if len(path_pseudotimes) > 1:
+#                         min_pt = min(path_pseudotimes)
+#                         max_pt = max(path_pseudotimes)
+#                         if max_pt > min_pt:
+#                             normalized_pt = [(pt - min_pt) / (max_pt - min_pt) for pt in path_pseudotimes]
+#                         else:
+#                             normalized_pt = [0.0] * len(path_pseudotimes)
+#                     else:
+#                         normalized_pt = [0.0] * len(path_pseudotimes)
                     
-                    trajectory_obj = {
-                        'path': [int(cluster) for cluster in clusters_path],
-                        'pseudotimes': [f'{pt:.3f}' for pt in normalized_pt]
-                    }
-                    trajectory_objects.append(trajectory_obj)
-                    print(f"  Added trajectory object: {trajectory_obj}")
+#                     trajectory_obj = {
+#                         'path': [int(cluster) for cluster in clusters_path],
+#                         'pseudotimes': [f'{pt:.3f}' for pt in normalized_pt]
+#                     }
+#                     trajectory_objects.append(trajectory_obj)
+#                     print(f"  Added trajectory object: {trajectory_obj}")
             
-            print(f"Total trajectory objects created: {len(trajectory_objects)}")
+#             print(f"Total trajectory objects created: {len(trajectory_objects)}")
             
-            # If no trajectory objects were created, create a simple one based on cluster order
-            if len(trajectory_objects) == 0:
-                print("No trajectory objects created, creating fallback trajectory...")
-                # Get all unique clusters
-                all_clusters = sorted(adata_with_slingshot.obs[leiden_col].unique())
-                if len(all_clusters) > 1:
-                    fallback_trajectory = {
-                        'path': [int(cluster) for cluster in all_clusters],
-                        'pseudotimes': [f'{i/(len(all_clusters)-1):.3f}' for i in range(len(all_clusters))]
-                    }
-                    trajectory_objects.append(fallback_trajectory)
-                    print(f"Created fallback trajectory: {fallback_trajectory}")
+#             # If no trajectory objects were created, create a simple one based on cluster order
+#             if len(trajectory_objects) == 0:
+#                 print("No trajectory objects created, creating fallback trajectory...")
+#                 # Get all unique clusters
+#                 all_clusters = sorted(adata_with_slingshot.obs[leiden_col].unique())
+#                 if len(all_clusters) > 1:
+#                     fallback_trajectory = {
+#                         'path': [int(cluster) for cluster in all_clusters],
+#                         'pseudotimes': [f'{i/(len(all_clusters)-1):.3f}' for i in range(len(all_clusters))]
+#                     }
+#                     trajectory_objects.append(fallback_trajectory)
+#                     print(f"Created fallback trajectory: {fallback_trajectory}")
             
-            # Get cluster order based on spatial enrichment analysis
-            cluster_order = get_cluster_order_by_spatial_enrichment(adata_with_slingshot, adata_umap_title)
+#             # Get cluster order based on spatial enrichment analysis
+#             cluster_order = get_cluster_order_by_spatial_enrichment(adata_with_slingshot, adata_umap_title)
             
-            # Store the processed adata for gene expression analysis
-            global PROCESSED_ADATA_CACHE
-            cache_key = f"{sample_id}_{adata_umap_title}"
-            PROCESSED_ADATA_CACHE[cache_key] = {
-                'adata': adata_with_slingshot,
-                'trajectory_analysis': analysis_to_use,
-                'leiden_col': leiden_col,
-                'cluster_order': cluster_order
-            }
-            print(f"Stored trajectory data in cache with key: {cache_key}")
+#             # Store the processed adata for gene expression analysis
+#             global PROCESSED_ADATA_CACHE
+#             cache_key = f"{sample_id}_{adata_umap_title}"
+#             PROCESSED_ADATA_CACHE[cache_key] = {
+#                 'adata': adata_with_slingshot,
+#                 'trajectory_analysis': analysis_to_use,
+#                 'leiden_col': leiden_col,
+#                 'cluster_order': cluster_order
+#             }
+#             print(f"Stored trajectory data in cache with key: {cache_key}")
             
-            # Return object with cluster_order and trajectory_objects
-            return {
-                'cluster_order': cluster_order,
-                'trajectory_objects': trajectory_objects
-            }
+#             # Return object with cluster_order and trajectory_objects
+#             return {
+#                 'cluster_order': cluster_order,
+#                 'trajectory_objects': trajectory_objects
+#             }
             
-        except Exception as e:
-            print(f"Slingshot analysis failed: {e}")
-            # Fallback to a simple trajectory based on cluster connectivity
-            return _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title, sample_id)
-    else:
-        raise ValueError(f"No gene expression data available for sample {sample_id}")
+#         except Exception as e:
+#             print(f"Slingshot analysis failed: {e}")
+#             # Fallback to a simple trajectory based on cluster connectivity
+#             return _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title, sample_id)
+#     else:
+#         raise ValueError(f"No gene expression data available for sample {sample_id}")
 
 
 def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_cluster, n_neighbors=15, n_pcas=30, resolutions=1):
@@ -1244,22 +1103,16 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
     - resolutions: Resolution parameter for Leiden clustering (default: 1)
     """
     # Handle new format: sample_id_scale
-    if "_" in sample_id:
-        base_sample_id, scale = sample_id.rsplit("_", 1)
-        if base_sample_id not in SAMPLES:
-            raise ValueError(f"Sample {base_sample_id} not found")
-        
-        sample_info = SAMPLES[base_sample_id]
-        if "scales" not in sample_info or scale not in sample_info["scales"]:
-            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
-        
-        scale_info = sample_info["scales"][scale]
-    # Handle legacy format
-    elif sample_id in SAMPLES:
-        sample_info = SAMPLES[sample_id]
-        scale_info = sample_info
-    else:
-        raise ValueError(f"Sample {sample_id} not found")
+    # if "_" in sample_id:
+    base_sample_id, scale = sample_id.rsplit("_", 1)
+    if base_sample_id not in SAMPLES:
+        raise ValueError(f"Sample {base_sample_id} not found")
+    
+    sample_info = SAMPLES[base_sample_id]
+    if "scales" not in sample_info or scale not in sample_info["scales"]:
+        raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+    
+    scale_info = sample_info["scales"][scale]
     
     if "adata_path" in scale_info:
         adata = get_cached_adata(sample_id)
@@ -1312,7 +1165,7 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
             
             adata_with_slingshot = results['adata']
             
-            # First, rename pseudotime columns to include embedding key for consistency
+            # Rename pseudotime columns to include embedding key for consistency
             pseudotime_cols = [col for col in adata_with_slingshot.obs.columns if col.startswith("slingshot_pseudotime_")]
             print(f"Found pseudotime columns: {pseudotime_cols}")
             
@@ -1425,6 +1278,7 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
             
             # Store the processed adata for gene expression analysis
             global PROCESSED_ADATA_CACHE
+            
             cache_key = f"{sample_id}_{adata_umap_title}"
             PROCESSED_ADATA_CACHE[cache_key] = {
                 'adata': adata_with_slingshot,
@@ -1442,61 +1296,9 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
             
         except Exception as e:
             print(f"Direct Slingshot analysis failed: {e}")
-            # Fallback to a simple trajectory based on cluster connectivity
-            return _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title, sample_id)
+            return None
     else:
         raise ValueError(f"No gene expression data available for sample {sample_id}")
-
-
-def _fallback_trajectory_analysis(adata, leiden_col, adata_umap_title, sample_id):
-    """
-    Fallback trajectory analysis when Slingshot fails.
-    """
-    # Simple fallback: create a linear trajectory based on cluster numbers
-    clusters = sorted([int(c) for c in adata.obs[leiden_col].cat.categories])
-    
-    trajectory_obj = {
-        'path': clusters,
-        'pseudotimes': [f'{i/(len(clusters)-1):.3f}' if len(clusters) > 1 else '0.000' 
-                       for i in range(len(clusters))]
-    }
-    
-    # Create a simple trajectory analysis structure for caching
-    fallback_analysis = {
-        'lineage_1': {
-            'clusters_involved': clusters,
-            'transition_path': clusters,
-            'total_cells': adata.n_obs,
-            'valid_clusters_count': len(clusters)
-        }
-    }
-    
-    # Get cluster order based on spatial enrichment analysis
-    # Pass the processed AnnData and the UMAP title as required by the function signature
-    cluster_order = get_cluster_order_by_spatial_enrichment(adata, adata_umap_title)
-    
-    # For fallback analysis, create dummy pseudotime columns with the expected naming convention
-    # This ensures compatibility with get_trajectory_gene_expression
-    pseudotime_col = f"slingshot_pseudotime_X_umap_{adata_umap_title}_1"
-    adata.obs[pseudotime_col] = np.linspace(0, 1, adata.n_obs)
-    print(f"Created fallback pseudotime column: {pseudotime_col}")
-    
-    # Store the processed adata for gene expression analysis
-    global PROCESSED_ADATA_CACHE
-    cache_key = f"{sample_id}_{adata_umap_title}"
-    PROCESSED_ADATA_CACHE[cache_key] = {
-        'adata': adata,
-        'trajectory_analysis': fallback_analysis,
-        'leiden_col': leiden_col,
-        'cluster_order': cluster_order
-    }
-    print(f"Stored fallback trajectory data in cache with key: {cache_key}")
-    
-    # Return object with cluster_order and trajectory_objects
-    return {
-        'cluster_order': cluster_order,
-        'trajectory_objects': [trajectory_obj]
-    }
 
 
 def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, trajectory_path):
@@ -1589,14 +1391,7 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
     
     for gene in available_genes:
         if gene in gene_results and matching_trajectory in gene_results[gene]:
-            traj_data = gene_results[gene][matching_trajectory]
-            
-            # Get pseudotime and expression data
-            pseudotimes = traj_data['pseudotime']
-            expressions = traj_data['expression']
-            
-            # Create time points based on trajectory path
-            # Map clusters to normalized time points
+
             cluster_time_map = {}
             for i, cluster in enumerate(trajectory_path):
                 cluster_time_map[cluster] = i / (len(trajectory_path) - 1) if len(trajectory_path) > 1 else 0.0
@@ -1645,6 +1440,13 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
 def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
     """
     Get cluster order based on spatial enrichment analysis using spatial coherence ranking.
+    
+    Parameters:
+    - adata: AnnData object
+    - adata_umap_title: Title of the UMAP analysis
+    
+    Returns:
+    - List of cluster names in order of spatial coherence
     """
     # Check if we have leiden clustering results for this UMAP
     leiden_col = f'leiden_{adata_umap_title}'
@@ -1689,7 +1491,6 @@ def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
             names = cluster_names
         
         results = []
-        n_clusters = len(names)
         
         for i, cluster in enumerate(names):
             # Get the row for this cluster (interactions with other clusters)
@@ -1714,7 +1515,7 @@ def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
     
     # Sort clusters by spatial coherence
     sorted_clusters = rank_by_significant_interactions(enrichment_results, cluster_names)
-    print(f"Sorted clusters by spatial coherence: {sorted_clusters['cluster'].tolist()}")
+
     # Get just the cluster names in order
     cluster_order = sorted_clusters['cluster'].tolist()
     
@@ -1735,22 +1536,15 @@ def get_highly_variable_genes(sample_ids, top_n=20):
     result = {}
     
     for sample_id in sample_ids:
-        # Handle new format: sample_id_scale
-        if "_" in sample_id:
-            base_sample_id, scale = sample_id.rsplit("_", 1)
-            if base_sample_id not in SAMPLES:
-                continue
-                
-            sample_info = SAMPLES[base_sample_id]
-            if "scales" not in sample_info or scale not in sample_info["scales"]:
-                continue
-                
-            scale_info = sample_info["scales"][scale]
-        # Handle legacy format
-        elif sample_id in SAMPLES:
-            scale_info = SAMPLES[sample_id]
-        else:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id not in SAMPLES:
             continue
+            
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" not in sample_info or scale not in sample_info["scales"]:
+            continue
+            
+        scale_info = sample_info["scales"][scale]
         
         if "adata_path" in scale_info:
             try:
@@ -1779,7 +1573,6 @@ def get_highly_variable_genes(sample_ids, top_n=20):
                         
                         result[sample_id] = top_genes
                     else:
-                        # Fallback: return first N genes
                         result[sample_id] = adata.var_names[:int(top_n)].tolist()
                     
             except Exception as e:
