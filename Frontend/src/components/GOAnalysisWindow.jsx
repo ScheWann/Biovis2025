@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from "react";
 import { Spin, Empty, Input, Button } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
 import * as d3 from "d3";
-import { defaultColors } from "./Utils";
+import { COLOR_PALETTE } from "./Utils";
 
 export const GOAnalysisWindow = ({
     visible,
@@ -205,10 +205,10 @@ export const GOAnalysisWindow = ({
             // Set color for new cell type if it doesn't have one
             setCellTypeColors(prevColors => {
                 if (!prevColors[newCellTypeName]) {
-                    const colorIndex = Object.keys(prevColors).length % defaultColors.length;
+                    const colorIndex = Object.keys(prevColors).length % COLOR_PALETTE.length;
                     return {
                         ...prevColors,
-                        [newCellTypeName]: defaultColors[colorIndex]
+                        [newCellTypeName]: COLOR_PALETTE[colorIndex]
                     };
                 }
                 return prevColors;

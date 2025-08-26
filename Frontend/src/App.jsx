@@ -7,7 +7,7 @@ import "@ant-design/v5-patch-for-react-19";
 import { UmapComponent } from "./components/UmapComponent";
 import { TrajectoryViewer } from "./components/TrajectoryViewer";
 import { PseudotimeGlyphComponent } from "./components/PseudotimeGlyphComponent";
-import { defaultColors } from "./components/Utils";
+import { COLOR_PALETTE } from "./components/Utils";
 
 // Custom theme configuration
 const customTheme = {
@@ -108,7 +108,7 @@ function App() {
           newCellTypesData[sampleId] = cellTypesData[sampleId] || [];
           newSelectedCellTypes[sampleId] = newCellTypesData[sampleId].map(({ name }) => name);
           newCellTypesData[sampleId].forEach(({ name }, index) => {
-            newCellTypeColors[name] = defaultColors[index % defaultColors.length];
+            newCellTypeColors[name] = COLOR_PALETTE[index % COLOR_PALETTE.length];
           });
         });
         setCellTypesData(newCellTypesData);

@@ -6,7 +6,7 @@ import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Spin } from 
 import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
-import { convertHEXToRGB, GENE_COLOR_PALETTE } from './Utils';
+import { convertHEXToRGB, COLOR_PALETTE } from './Utils';
 
 
 export const SampleViewer = ({
@@ -1285,7 +1285,7 @@ export const SampleViewer = ({
                         if (d.gene) {
                             const hex = geneColorMap[d.gene] || (() => {
                                 const pos = selectedGenes.indexOf(d.gene);
-                                const fallback = GENE_COLOR_PALETTE[(pos >= 0 ? pos : 0) % GENE_COLOR_PALETTE.length];
+                                const fallback = COLOR_PALETTE[(pos >= 0 ? pos : 0) % COLOR_PALETTE.length];
                                 return fallback;
                             })();
                             const rgbColor = convertHEXToRGB(hex);

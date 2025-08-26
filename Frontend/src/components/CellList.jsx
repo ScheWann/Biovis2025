@@ -1,6 +1,6 @@
 import React from 'react';
 import { Checkbox, ColorPicker } from "antd";
-import { defaultColors } from "./Utils";
+import { COLOR_PALETTE } from "./Utils";
 
 export const CellSettings = ({
     cellTypesData,
@@ -11,7 +11,7 @@ export const CellSettings = ({
 }) => {
     // Function to get a default color for a cell type
     const getDefaultColor = (cellType, index) => {
-        return defaultColors[index % defaultColors.length];
+        return COLOR_PALETTE[index % COLOR_PALETTE.length];
     };
 
     // Function to toggle cell type selection

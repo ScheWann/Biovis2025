@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Checkbox, AutoComplete, ColorPicker } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
-import { GENE_COLOR_PALETTE, debounce } from './Utils';
+import { COLOR_PALETTE, debounce } from './Utils';
 
 export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes, geneColorMap, setGeneColorMap, onKosaraData, onKosaraLoadingStart }) => {
     const [searchText, setSearchText] = useState('');
@@ -125,7 +125,7 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
         searchGenes(searchText);
     }, [searchText, searchGenes]);
 
-    // Initialize default colors for genes using GENE_COLOR_PALETTE
+    // Initialize default colors for genes using COLOR_PALETTE
     useEffect(() => {
         setGeneColorMap(prev => {
             const next = { ...prev };
@@ -135,7 +135,7 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
                     const position = selectedGenes.includes(gene)
                         ? selectedGenes.indexOf(gene)
                         : idx;
-                    next[gene] = GENE_COLOR_PALETTE[position % GENE_COLOR_PALETTE.length];
+                    next[gene] = COLOR_PALETTE[position % COLOR_PALETTE.length];
                 }
             });
             // Remove entries for removed genes
