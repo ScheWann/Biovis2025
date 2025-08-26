@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Empty, Spin, Checkbox, Tooltip } from 'antd';
 
@@ -320,7 +320,7 @@ export const PseudotimeGlyph = ({
             .attr("d", arc)
             .attr("transform", `translate(${centerX}, ${centerY})`)
             .attr("fill", "#D2B48C")
-            .attr("opacity", 0.3)
+            .attr("opacity", 0.2)
             .attr("stroke", "none")
             .style("cursor", "pointer");
 
@@ -463,7 +463,7 @@ export const PseudotimeGlyph = ({
 
                 const isSelected = trajIndex === selectedTrajectory;
                 const strokeWidth = isSelected ? 5 : 3;
-                const opacity = isSelected ? 1 : 0.8;
+                const opacity = isSelected ? 1 : 0.2;
 
                 // Apply grey color to non-selected trajectories
                 const finalColor = isSelected ? trajectoryColor : "#CCCCCC";
@@ -490,7 +490,7 @@ export const PseudotimeGlyph = ({
                             d3.select(this)
                                 .attr("stroke", trajectoryColor)
                                 .attr("stroke-width", 4)
-                                .attr("opacity", 0.9);
+                                .attr("opacity", 1);
                         }
                     })
                     .on("mousemove", function (event) {
@@ -503,7 +503,7 @@ export const PseudotimeGlyph = ({
                             d3.select(this)
                                 .attr("stroke", "#CCCCCC")
                                 .attr("stroke-width", 3)
-                                .attr("opacity", 0.8);
+                                .attr("opacity", 0.2);
                         }
                     })
                     .on("click", function () {
@@ -567,7 +567,7 @@ export const PseudotimeGlyph = ({
                                 // Restore original color on hover
                                 d3.select(this)
                                     .attr("fill", originalNodeColor)
-                                    .attr("opacity", 0.9);
+                                    .attr("opacity", 1);
                             })
                             .on("mousemove", function (event) {
                                 positionTooltip(event, tooltip);
@@ -578,7 +578,7 @@ export const PseudotimeGlyph = ({
                                 // Restore grey color
                                 d3.select(this)
                                     .attr("fill", "#CCCCCC")
-                                    .attr("opacity", 0.6);
+                                    .attr("opacity", 0.2);
                             });
                     } else {
                         // Add tooltip for selected trajectory stars
@@ -605,7 +605,7 @@ export const PseudotimeGlyph = ({
                         .attr("fill", nodeColor)
                         .attr("stroke", "#fff")
                         .attr("stroke-width", 1)
-                        .attr("opacity", isSelected ? 0.9 : 0.6)
+                        .attr("opacity", isSelected ? 1 : 0.2)
                         .style("cursor", "pointer")
                         .on("mouseover", function (event) {
                             tooltip.style("visibility", "visible")
@@ -616,7 +616,7 @@ export const PseudotimeGlyph = ({
                             if (!isSelected) {
                                 d3.select(this)
                                     .attr("fill", originalNodeColor)
-                                    .attr("opacity", 0.9);
+                                    .attr("opacity", 1);
                             }
                         })
                         .on("mousemove", function (event) {
@@ -629,7 +629,7 @@ export const PseudotimeGlyph = ({
                             if (!isSelected) {
                                 d3.select(this)
                                     .attr("fill", "#CCCCCC")
-                                    .attr("opacity", 0.6);
+                                    .attr("opacity", 0.2);
                             }
                         });
                 }
@@ -818,7 +818,7 @@ export const PseudotimeGlyph = ({
                         .attr("stroke", color)
                         .attr("stroke-width", 3)
                         .attr("fill", "none")
-                        .attr("opacity", 0.6)
+                        .attr("opacity", 0.2)
                         .attr("stroke-linecap", "round")
                         .attr("stroke-linejoin", "round")
                         .style("cursor", "pointer")
@@ -847,7 +847,7 @@ export const PseudotimeGlyph = ({
                         .on("mouseout", function () {
                             d3.select(this)
                                 .attr("stroke-width", 3)
-                                .attr("opacity", 0.6);
+                                .attr("opacity", 0.2);
                             tooltip.style("visibility", "hidden");
                         });
                 }
@@ -861,7 +861,7 @@ export const PseudotimeGlyph = ({
                     .attr("r", 3)
                     .attr("fill", color)
                     .attr("stroke", "#fff")
-                    .attr("opacity", 0.9)
+                    .attr("opacity", 0.2)
                     .style("cursor", "pointer")
                     .on("mouseover", function (event) {
                         d3.select(this)
@@ -883,7 +883,7 @@ export const PseudotimeGlyph = ({
                     .on("mouseout", function () {
                         d3.select(this)
                             .attr("r", 3)
-                            .attr("opacity", 0.9);
+                            .attr("opacity", 0.2);
                         tooltip.style("visibility", "hidden");
                     });
             });
@@ -925,7 +925,7 @@ export const PseudotimeGlyph = ({
         }
     };
 
-    const drawStar = (parent, cx, cy, radius, color, opacity = 0.9) => {
+    const drawStar = (parent, cx, cy, radius, color, opacity = 1) => {
         const starPoints = 5;
         const angle = Math.PI / starPoints;
         let path = "";
@@ -984,7 +984,7 @@ export const PseudotimeGlyph = ({
                     if (!path.empty()) {
                         path.attr('stroke', d3.schemeCategory10[i % d3.schemeCategory10.length])
                             .attr('stroke-width', 4)
-                            .attr('opacity', 0.95);
+                            .attr('opacity', 1);
                     }
                 };
                 const handleLegendLeave = (i) => {
@@ -998,7 +998,7 @@ export const PseudotimeGlyph = ({
                         } else {
                             path.attr('stroke', '#CCCCCC')
                                 .attr('stroke-width', 3)
-                                .attr('opacity', 0.8);
+                                .attr('opacity', 0.2);
                         }
                     }
                 };
