@@ -638,7 +638,7 @@ export const PseudotimeGlyphComponent = ({
                                     position: 'absolute',
                                     top: '4px',
                                     right: '4px',
-                                    zIndex: 1100,
+                                    zIndex: 900,
                                 }}>
                                     <Button
                                         type="text"
