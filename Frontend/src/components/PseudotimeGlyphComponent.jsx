@@ -233,15 +233,9 @@ export const PseudotimeGlyphComponent = ({
         });
     };
 
-    // Reset or prune hidden glyphs when data regenerates or datasets change
+    // Prune hidden glyphs when datasets change (but preserve user's hide choices during loading)
     useEffect(() => {
-        const anyLoadingNow = Object.values(pseudotimeLoadingStates || {}).some(Boolean);
-        if (anyLoadingNow) {
-            // When regeneration starts, show all so new results are visible
-            setHiddenGlyphs(new Set());
-            return;
-        }
-        // Prune hidden keys that are no longer present
+        // Only prune hidden keys that are no longer present in the datasets
         const currentKeys = new Set(Object.keys(pseudotimeDataSets || {}));
         setHiddenGlyphs((prev) => {
             const next = new Set();
@@ -250,7 +244,7 @@ export const PseudotimeGlyphComponent = ({
             });
             return next;
         });
-    }, [pseudotimeDataSets, pseudotimeLoadingStates]);
+    }, [pseudotimeDataSets]);
 
     // Helper function to extract UMAP parameters from adata_umap_title
     const extractUmapParameters = (adataUmapTitle) => {
