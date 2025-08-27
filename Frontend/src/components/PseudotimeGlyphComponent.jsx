@@ -252,6 +252,66 @@ export const PseudotimeGlyphComponent = ({
         });
     }, [pseudotimeDataSets, pseudotimeLoadingStates]);
 
+    // Helper function to extract UMAP parameters from adata_umap_title
+    const extractUmapParameters = (adataUmapTitle) => {
+        if (!adataUmapTitle || typeof adataUmapTitle !== 'string') {
+            return { n_neighbors: 10, n_pcas: 30, resolutions: 1 }; // defaults
+        }
+        
+        try {
+            const parts = adataUmapTitle.split('_');
+            if (parts.length >= 3) {
+                // Extract the last 3 parts as the parameters
+                const n_neighbors = parseInt(parts[parts.length - 3]) || 10;
+                const n_pcas = parseInt(parts[parts.length - 2]) || 30;
+                const resolutions = parseFloat(parts[parts.length - 1]) || 1;
+                return { n_neighbors, n_pcas, resolutions };
+            }
+        } catch (error) {
+            console.warn("Could not parse UMAP parameters from adata_umap_title:", adataUmapTitle, error);
+        }
+        
+        return { n_neighbors: 10, n_pcas: 30, resolutions: 1 }; // fallback defaults
+    };
+
+    // Helper function to extract display name and sample ID for consistent formatting
+    const getConsistentDisplayTitle = (baseTitle, umapDataSets) => {
+        if (!umapDataSets || !Array.isArray(umapDataSets)) {
+            return baseTitle;
+        }
+        
+        // Find the matching UMAP dataset
+        const matchingUmapDataset = umapDataSets.find(dataset =>
+            dataset.adata_umap_title === baseTitle || dataset.title === baseTitle
+        );
+        
+        if (matchingUmapDataset && matchingUmapDataset.title) {
+            // The title should already be in format "${newName} (${dataset.sampleId})"
+            return matchingUmapDataset.title;
+        }
+        
+        // Fallback: try to construct the title from adata_umap_title
+        if (baseTitle && typeof baseTitle === 'string') {
+            // Extract sample ID from the title (look for patterns like skin_TXK6Z4X_A1)
+            const sampleIdMatch = baseTitle.match(/(skin_[A-Z0-9]+_[A-Z0-9]+)/);
+            if (sampleIdMatch) {
+                const sampleId = sampleIdMatch[1];
+                // Extract the name part (everything before the sample ID and parameters)
+                const parts = baseTitle.split('_');
+                // Remove the last 3 parts (parameters) and the sample ID parts
+                const sampleIdParts = sampleId.split('_'); // e.g., ["skin", "TXK6Z4X", "A1"]
+                const namePartsCount = parts.length - 3 - sampleIdParts.length;
+                if (namePartsCount > 0) {
+                    const nameParts = parts.slice(0, namePartsCount);
+                    const displayName = nameParts.join('_').replace(/_/g, ' ');
+                    return `${displayName} (${sampleId})`;
+                }
+            }
+        }
+        
+        return baseTitle; // fallback to original title
+    };
+
     // Convert pseudotimeDataSets object to separate trajectory data for each UMAP
     const allPseudotimeData = [];
 
@@ -274,17 +334,11 @@ export const PseudotimeGlyphComponent = ({
                 const isDirectSlingshot = title.endsWith('_direct_slingshot');
                 const baseTitle = isDirectSlingshot ? title.replace('_direct_slingshot', '') : title;
                 
-                // Find the corresponding UMAP dataset for display title
-                let displayTitle = baseTitle;
-                if (umapDataSets && Array.isArray(umapDataSets)) {
-                    const matchingUmapDataset = umapDataSets.find(dataset =>
-                        dataset.adata_umap_title === baseTitle || dataset.title === baseTitle
-                    );
-
-                    if (matchingUmapDataset) {
-                        displayTitle = matchingUmapDataset.title;
-                    }
-                }
+                // Get consistent display title using helper function
+                let displayTitle = getConsistentDisplayTitle(baseTitle, umapDataSets);
+                
+                // Extract UMAP parameters from the base title
+                const umapParameters = extractUmapParameters(baseTitle);
 
                 // Add suffix to distinguish between regular and direct slingshot data
                 if (isDirectSlingshot) {
@@ -327,7 +381,8 @@ export const PseudotimeGlyphComponent = ({
                     isLoading: false,
                     isPlaceholder: false,
                     fullPseudotimeData: pseudotimeData,
-                    isDirectSlingshot: isDirectSlingshot
+                    isDirectSlingshot: isDirectSlingshot,
+                    umapParameters: umapParameters
                 });
             }
         });
@@ -351,21 +406,27 @@ export const PseudotimeGlyphComponent = ({
 
                 // If regular pseudotime is loading and we don't have data for it yet, add a loading placeholder
                 if (isThisDatasetLoading && !hasDataForThisDataset) {
+                    const consistentTitle = getConsistentDisplayTitle(umapDataset.adata_umap_title, umapDataSets);
+                    const umapParams = extractUmapParameters(umapDataset.adata_umap_title);
                     allPseudotimeData.push({
                         source_title: umapDataset.adata_umap_title,
-                        display_title: umapDataset.title || umapDataset.adata_umap_title,
+                        display_title: consistentTitle,
                         isLoading: true,
-                        isPlaceholder: true
+                        isPlaceholder: true,
+                        umapParameters: umapParams
                     });
                 }
 
                 // If direct slingshot is loading and we don't have data for it yet, add a loading placeholder
                 if (isDirectSlingshotLoading && !hasDirectSlingshotData) {
+                    const consistentTitle = getConsistentDisplayTitle(umapDataset.adata_umap_title, umapDataSets);
+                    const umapParams = extractUmapParameters(umapDataset.adata_umap_title);
                     allPseudotimeData.push({
                         source_title: directSlingshotKey,
-                        display_title: `${umapDataset.title || umapDataset.adata_umap_title} (Direct Slingshot)`,
+                        display_title: `${consistentTitle} (Direct Slingshot)`,
                         isLoading: true,
-                        isPlaceholder: true
+                        isPlaceholder: true,
+                        umapParameters: umapParams
                     });
                 }
             });
@@ -730,6 +791,7 @@ export const PseudotimeGlyphComponent = ({
                                                 setHoveredTrajectory={setHoveredTrajectory}
                                                 trajectoryIndex={index}
                                                 source_title={trajectoryData.source_title || adata_umap_title}
+                                                umapParameters={trajectoryData.umapParameters}
                                             />
                                         );
                                     } catch (error) {

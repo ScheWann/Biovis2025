@@ -11,7 +11,8 @@ export const PseudotimeGlyph = ({
     onSelectionChange,
     geneExpressionData = null,
     clusterColors = null,
-    trajectoryIndex,    
+    trajectoryIndex,
+    umapParameters = null,
 }) => {
     const containerRef = useRef();
     const svgRef = useRef(null);
@@ -294,15 +295,42 @@ export const PseudotimeGlyph = ({
         // Create top section - gene expression gauge
         createTopSection(g, selectedGeneData, centerX, centerY, axisLength, maxPseudotime, tooltip, selectedTrajectory);
 
-        // Add title
-        svg.append("text")
+        // Add title with UMAP parameters tooltip
+        const titleText = svg.append("text")
             .attr("x", width / 2)
             .attr("y", height - 5)
             .attr("text-anchor", "middle")
             .attr("font-size", "12px")
             .attr("font-weight", "bold")
             .attr("fill", "#333")
+            .style("cursor", "pointer")
             .text(adata_umap_title);
+
+        // Add tooltip functionality for UMAP parameters
+        if (umapParameters) {
+            titleText
+                .on("mouseover", function(event) {
+                    const tooltipContent = `
+                        <div style="font-size: 12px; line-height: 1.4;">
+                            <div style="font-weight: bold; margin-bottom: 4px; color: #fff;">UMAP Parameters:</div>
+                            <div style="color: #ccc;">Neighbors: ${umapParameters.n_neighbors}</div>
+                            <div style="color: #ccc;">PCAs: ${umapParameters.n_pcas}</div>
+                            <div style="color: #ccc;">Resolution: ${umapParameters.resolutions}</div>
+                        </div>
+                    `;
+                    
+                    tooltip.html(tooltipContent)
+                        .style("visibility", "visible");
+                    
+                    positionTooltip(event, tooltip);
+                })
+                .on("mousemove", function(event) {
+                    positionTooltip(event, tooltip);
+                })
+                .on("mouseout", function() {
+                    tooltip.style("visibility", "hidden");
+                });
+        }
     };
 
     const createBottomSection = (g, trajectoryDataStructure, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory) => {
