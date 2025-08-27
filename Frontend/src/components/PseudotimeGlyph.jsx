@@ -851,7 +851,7 @@ export const PseudotimeGlyph = ({
                         .attr("stroke", color)
                         .attr("stroke-width", 3)
                         .attr("fill", "none")
-                        .attr("opacity", 0.2)
+                        .attr("opacity", 0.8)
                         .attr("stroke-linecap", "round")
                         .attr("stroke-linejoin", "round")
                         .style("cursor", "pointer")
