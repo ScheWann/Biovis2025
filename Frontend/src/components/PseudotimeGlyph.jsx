@@ -582,6 +582,9 @@ export const PseudotimeGlyph = ({
                 if (isEndpoint) {
                     // Draw star for endpoints
                     const starElement = drawStar(bottomSection, point.x, point.y, 6, nodeColor, isSelected ? 0.9 : 0.6, `trajectory-node-${trajIndex}`);
+                    
+                    // Add data attribute for cluster information to help with legend hover
+                    starElement.attr('data-cluster', point.cluster);
 
                     // Add hover effects for stars
                     if (!isSelected) {
@@ -628,6 +631,7 @@ export const PseudotimeGlyph = ({
                     // Draw circle for intermediate points
                     bottomSection.append("circle")
                         .attr("class", `trajectory-node-${trajIndex}`)
+                        .attr("data-cluster", point.cluster) // Add data attribute for cluster information
                         .attr("cx", point.x)
                         .attr("cy", point.y)
                         .attr("r", 4)
@@ -1023,8 +1027,20 @@ export const PseudotimeGlyph = ({
                                     .attr('stroke-width', 4)
                                     .attr('opacity', 1);
                                 
-                                // Highlight the hovered trajectory nodes
-                                nodes.attr('opacity', 1);
+                                // Highlight the hovered trajectory nodes - restore original colors
+                                nodes.each(function(d, i) {
+                                    const node = d3.select(this);
+                                    // Get the original color from cluster colors or use trajectory color
+                                    let originalColor = d3.schemeCategory10[index % d3.schemeCategory10.length];
+                                    if (clusterColors) {
+                                        // Try to get cluster-specific color if available
+                                        const clusterAttr = node.attr('data-cluster');
+                                        if (clusterAttr && clusterColors[clusterAttr]) {
+                                            originalColor = clusterColors[clusterAttr];
+                                        }
+                                    }
+                                    node.attr('fill', originalColor).attr('opacity', 1);
+                                });
                             } else {
                                 // Reduce transparency for all other trajectories (including selected)
                                 path.attr('stroke', '#CCCCCC')
@@ -1032,7 +1048,7 @@ export const PseudotimeGlyph = ({
                                     .attr('opacity', 0.2);
                                 
                                 // Reduce transparency for all other trajectory nodes
-                                nodes.attr('opacity', 0.2);
+                                nodes.attr('fill', '#CCCCCC').attr('opacity', 0.2);
                             }
                         }
                     });
@@ -1052,8 +1068,18 @@ export const PseudotimeGlyph = ({
                                     .attr('stroke-width', 5)
                                     .attr('opacity', 1);
                                 
-                                // Restore selected trajectory nodes appearance
-                                nodes.attr('opacity', 1);
+                                // Restore selected trajectory nodes appearance with original colors
+                                nodes.each(function(d, i) {
+                                    const node = d3.select(this);
+                                    let originalColor = d3.schemeCategory10[index % d3.schemeCategory10.length];
+                                    if (clusterColors) {
+                                        const clusterAttr = node.attr('data-cluster');
+                                        if (clusterAttr && clusterColors[clusterAttr]) {
+                                            originalColor = clusterColors[clusterAttr];
+                                        }
+                                    }
+                                    node.attr('fill', originalColor).attr('opacity', 1);
+                                });
                             } else {
                                 // Restore non-selected trajectory path appearance
                                 path.attr('stroke', '#CCCCCC')
@@ -1061,7 +1087,7 @@ export const PseudotimeGlyph = ({
                                     .attr('opacity', 0.2);
                                 
                                 // Restore non-selected trajectory nodes appearance
-                                nodes.attr('opacity', 0.2);
+                                nodes.attr('fill', '#CCCCCC').attr('opacity', 0.2);
                             }
                         }
                     });
