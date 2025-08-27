@@ -637,7 +637,7 @@ export const PseudotimeGlyphComponent = ({
                     showSearch
                     filterOption={false}
                     onSearch={handleGeneSearch}
-                    onDropdownVisibleChange={(open) => {
+                    onOpenChange={(open) => {
                         if (!open) {
                             // reset to HVGs when closing dropdown
                             setSearchQuery('');
