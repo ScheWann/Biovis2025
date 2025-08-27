@@ -2,8 +2,9 @@ import React, { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
 import { GOAnalysisWindow } from "./GOAnalysisWindow";
 import { UmapSettingsPopup } from "./UmapSettingsPopup";
+import { COLOR_BREWER2_PALETTE_4 } from "./Utils";
 
-const COLORS = d3.schemeCategory10;
+const COLORS = COLOR_BREWER2_PALETTE_4;
 
 export const ScatterplotUmap = ({
   data,
@@ -25,9 +26,7 @@ export const ScatterplotUmap = ({
   coordinatesData,
   cellTypesData,
   setCellTypesData,
-  selectedCellTypes,
   setSelectedCellTypes,
-  cellTypeColors,
   setCellTypeColors,
   pseudotimeDataSets,
   onUmapDataUpdate,
@@ -35,7 +34,7 @@ export const ScatterplotUmap = ({
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
-  const pseudotimeDataSetsRef = useRef({});
+
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
   const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
   const [currentCellIds, setCurrentCellIds] = useState([]);
