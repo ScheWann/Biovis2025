@@ -1133,7 +1133,7 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
             raise ValueError("No cells remaining after filtering. Please check your cell_ids parameter.")
 
         # Preprocessing pipeline
-        sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
+        sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3", span=1)
         sc.pp.normalize_total(adata)
         sc.pp.log1p(adata)
         sc.pp.scale(adata, max_value=10)
