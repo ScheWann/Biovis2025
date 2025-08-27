@@ -581,7 +581,7 @@ export const PseudotimeGlyph = ({
 
                 if (isEndpoint) {
                     // Draw star for endpoints
-                    const starElement = drawStar(bottomSection, point.x, point.y, 6, nodeColor, isSelected ? 0.9 : 0.6);
+                    const starElement = drawStar(bottomSection, point.x, point.y, 6, nodeColor, isSelected ? 0.9 : 0.6, `trajectory-node-${trajIndex}`);
 
                     // Add hover effects for stars
                     if (!isSelected) {
@@ -627,6 +627,7 @@ export const PseudotimeGlyph = ({
                 } else {
                     // Draw circle for intermediate points
                     bottomSection.append("circle")
+                        .attr("class", `trajectory-node-${trajIndex}`)
                         .attr("cx", point.x)
                         .attr("cy", point.y)
                         .attr("r", 4)
@@ -953,7 +954,7 @@ export const PseudotimeGlyph = ({
         }
     };
 
-    const drawStar = (parent, cx, cy, radius, color, opacity = 1) => {
+    const drawStar = (parent, cx, cy, radius, color, opacity = 1, className = '') => {
         const starPoints = 5;
         const angle = Math.PI / starPoints;
         let path = "";
@@ -967,6 +968,7 @@ export const PseudotimeGlyph = ({
         path += " Z";
 
         return parent.append("path")
+            .attr("class", className)
             .attr("d", path)
             .attr("fill", color)
             .attr("stroke", "#fff")
@@ -1006,29 +1008,63 @@ export const PseudotimeGlyph = ({
                     }));
                 })();
 
-                const handleLegendEnter = (i) => {
+                const handleLegendEnter = (hoveredIndex) => {
                     const svg = d3.select(svgRef.current);
-                    const path = svg.select(`.trajectory-path-${i}`);
-                    if (!path.empty()) {
-                        path.attr('stroke', d3.schemeCategory10[i % d3.schemeCategory10.length])
-                            .attr('stroke-width', 4)
-                            .attr('opacity', 1);
-                    }
+                    
+                    // Update all trajectories
+                    legendItems.forEach((item, index) => {
+                        const path = svg.select(`.trajectory-path-${index}`);
+                        const nodes = svg.selectAll(`.trajectory-node-${index}`);
+                        
+                        if (!path.empty()) {
+                            if (index === hoveredIndex) {
+                                // Highlight the hovered trajectory path
+                                path.attr('stroke', d3.schemeCategory10[index % d3.schemeCategory10.length])
+                                    .attr('stroke-width', 4)
+                                    .attr('opacity', 1);
+                                
+                                // Highlight the hovered trajectory nodes
+                                nodes.attr('opacity', 1);
+                            } else {
+                                // Reduce transparency for all other trajectories (including selected)
+                                path.attr('stroke', '#CCCCCC')
+                                    .attr('stroke-width', 3)
+                                    .attr('opacity', 0.2);
+                                
+                                // Reduce transparency for all other trajectory nodes
+                                nodes.attr('opacity', 0.2);
+                            }
+                        }
+                    });
                 };
                 const handleLegendLeave = (i) => {
                     const svg = d3.select(svgRef.current);
-                    const path = svg.select(`.trajectory-path-${i}`);
-                    if (!path.empty()) {
-                        if (i === selectedTrajectory) {
-                            path.attr('stroke', d3.schemeCategory10[i % d3.schemeCategory10.length])
-                                .attr('stroke-width', 5)
-                                .attr('opacity', 1);
-                        } else {
-                            path.attr('stroke', '#CCCCCC')
-                                .attr('stroke-width', 3)
-                                .attr('opacity', 0.2);
+                    
+                    // Restore original appearance for all trajectories
+                    legendItems.forEach((item, index) => {
+                        const path = svg.select(`.trajectory-path-${index}`);
+                        const nodes = svg.selectAll(`.trajectory-node-${index}`);
+                        
+                        if (!path.empty()) {
+                            if (index === selectedTrajectory) {
+                                // Restore selected trajectory path appearance
+                                path.attr('stroke', d3.schemeCategory10[index % d3.schemeCategory10.length])
+                                    .attr('stroke-width', 5)
+                                    .attr('opacity', 1);
+                                
+                                // Restore selected trajectory nodes appearance
+                                nodes.attr('opacity', 1);
+                            } else {
+                                // Restore non-selected trajectory path appearance
+                                path.attr('stroke', '#CCCCCC')
+                                    .attr('stroke-width', 3)
+                                    .attr('opacity', 0.2);
+                                
+                                // Restore non-selected trajectory nodes appearance
+                                nodes.attr('opacity', 0.2);
+                            }
                         }
-                    }
+                    });
                 };
 
                 if (legendItems.length === 0) return null;
