@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
+import { COLOR_BREWER2_PALETTE_4 } from "./Utils";
 
+const COLORS = COLOR_BREWER2_PALETTE_4;
 
 export const LineChart = ({
   data,
@@ -139,7 +141,7 @@ export const LineChart = ({
     const yScale = d3.scaleLinear().domain(yDomain).nice().range([innerHeight, 0]);
 
     // Color scale for multiple datasets
-    const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+    const colorScale = d3.scaleOrdinal(COLORS);
 
     const svg = d3
       .select(svgRef.current)

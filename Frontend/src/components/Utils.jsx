@@ -72,17 +72,17 @@ export const COLOR_BREWER2_PALETTE_3 = [
 
 export const COLOR_BREWER2_PALETTE_4 = [
     "#a6cee3",
-    "#1f78b4",
-    "#b2df8a",
+    "#b15928",
     "#33a02c",
     "#fb9a99",
     "#e31a1c",
     "#fdbf6f",
     "#ff7f00",
     "#cab2d6",
+    "#1f78b4",
     "#6a3d9a",
     "#ffff99",
-    "#b15928",
+    "#b2df8a",
 ];
 
 // Debounce utility function
