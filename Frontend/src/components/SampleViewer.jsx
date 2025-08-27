@@ -2088,7 +2088,13 @@ export const SampleViewer = ({
                 )}
 
                 {/* Sample controls */}
-                <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 20 }}>
+                <div style={{ 
+                    position: 'absolute', 
+                    top: minimapVisible ? 170 : 10, 
+                    left: 10, 
+                    zIndex: 20,
+                    transition: 'top 0.3s ease-in-out'
+                }}>
                     <Collapse
                         items={collapseItems}
                         defaultActiveKey={[selectedSamples[0]?.id]}
@@ -2317,9 +2323,9 @@ export const SampleViewer = ({
                     <div
                         style={{
                             position: 'absolute',
-                            bottom: 10,
-                            right: 10,
-                            width: 200,
+                            top: 10,
+                            left: 10,
+                            width: 296,
                             height: 150,
                             zIndex: 15,
                             backgroundColor: 'rgba(255, 255, 255, 0.9)',
