@@ -442,7 +442,7 @@ function App() {
                               flex: 1,
                               display: "grid",
                               gridTemplateColumns: "repeat(2, 1fr)",
-                              gridAutoRows: "1fr",
+                              gridAutoRows: "100%",
                               gap: 5,
                               maxHeight: "100%",
                               overflow: umapDataSets.length <= 2 ? "hidden" : "auto",
