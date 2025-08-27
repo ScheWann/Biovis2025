@@ -46,6 +46,7 @@ joblib==1.5.1
 kiwisolver==1.4.9
 lazy_loader==0.4
 legacy-api-wrap==1.4.1
+leidenalg==0.10.2
 llvmlite==0.44.0
 locket==1.0.0
 markdown-it-py==4.0.0
@@ -127,3 +128,4 @@ xarray-spatial==0.4.0
 yarl==1.20.1
 zarr==2.18.7
 zipp==3.23.0
+leidenalg==0.10.2
