@@ -2053,14 +2053,16 @@ export const SampleViewer = ({
                 {hoveredCell && (
                     <div style={{
                         position: 'absolute',
-                        left: hoveredCell.x,
+                        left: hoveredCell.x + 12,
                         top: hoveredCell.y - 40,
                         pointerEvents: 'none',
                         backgroundColor: 'rgba(255, 255, 255, 0.9)',
                         padding: 8,
                         borderRadius: 4,
                         boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                        transform: 'translateX(-50%)',
+                        transform: 'none',
+                        whiteSpace: 'nowrap',
+                        willChange: 'left, top',
                         fontSize: 12,
                         zIndex: 1000,
                         textAlign: 'left'
