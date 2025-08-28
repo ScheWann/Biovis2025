@@ -853,7 +853,7 @@ export const PseudotimeGlyph = ({
                         .attr("stroke", color)
                         .attr("stroke-width", 3)
                         .attr("fill", "none")
-                        .attr("opacity", 0.2)
+                        .attr("opacity", 0.6)
                         .attr("stroke-linecap", "round")
                         .attr("stroke-linejoin", "round")
                         .style("cursor", "pointer")
@@ -882,7 +882,7 @@ export const PseudotimeGlyph = ({
                         .on("mouseout", function () {
                             d3.select(this)
                                 .attr("stroke-width", 3)
-                                .attr("opacity", 0.2);
+                                .attr("opacity", 0.6);
                             tooltip.style("visibility", "hidden");
                         });
                 }
@@ -896,7 +896,7 @@ export const PseudotimeGlyph = ({
                     .attr("r", 3)
                     .attr("fill", color)
                     .attr("stroke", "#fff")
-                    .attr("opacity", 0.2)
+                    .attr("opacity", 0.6)
                     .style("cursor", "pointer")
                     .on("mouseover", function (event) {
                         d3.select(this)
@@ -918,7 +918,7 @@ export const PseudotimeGlyph = ({
                     .on("mouseout", function () {
                         d3.select(this)
                             .attr("r", 3)
-                            .attr("opacity", 0.2);
+                            .attr("opacity", 0.6);
                         tooltip.style("visibility", "hidden");
                     });
             });
