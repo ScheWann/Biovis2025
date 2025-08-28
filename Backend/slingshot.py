@@ -43,39 +43,43 @@ def check_r_availability():
     try:
         import rpy2.robjects as ro
         from rpy2.robjects.packages import importr
+        from rpy2.robjects import pandas2ri
+        from rpy2.robjects.conversion import localconverter
         availability["rpy2"] = True
     except ImportError:
         availability["errors"].append("RPy2 not installed. Install with: pip install rpy2")
         return availability
     
-    # Check R installation
-    try:
-        base = importr("base")
-        availability["r_installed"] = True
-    except Exception as e:
-        availability["errors"].append(f"R not available: {e}")
-        return availability
-    
-    # Check BiocManager
-    try:
-        biocmanager = importr("BiocManager")
-        availability["biocmanager"] = True
-    except Exception as e:
-        availability["errors"].append(f"BiocManager not available: {e}")
-    
-    # Check Slingshot package
-    try:
-        slingshot = importr("slingshot")
-        availability["slingshot_package"] = True
-    except Exception as e:
-        availability["errors"].append(f"Slingshot package not available: {e}")
-    
-    # Check SingleCellExperiment package
-    try:
-        sce = importr("SingleCellExperiment")
-        availability["singlecellexperiment_package"] = True
-    except Exception as e:
-        availability["errors"].append(f"SingleCellExperiment package not available: {e}")
+    # Use localconverter to handle rpy2 conversions, especially in threaded environments
+    with localconverter(ro.default_converter + pandas2ri.converter):
+        # Check R installation
+        try:
+            base = importr("base")
+            availability["r_installed"] = True
+        except Exception as e:
+            availability["errors"].append(f"R not available: {e}")
+            return availability
+        
+        # Check BiocManager
+        try:
+            biocmanager = importr("BiocManager")
+            availability["biocmanager"] = True
+        except Exception as e:
+            availability["errors"].append(f"BiocManager not available: {e}")
+        
+        # Check Slingshot package
+        try:
+            slingshot = importr("slingshot")
+            availability["slingshot_package"] = True
+        except Exception as e:
+            availability["errors"].append(f"Slingshot package not available: {e}")
+        
+        # Check SingleCellExperiment package
+        try:
+            sce = importr("SingleCellExperiment")
+            availability["singlecellexperiment_package"] = True
+        except Exception as e:
+            availability["errors"].append(f"SingleCellExperiment package not available: {e}")
     
     return availability
 
@@ -91,24 +95,27 @@ def install_r_packages():
     try:
         import rpy2.robjects as ro
         from rpy2.robjects.packages import importr
-        
-        # Install BiocManager if not available
-        try:
-            biocmanager = importr("BiocManager")
-        except Exception:
-            print("Installing BiocManager...")
-            ro.r('install.packages("BiocManager")')
-            biocmanager = importr("BiocManager")
-        
-        # Install required packages
-        required_packages = ["slingshot", "SingleCellExperiment"]
-        for pkg in required_packages:
+        from rpy2.robjects import pandas2ri
+        from rpy2.robjects.conversion import localconverter
+
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            # Install BiocManager if not available
             try:
-                importr(pkg)
-                print(f"{pkg} is already installed")
+                biocmanager = importr("BiocManager")
             except Exception:
-                print(f"Installing {pkg}...")
-                ro.r(f'BiocManager::install("{pkg}")')
+                print("Installing BiocManager...")
+                ro.r('install.packages("BiocManager")')
+                biocmanager = importr("BiocManager")
+            
+            # Install required packages
+            required_packages = ["slingshot", "SingleCellExperiment"]
+            for pkg in required_packages:
+                try:
+                    importr(pkg)
+                    print(f"{pkg} is already installed")
+                except Exception:
+                    print(f"Installing {pkg}...")
+                    ro.r(f'BiocManager::install("{pkg}")')
         
         return True
         
@@ -972,6 +979,7 @@ def run_slingshot_via_rpy2_improved(
     
     # Check R availability first
     availability = check_r_availability()
+    print(availability, 'R availability')
     if not availability["rpy2"] or not availability["r_installed"]:
         print("R/RPy2 not available, trying subprocess fallback...")
         return _run_slingshot_subprocess(adata, cluster_key, embedding_key, start_cluster, end_clusters)
@@ -1010,173 +1018,153 @@ def _run_slingshot_rpy2(
         from rpy2.robjects.packages import importr
         from rpy2.robjects import pandas2ri
         from rpy2.robjects.conversion import localconverter
-        import contextvars
-        
-        # Ensure RPy2 conversion context is properly set
-        try:
-            # Test if conversion context is working
-            with localconverter(ro.default_converter + pandas2ri.converter):
-                test_df = pd.DataFrame({'test': [1, 2, 3]})
-                ro.r('print("RPy2 conversion test successful")')
-        except Exception as context_error:
-            print(f"RPy2 context error detected: {context_error}")
-            print("Attempting to fix RPy2 conversion context...")
-            
-            # Try to reinitialize RPy2 conversion context
+
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            # Import R packages with error handling
             try:
-                # Force reinitialization of conversion context
-                ro.default_converter = ro.conversion.Converter('default')
-                pandas2ri.activate()
-                print("RPy2 conversion context reinitialized")
-            except Exception as reinit_error:
-                print(f"Failed to reinitialize RPy2 context: {reinit_error}")
+                base = importr("base")
+                utils = importr("utils")
+                print("Successfully imported R packages.")
+            except Exception as import_error:
+                print(f"Error importing R packages: {import_error}")
                 return None
 
-        # Import R packages with error handling
-        try:
-            base = importr("base")
-            utils = importr("utils")
-        except Exception as import_error:
-            print(f"Error importing R packages: {import_error}")
-            return None
+            # Creating temporary directory
+            with tempfile.TemporaryDirectory() as temp_dir:
+                print("Creating temporary files...")
 
-        # Creating temporary directory
-        with tempfile.TemporaryDirectory() as temp_dir:
-            print("Creating temporary files...")
-
-            # Export to CSV file with proper error handling
-            try:
-                if sparse.issparse(adata.X):
-                    expr_df = pd.DataFrame(adata.X.toarray())
-                else:
-                    expr_df = pd.DataFrame(adata.X)
-
-                umap_df = pd.DataFrame(
-                    adata.obsm[embedding_key], columns=["UMAP1", "UMAP2"]
-                )
-                clusters_df = pd.DataFrame({"clusters": adata.obs[cluster_key].astype(str)})
-
-                expr_file = os.path.join(temp_dir, "expr.csv")
-                umap_file = os.path.join(temp_dir, "umap.csv")
-                clusters_file = os.path.join(temp_dir, "clusters.csv")
-
-                expr_df.to_csv(expr_file, index=False)
-                umap_df.to_csv(umap_file, index=False)
-                clusters_df.to_csv(clusters_file, index=False)
-            except Exception as file_error:
-                print(f"Error creating temporary files: {file_error}")
-                return None
-
-            print("Reading data and running analysis in R...")
-
-            # Build R command with better error handling
-            r_cmd = f"""
-            # Error handling wrapper
-            tryCatch({{
-                # Import and load packages
-                if (!requireNamespace("BiocManager", quietly = TRUE))
-                    install.packages("BiocManager")
-                
-                required_packages <- c("slingshot", "SingleCellExperiment")
-                for (pkg in required_packages) {{
-                    if (!requireNamespace(pkg, quietly = TRUE)) {{
-                        BiocManager::install(pkg)
-                    }}
-                }}
-                
-                library(slingshot)
-                library(SingleCellExperiment)
-                
-                # Load data
-                expr_matrix <- as.matrix(read.csv("{expr_file}"))
-                umap_coords <- as.matrix(read.csv("{umap_file}"))
-                clusters <- read.csv("{clusters_file}")$clusters
-                
-                # Transpose gene expression matrix (gene x cell)
-                expr_matrix <- t(expr_matrix)
-
-                # Create SingleCellExperiment object
-                sce <- SingleCellExperiment(
-                    assays = list(counts = expr_matrix)
-                )
-                
-                # Add UMAP and cluster info
-                reducedDims(sce) <- list(UMAP = umap_coords)
-                colData(sce)$clusters <- clusters
-                
-                # Run Slingshot
-            """
-
-            # Start and End cluster parameters (Optional)
-            if start_cluster is not None:
-                r_cmd += f'start_clus <- "{start_cluster}"\n'
-                r_cmd += 'sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP", start.clus = start_clus)\n'
-            else:
-                r_cmd += 'sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP")\n'
-
-            r_cmd += f"""
-
-                # Get result
-                pseudotimes <- slingPseudotime(sce)
-                weights <- slingCurveWeights(sce)
-
-                write.csv(pseudotimes, "{temp_dir}/pseudotimes.csv")
-                write.csv(weights, "{temp_dir}/weights.csv")
-                
-                # Return number of trajectories
-                n_lineages <- ncol(pseudotimes)
-                cat("Found", n_lineages, "trajectories\\n")
-                
-            }}, error = function(e) {{
-                cat("R Error:", conditionMessage(e), "\\n")
-                # Create empty result files to indicate failure
-                write.csv(data.frame(), "{temp_dir}/pseudotimes.csv")
-                write.csv(data.frame(), "{temp_dir}/weights.csv")
-            }})
-            """
-
-            # Execute R with proper context management
-            try:
-                with localconverter(ro.default_converter + pandas2ri.converter):
-                    ro.r(r_cmd)
-            except Exception as r_exec_error:
-                print(f"Error executing R command: {r_exec_error}")
-                return None
-
-            print("Reading results...")
-
-            pseudotimes_file = os.path.join(temp_dir, "pseudotimes.csv")
-            weights_file = os.path.join(temp_dir, "weights.csv")
-
-            if os.path.exists(pseudotimes_file):
+                # Export to CSV file with proper error handling
                 try:
-                    pseudotimes_df = pd.read_csv(pseudotimes_file, index_col=0)
-                    weights_df = pd.read_csv(weights_file, index_col=0)
+                    if sparse.issparse(adata.X):
+                        expr_df = pd.DataFrame(adata.X.toarray())
+                    else:
+                        expr_df = pd.DataFrame(adata.X)
 
-                    # Check if results are empty (indicating R error)
-                    if pseudotimes_df.empty or weights_df.empty:
-                        print("R analysis failed - empty results returned")
-                        return None
-
-                    # Add to adata
-                    for i, col in enumerate(pseudotimes_df.columns):
-                        adata.obs[f"slingshot_pseudotime_{i+1}"] = pseudotimes_df.iloc[
-                            :, i
-                        ].values
-
-                    for i, col in enumerate(weights_df.columns):
-                        adata.obs[f"slingshot_weight_{i+1}"] = weights_df.iloc[:, i].values
-
-                    print(
-                        f"Slingshot analysis completed! Found {len(pseudotimes_df.columns)} trajectories"
+                    umap_df = pd.DataFrame(
+                        adata.obsm[embedding_key], columns=["UMAP1", "UMAP2"]
                     )
-                    return adata
-                except Exception as read_error:
-                    print(f"Error reading result files: {read_error}")
+                    clusters_df = pd.DataFrame({"clusters": adata.obs[cluster_key].astype(str)})
+
+                    expr_file = os.path.join(temp_dir, "expr.csv")
+                    umap_file = os.path.join(temp_dir, "umap.csv")
+                    clusters_file = os.path.join(temp_dir, "clusters.csv")
+
+                    expr_df.to_csv(expr_file, index=False)
+                    umap_df.to_csv(umap_file, index=False)
+                    clusters_df.to_csv(clusters_file, index=False)
+                except Exception as file_error:
+                    print(f"Error creating temporary files: {file_error}")
                     return None
-            else:
-                print("Could not find result files")
-                return None
+
+                print("Reading data and running analysis in R...")
+
+                # Build R command with better error handling
+                r_cmd = f"""
+                # Error handling wrapper
+                tryCatch({{
+                    # Import and load packages
+                    if (!requireNamespace("BiocManager", quietly = TRUE))
+                        install.packages("BiocManager")
+                    
+                    required_packages <- c("slingshot", "SingleCellExperiment")
+                    for (pkg in required_packages) {{
+                        if (!requireNamespace(pkg, quietly = TRUE)) {{
+                            BiocManager::install(pkg)
+                        }}
+                    }}
+                    
+                    library(slingshot)
+                    library(SingleCellExperiment)
+                    
+                    # Load data
+                    expr_matrix <- as.matrix(read.csv(\"{expr_file}\"))
+                    umap_coords <- as.matrix(read.csv(\"{umap_file}\"))
+                    clusters <- read.csv(\"{clusters_file}\")$clusters
+                    
+                    # Transpose gene expression matrix (gene x cell)
+                    expr_matrix <- t(expr_matrix)
+
+                    # Create SingleCellExperiment object
+                    sce <- SingleCellExperiment(
+                        assays = list(counts = expr_matrix)
+                    )
+                    
+                    # Add UMAP and cluster info
+                    reducedDims(sce) <- list(UMAP = umap_coords)
+                    colData(sce)$clusters <- clusters
+                    
+                    # Run Slingshot
+                """
+
+                # Start and End cluster parameters (Optional)
+                if start_cluster is not None:
+                    r_cmd += f'start_clus <- \"{start_cluster}\"\n'
+                    r_cmd += 'sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP", start.clus = start_clus)\n'
+                else:
+                    r_cmd += 'sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP")\n'
+
+                r_cmd += f"""
+
+                    # Get result
+                    pseudotimes <- slingPseudotime(sce)
+                    weights <- slingCurveWeights(sce)
+
+                    write.csv(pseudotimes, \"{temp_dir}/pseudotimes.csv\")
+                    write.csv(weights, \"{temp_dir}/weights.csv\")
+                    
+                    # Return number of trajectories
+                    n_lineages <- ncol(pseudotimes)
+                    cat("Found", n_lineages, "trajectories\\n")
+                    
+                }}, error = function(e) {{
+                    cat("R Error:", conditionMessage(e), "\\n")
+                    # Create empty result files to indicate failure
+                    write.csv(data.frame(), \"{temp_dir}/pseudotimes.csv\")
+                    write.csv(data.frame(), \"{temp_dir}/weights.csv\")
+                }})
+                """
+
+                # Execute R with proper context management
+                try:
+                    ro.r(r_cmd)
+                except Exception as r_exec_error:
+                    print(f"Error executing R command: {r_exec_error}")
+                    return None
+
+                print("Reading results...")
+
+                pseudotimes_file = os.path.join(temp_dir, "pseudotimes.csv")
+                weights_file = os.path.join(temp_dir, "weights.csv")
+
+                if os.path.exists(pseudotimes_file):
+                    try:
+                        pseudotimes_df = pd.read_csv(pseudotimes_file, index_col=0)
+                        weights_df = pd.read_csv(weights_file, index_col=0)
+
+                        # Check if results are empty (indicating R error)
+                        if pseudotimes_df.empty or weights_df.empty:
+                            print("R analysis failed - empty results returned")
+                            return None
+
+                        # Add to adata
+                        for i, col in enumerate(pseudotimes_df.columns):
+                            adata.obs[f"slingshot_pseudotime_{i+1}"] = pseudotimes_df.iloc[
+                                :, i
+                            ].values
+
+                        for i, col in enumerate(weights_df.columns):
+                            adata.obs[f"slingshot_weight_{i+1}"] = weights_df.iloc[:, i].values
+
+                        print(
+                            f"Slingshot analysis completed! Found {len(pseudotimes_df.columns)} trajectories"
+                        )
+                        return adata
+                    except Exception as read_error:
+                        print(f"Error reading result files: {read_error}")
+                        return None
+                else:
+                    print("Could not find result files")
+                    return None
 
     except ImportError:
         print("Error: Please install rpy2 package")
