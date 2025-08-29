@@ -280,11 +280,11 @@ def run_slingshot_by_rpy2(
 
                         # Add to adata
                         for i, col in enumerate(pseudotimes_df.columns):
-                            adata.obs[f"slingshot_pseudotime_{embedding_key}_{col}"] = pseudotimes_df.iloc[:, i].values
+                            adata.uns[f"slingshot_pseudotime_{embedding_key}_{col}"] = pseudotimes_df.iloc[:, i].values
 
                         # Store lineage information as metadata instead of obs
                         lineage_paths = lineages_df.groupby("Lineage")["Cluster"].apply(list).to_dict()
-                        adata.obs[f"slingshot_lineages_{embedding_key}"] = lineage_paths
+                        adata.uns[f"slingshot_lineages_{embedding_key}"] = lineage_paths
                         
                         print(
                             f"Slingshot analysis completed! Found {len(pseudotimes_df.columns)} trajectories"
@@ -467,7 +467,7 @@ def run_slingshot_by_subprocess(
 
                     # Add to adata
                     for i, col in enumerate(pseudotimes_df.columns):
-                        adata.obs[f"slingshot_pseudotime_{embedding_key}_{col}"] = pseudotimes_df.iloc[:, i].values
+                        adata.uns[f"slingshot_pseudotime_{embedding_key}_{col}"] = pseudotimes_df.iloc[:, i].values
 
                     lineage_paths = lineages_df.groupby("Lineage")["Cluster"].apply(list).to_dict()
                     adata.uns[f"slingshot_lineages_{embedding_key}"] = lineage_paths
@@ -1095,10 +1095,10 @@ def direct_slingshot_analysis(
             print("Slingshot analysis failed.")
             return None
         
-        # Get pseudotime columns
-        pt_cols = [col for col in result_adata.obs.columns if col.startswith(f"slingshot_pseudotime_{embedding_key}")]
+        # Get pseudotime columns from adata.uns (where slingshot results are stored)
+        pt_cols = [key for key in result_adata.uns.keys() if key.startswith(f"slingshot_pseudotime_{embedding_key}")]
         # weight_cols = [col for col in result_adata.obs.columns if col.startswith("slingshot_weight")]
-        lineages_cols = [col for col in result_adata.obs.columns if col.startswith(f"slingshot_lineages_{embedding_key}")]
+        lineages_cols = [key for key in result_adata.uns.keys() if key.startswith(f"slingshot_lineages_{embedding_key}")]
         
         print(f"Analysis completed successfully!")
         print(f"Found {len(pt_cols)} trajectories")
@@ -1107,7 +1107,7 @@ def direct_slingshot_analysis(
         trajectory_info = {}
         for i, pt_col in enumerate(pt_cols):
             traj_name = f"Trajectory_{i+1}"
-            valid_mask = ~np.isnan(result_adata.obs[pt_col])
+            valid_mask = ~np.isnan(result_adata.uns[pt_col])
             valid_cells = valid_mask.sum()
             
             trajectory_info[traj_name] = {
@@ -1126,14 +1126,14 @@ def direct_slingshot_analysis(
         
         # Get lineages data from adata.uns
         lineages_key = f"slingshot_lineages_{embedding_key}"
-        if lineages_key in result_adata.obs:
-            lineage_paths = result_adata.obs[lineages_key]
+        if lineages_key in result_adata.uns:
+            lineage_paths = result_adata.uns[lineages_key]
             print(f"Found lineages data: {lineage_paths}")
             
             # Match trajectories with lineage paths
             for i, (traj_name, traj_info) in enumerate(trajectory_info.items()):
                 pt_col = traj_info["pseudotime_column"]
-                valid_mask = ~np.isnan(result_adata.obs[pt_col])
+                valid_mask = ~np.isnan(result_adata.uns[pt_col])
                 
                 if valid_mask.sum() == 0:
                     continue
@@ -1144,7 +1144,11 @@ def direct_slingshot_analysis(
                     cluster_path = lineage_paths[lineage_key]
                     
                     # Calculate cluster statistics for validation
-                    traj_data = result_adata.obs[valid_mask].copy()
+                    # Create a temporary dataframe with pseudotime and cluster info
+                    traj_data = pd.DataFrame({
+                        pt_col: result_adata.uns[pt_col][valid_mask],
+                        cluster_key: result_adata.obs[cluster_key][valid_mask]
+                    })
                     traj_data = traj_data.sort_values(pt_col)
                     
                     cluster_stats = traj_data.groupby(cluster_key)[pt_col].agg([
@@ -1165,13 +1169,17 @@ def direct_slingshot_analysis(
             # Fallback to original method if lineages data is not available
             for traj_name, traj_info in trajectory_info.items():
                 pt_col = traj_info["pseudotime_column"]
-                valid_mask = ~np.isnan(result_adata.obs[pt_col])
+                valid_mask = ~np.isnan(result_adata.uns[pt_col])
                 
                 if valid_mask.sum() == 0:
                     continue
                 
                 # Get trajectory data
-                traj_data = result_adata.obs[valid_mask].copy()
+                # Create a temporary dataframe with pseudotime and cluster info
+                traj_data = pd.DataFrame({
+                    pt_col: result_adata.uns[pt_col][valid_mask],
+                    cluster_key: result_adata.obs[cluster_key][valid_mask]
+                })
                 traj_data = traj_data.sort_values(pt_col)
                 
                 # Calculate cluster statistics along trajectory
