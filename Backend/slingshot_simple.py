@@ -244,7 +244,6 @@ def run_slingshot_by_rpy2(
                         Cluster = unlist(lineages)
                     )
                     write.csv(lineages_df, "{temp_dir}/lineages.csv", row.names=FALSE)
-                    write.csv(lineages_df, "./backup/lineages.csv", row.names=FALSE)
                     
                     # Return number of trajectories
                     n_lineages <- ncol(pseudotimes)

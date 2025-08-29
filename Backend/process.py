@@ -673,22 +673,8 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
                 'cluster': f'Cluster {cluster_labels[i]}'
             })
 
-        # Add cluster information back to the original cached AnnData for GO analysis
-        original_adata = get_cached_adata(sample_id)
-        
-        # Add the leiden clustering results to the original cached AnnData
-        # Only update cells that were part of this UMAP analysis
-        leiden_col = f'leiden_{adata_umap_title}'
-        if leiden_col not in original_adata.obs.columns:
-            # Initialize the column with NaN for all cells
-            original_adata.obs[leiden_col] = pd.NA
-        
-        # Update cluster assignments for the cells that were processed in this UMAP
-        for cell_id, cluster_label in zip(cell_ids_filtered, cluster_labels):
-            if cell_id in original_adata.obs_names:
-                original_adata.obs.loc[cell_id, leiden_col] = cluster_label
-        
-        # Return the result
+        ADATA_CACHE[sample_id] = adata.copy()
+
         return results
     else:
         raise ValueError(f"No gene expression data available for sample {sample_id}")
@@ -1132,20 +1118,20 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
             raise ValueError("No cells remaining after filtering. Please check your cell_ids parameter.")
 
         # Preprocessing pipeline
-        sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3", span=1)
-        sc.pp.normalize_total(adata)
-        sc.pp.log1p(adata)
-        sc.pp.scale(adata, max_value=10)
-        sc.tl.pca(adata, use_highly_variable=True)
-        sc.pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcas)
-        sc.tl.umap(adata)
+        # sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3", span=1)
+        # sc.pp.normalize_total(adata)
+        # sc.pp.log1p(adata)
+        # sc.pp.scale(adata, max_value=10)
+        # sc.tl.pca(adata, use_highly_variable=True)
+        # sc.pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcas)
+        # sc.tl.umap(adata)
         
-        # Store the UMAP for this subset
-        adata.obsm[f'X_umap_{adata_umap_title}'] = adata.obsm['X_umap'].copy()
+        # # Store the UMAP for this subset
+        # adata.obsm[f'X_umap_{adata_umap_title}'] = adata.obsm['X_umap'].copy()
         
-        # Perform clustering
-        sc.tl.leiden(adata, resolution=resolutions, key_added=f'leiden_{adata_umap_title}')
-
+        # # Perform clustering
+        # sc.tl.leiden(adata, resolution=resolutions, key_added=f'leiden_{adata_umap_title}')
+        print(adata)
         leiden_col = f'leiden_{adata_umap_title}'
         if not pd.api.types.is_categorical_dtype(adata.obs[leiden_col]):
             adata.obs[leiden_col] = adata.obs[leiden_col].astype('category')
