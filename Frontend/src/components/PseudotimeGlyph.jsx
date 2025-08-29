@@ -233,9 +233,16 @@ export const PseudotimeGlyph = ({
             return;
         }
 
-        const maxPseudotime = Math.max(...trajectories.flatMap(traj =>
-            traj.pseudotimes.map(pt => parseFloat(pt))
-        ));
+        const maxPseudotime = Math.max(...trajectories.flatMap(traj => {
+            // Handle both 'pseudotimes' and 'pseudotime' property names
+            const pseudotimeArray = traj.pseudotimes || traj.pseudotime || [];
+            return pseudotimeArray.map(pt => parseFloat(pt));
+        }));
+
+        const minPseudotime = Math.min(...trajectories.flatMap(traj => {
+            const pseudotimeArray = traj.pseudotimes || traj.pseudotime || [];
+            return pseudotimeArray.map(pt => parseFloat(pt));
+        }));
 
         // Color scale for different cell states/clusters
         const allClusters = clusterOrder ?
@@ -281,7 +288,7 @@ export const PseudotimeGlyph = ({
             .attr("stroke-width", 2)
             .attr("opacity", 0.9);
 
-        // Add time point 0 label
+        // Add time point label - show actual minimum time if available
         g.append("text")
             .attr("x", centerX)
             .attr("y", centerY + 4)
@@ -289,13 +296,13 @@ export const PseudotimeGlyph = ({
             .attr("font-size", "10px")
             .attr("font-weight", "bold")
             .attr("fill", "#333")
-            .text("t0");
+            .text(`t${minPseudotime.toFixed(1)}`);
 
         // Create bottom section - macroscopic cell trajectories
-        createBottomSection(g, structuredData, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory);
+        createBottomSection(g, structuredData, centerX, centerY, axisLength, maxPseudotime, minPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory);
 
         // Create top section - gene expression gauge
-        createTopSection(g, selectedGeneData, centerX, centerY, axisLength, maxPseudotime, tooltip, selectedTrajectory);
+        createTopSection(g, selectedGeneData, centerX, centerY, axisLength, maxPseudotime, minPseudotime, tooltip, selectedTrajectory);
 
         // Add title with UMAP parameters tooltip
         const titleText = svg.append("text")
@@ -335,7 +342,7 @@ export const PseudotimeGlyph = ({
         }
     };
 
-    const createBottomSection = (g, trajectoryDataStructure, centerX, centerY, axisLength, maxPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory) => {
+    const createBottomSection = (g, trajectoryDataStructure, centerX, centerY, axisLength, maxPseudotime, minPseudotime, clusterColorScale, tooltip, selectedTrajectory, setSelectedTrajectory) => {
         const bottomSection = g.append("g").attr("class", "bottom-section");
         const maxRadius = axisLength / 2 - 15;
 
@@ -406,6 +413,7 @@ export const PseudotimeGlyph = ({
         // Add concentric circles for time scale
         const timeScaleFractions = [0.25, 0.5, 0.75, 1.0];
         timeScaleFractions.forEach(fraction => {
+            const timeValue = maxPseudotime * fraction;
             const radius = (8 + (maxRadius - 8) * fraction);
 
             // Draw semicircle arc for time indication (bottom half)
@@ -423,11 +431,21 @@ export const PseudotimeGlyph = ({
                 .attr("stroke-width", 0.5)
                 .attr("stroke-dasharray", "2,2")
                 .attr("opacity", 0.7);
+
+            // Add time labels for the bottom section
+            bottomSection.append("text")
+                .attr("x", centerX + radius + 15)
+                .attr("y", centerY)
+                .attr("text-anchor", "start")
+                .attr("dominant-baseline", "central")
+                .attr("font-size", "8px")
+                .attr("fill", "#666")
+                .text(`t${timeValue.toFixed(1)}`);
         });
 
         // Scale for converting pseudotime to radial distance
         const radiusScale = d3.scaleLinear()
-            .domain([0, maxPseudotime])
+            .domain([minPseudotime, maxPseudotime])
             .range([8, maxRadius]); // Start from time point 0 circle edge (radius 8)
 
         // Color scale for different trajectories
@@ -436,7 +454,9 @@ export const PseudotimeGlyph = ({
         // Draw each trajectory
         const trajectories = trajectoryDataStructure.trajectory_objects || trajectoryDataStructure;
         trajectories.forEach((trajectory, trajIndex) => {
-            const { path, pseudotimes } = trajectory;
+            const { path } = trajectory;
+            // Handle both 'pseudotimes' and 'pseudotime' property names
+            const pseudotimes = trajectory.pseudotimes || trajectory.pseudotime || [];
             const trajectoryColor = trajectoryColors[trajIndex % trajectoryColors.length];
 
             // Build interpolated points for smooth curves
@@ -511,7 +531,7 @@ export const PseudotimeGlyph = ({
                         const isCurrentlySelected = trajIndex === selectedTrajectory;
                         const selectionText = isCurrentlySelected ? "Currently selected" : "Click to select";
                         tooltip.style("visibility", "visible")
-                            .html(`<strong>Trajectory ${trajIndex + 1}</strong><br/>Path: ${path.join(' → ')}<br/>Time range: ${pseudotimes[0]} - ${pseudotimes[pseudotimes.length - 1]}<br/>${selectionText}`);
+                            .html(`<strong>Trajectory ${trajIndex + 1}</strong><br/>Path: ${path.join(' → ')}<br/>Time range: ${pseudotimes[0]?.toFixed(3) || 'N/A'} - ${pseudotimes[pseudotimes.length - 1]?.toFixed(3) || 'N/A'}<br/>${selectionText}`);
                         positionTooltip(event, tooltip);
 
                         // Highlight this trajectory on hover
@@ -672,17 +692,17 @@ export const PseudotimeGlyph = ({
         });
     };
 
-    const createTopSection = (g, geneData, centerX, centerY, axisLength, maxPseudotime, tooltip, selectedTrajectory) => {
+    const createTopSection = (g, geneData, centerX, centerY, axisLength, maxPseudotime, minPseudotime, tooltip, selectedTrajectory) => {
         const maxRadius = axisLength / 2 - 15;
         const topSection = g.append("g").attr("class", "top-section");
 
         // Add concentric circles for time progression using trajectory data time range
         // These should always be shown as a time reference
-        const trajectoryMaxTime = maxPseudotime;
+        const trajectoryTimeRange = maxPseudotime - minPseudotime;
         const numTimeCircles = 4;
         for (let i = 1; i <= numTimeCircles; i++) {
-            const time = (i / numTimeCircles) * trajectoryMaxTime;
-            const radius = 8 + (time / trajectoryMaxTime) * (maxRadius - 8);
+            const time = minPseudotime + (i / numTimeCircles) * trajectoryTimeRange;
+            const radius = 8 + ((time - minPseudotime) / trajectoryTimeRange) * (maxRadius - 8);
 
             // Draw complete circles
             topSection.append("circle")
@@ -713,7 +733,7 @@ export const PseudotimeGlyph = ({
         // Time point scale (radial distance represents time progression)
         // Use the same scaling as concentric circles and trajectory data
         const timeScale = d3.scaleLinear()
-            .domain([0, maxPseudotime])
+            .domain([minPseudotime, maxPseudotime])
             .range([8, maxRadius]); // Start from time point 0 circle edge (radius 8)
 
         // Expression scale (angular position - higher expression = more to the right)
