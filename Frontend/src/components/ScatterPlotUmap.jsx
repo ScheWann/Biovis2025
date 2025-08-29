@@ -1,8 +1,9 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import * as d3 from "d3";
 import { GOAnalysisWindow } from "./GOAnalysisWindow";
 import { UmapSettingsPopup } from "./UmapSettingsPopup";
 import { COLOR_BREWER2_PALETTE_4 } from "./Utils";
+import { Select, Button, Spin } from "antd";
 
 const COLORS = COLOR_BREWER2_PALETTE_4;
 
@@ -55,6 +56,123 @@ export const ScatterplotUmap = ({
   // State to store cluster info for GO analysis window
   const [currentClusterInfo, setCurrentClusterInfo] = useState(null);
 
+  // State for direct Slingshot analysis
+  const [selectedStartCluster, setSelectedStartCluster] = useState(null);
+  const [directSlingshotLoading, setDirectSlingshotLoading] = useState(false);
+
+  // Get available clusters for the selection box
+  const availableClusters = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    
+    const clusters = Array.from(new Set(data.map(clusterAccessor))).sort((a, b) => {
+      const numA = parseInt(a.toString().replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.toString().replace(/\D/g, '')) || 0;
+      return numA - numB;
+    });
+    
+    return clusters.map(cluster => ({
+      value: cluster,
+      label: cluster
+    }));
+  }, [data, clusterAccessor]);
+
+  // Function to handle direct Slingshot analysis
+  const handleDirectSlingshot = async () => {
+    if (!selectedStartCluster || !adata_umap_title || !setPseudotimeDataSets || !setPseudotimeLoadingStates) {
+      console.warn("Missing required data for direct Slingshot analysis");
+      return;
+    }
+
+    // Extract cluster number from selected cluster
+    const clusterNumber = selectedStartCluster.toString().replace(/\D/g, '');
+    if (!clusterNumber) {
+      console.warn("No cluster number found in selected cluster");
+      return;
+    }
+
+    // Parse parameters from adata_umap_title
+    let n_neighbors = 15;
+    let n_pcas = 30;
+    let resolutions = 1;
+
+    try {
+      const parts = adata_umap_title.split('_');
+      if (parts.length >= 5) {
+        // Extract the last 3 parts as the parameters
+        n_neighbors = parseInt(parts[parts.length - 3]) || 15;
+        n_pcas = parseInt(parts[parts.length - 2]) || 30;
+        resolutions = parseFloat(parts[parts.length - 1]) || 1;
+      }
+    } catch (error) {
+      console.warn("Could not parse parameters from adata_umap_title, using defaults", error);
+    }
+
+    // Create a unique key for direct slingshot data
+    const directSlingshotKey = `${adata_umap_title}_direct_slingshot`;
+
+    // Check if data for this direct slingshot key already exists in cache
+    if (pseudotimeDataSets && pseudotimeDataSets[directSlingshotKey]) {
+      setPseudotimeLoadingStates(prevStates => ({
+        ...prevStates,
+        [directSlingshotKey]: true
+      }));
+      setPseudotimeDataSets(prevDataSets => ({ ...prevDataSets }));
+      setTimeout(() => {
+        setPseudotimeLoadingStates(prevStates => ({
+          ...prevStates,
+          [directSlingshotKey]: false
+        }));
+      }, 0);
+      return;
+    }
+
+    // Set loading state for this specific dataset
+    setDirectSlingshotLoading(true);
+    setPseudotimeLoadingStates(prevStates => ({
+      ...prevStates,
+      [directSlingshotKey]: true
+    }));
+
+    try {
+      const res = await fetch("/api/get_direct_slingshot_data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sample_id: sampleId,
+          cell_ids: data.map(d => d.id || d.cell_id).filter(Boolean),
+          adata_umap_title: adata_umap_title,
+          start_cluster: clusterNumber,
+          n_neighbors: n_neighbors,
+          n_pcas: n_pcas,
+          resolutions: resolutions,
+        }),
+      });
+      const responseData = await res.json();
+
+      if (responseData.error) {
+        console.error("Direct Slingshot analysis failed:", responseData.error);
+        return;
+      }
+
+      // Add the new data to the datasets object with the unique key
+      setPseudotimeDataSets(prevDataSets => {
+        const newDataSets = {
+          ...prevDataSets,
+          [directSlingshotKey]: responseData
+        };
+        return newDataSets;
+      });
+    } catch (err) {
+      console.error("Failed to fetch direct Slingshot data", err);
+    } finally {
+      // Clear loading state for this specific dataset
+      setDirectSlingshotLoading(false);
+      setPseudotimeLoadingStates(prevStates => ({
+        ...prevStates,
+        [directSlingshotKey]: false
+      }));
+    }
+  };
 
   const fetchGOAnalysisData = (sampleId, cluster, adata_umap_title) => {
     setGOAnalysisLoading(true);
@@ -452,6 +570,40 @@ export const ScatterplotUmap = ({
         clearHoverState();
       }}
     >
+      {/* Direct Slingshot Controls - positioned over the SVG */}
+      <div style={{
+        position: 'absolute',
+        top: '5px',
+        left: '25px',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+      }}>
+        <Select
+          placeholder="Select start cluster"
+          value={selectedStartCluster}
+          onChange={setSelectedStartCluster}
+          style={{ width: '140px' }}
+          size="small"
+          options={availableClusters}
+          allowClear
+        />
+        <Button
+          onClick={handleDirectSlingshot}
+          disabled={!selectedStartCluster || directSlingshotLoading}
+          loading={directSlingshotLoading}
+          type="primary"
+          size="small"
+        >
+          {directSlingshotLoading ? 'Running...' : 'Run Slingshot'}
+        </Button>
+      </div>
+
       <svg ref={svgRef}></svg>
       <GOAnalysisWindow
         visible={GOAnalysisVisible}
