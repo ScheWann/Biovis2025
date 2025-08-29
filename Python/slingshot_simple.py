@@ -1097,8 +1097,6 @@ def direct_slingshot_analysis(
         
         # Get pseudotime columns from adata.uns (where slingshot results are stored)
         pt_cols = [key for key in result_adata.uns.keys() if key.startswith(f"slingshot_pseudotime_{embedding_key}")]
-        # weight_cols = [col for col in result_adata.obs.columns if col.startswith("slingshot_weight")]
-        lineages_cols = [key for key in result_adata.uns.keys() if key.startswith(f"slingshot_lineages_{embedding_key}")]
         
         print(f"Analysis completed successfully!")
         print(f"Found {len(pt_cols)} trajectories")
