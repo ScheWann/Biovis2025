@@ -173,6 +173,8 @@ def run_slingshot_by_rpy2(
                     )
                     clusters_df = pd.DataFrame({"clusters": adata.obs[cluster_key].astype(str)})
 
+                    print(adata.obs[cluster_key].astype(str).unique(), 'cluster key?????????')
+
                     expr_file = os.path.join(temp_dir, "expr.csv")
                     umap_file = os.path.join(temp_dir, "umap.csv")
                     clusters_file = os.path.join(temp_dir, "clusters.csv")

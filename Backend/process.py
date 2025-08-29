@@ -49,6 +49,9 @@ def load_adata_to_cache(sample_ids):
     global ADATA_CACHE
     
     for sample_id in sample_ids:
+        # Create processed adata first 
+        PROCESSED_ADATA_CACHE[sample_id] = {}
+        
         base_sample_id, scale = sample_id.rsplit("_", 1)
         if base_sample_id in SAMPLES and sample_id not in ADATA_CACHE:
             sample_info = SAMPLES[base_sample_id]
@@ -81,6 +84,19 @@ def get_cached_adata(sample_id):
         raise ValueError(f"AnnData for sample {sample_id} failed to load.")
     
     return ADATA_CACHE[sample_id]
+
+
+def get_processed_adata(sample_id, adata_umap_title):
+    """
+    Get processed AnnData object from cache for the given sample ID and UMAP title.
+    """
+    if sample_id not in PROCESSED_ADATA_CACHE:
+        raise ValueError(f"Processed AnnData for sample {sample_id} not found in cache. Call load_processed_adata_to_cache() first.")
+    
+    if adata_umap_title not in PROCESSED_ADATA_CACHE[sample_id]:
+        raise ValueError(f"Processed AnnData for sample {sample_id} with UMAP title {adata_umap_title} not found in cache. Call load_processed_adata_to_cache() first.")
+    
+    return PROCESSED_ADATA_CACHE[sample_id][adata_umap_title]
 
 
 def clear_adata_cache():
@@ -673,7 +689,11 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
                 'cluster': f'Cluster {cluster_labels[i]}'
             })
 
-        ADATA_CACHE[sample_id] = adata.copy()
+        # Initialize nested dictionary if it doesn't exist
+        if sample_id not in PROCESSED_ADATA_CACHE:
+            PROCESSED_ADATA_CACHE[sample_id] = {}
+        
+        PROCESSED_ADATA_CACHE[sample_id][adata_umap_title] = adata
 
         return results
     else:
@@ -706,7 +726,7 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
     
     if "adata_path" in scale_info:
         # Get cached AnnData
-        adata = get_cached_adata(sample_id)
+        adata = get_processed_adata(sample_id, adata_umap_title)
         
         # Ensure the leiden column exists and is categorical for scanpy
         leiden_col = f'leiden_{adata_umap_title}'
@@ -1100,8 +1120,9 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
     scale_info = sample_info["scales"][scale]
     
     if "adata_path" in scale_info:
-        adata = get_cached_adata(sample_id)
+        adata = get_processed_adata(sample_id, adata_umap_title)
 
+        print(adata)
         if cell_ids is not None:
             # Convert cell_ids to regular Python strings to avoid numpy string issues
             if hasattr(cell_ids, '__iter__') and not isinstance(cell_ids, str):
@@ -1117,20 +1138,6 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
         if adata.n_obs == 0:
             raise ValueError("No cells remaining after filtering. Please check your cell_ids parameter.")
 
-        # Preprocessing pipeline
-        # sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3", span=1)
-        # sc.pp.normalize_total(adata)
-        # sc.pp.log1p(adata)
-        # sc.pp.scale(adata, max_value=10)
-        # sc.tl.pca(adata, use_highly_variable=True)
-        # sc.pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcas)
-        # sc.tl.umap(adata)
-        
-        # # Store the UMAP for this subset
-        # adata.obsm[f'X_umap_{adata_umap_title}'] = adata.obsm['X_umap'].copy()
-        
-        # # Perform clustering
-        # sc.tl.leiden(adata, resolution=resolutions, key_added=f'leiden_{adata_umap_title}')
         print(adata)
         leiden_col = f'leiden_{adata_umap_title}'
         if not pd.api.types.is_categorical_dtype(adata.obs[leiden_col]):
@@ -1145,6 +1152,8 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
                 embedding_key=f'X_umap_{adata_umap_title}'
             )
 
+            print(adata_with_slingshot)
+            print(results)
             # Get cluster order based on spatial enrichment analysis
             cluster_order = get_cluster_order_by_spatial_enrichment(adata_with_slingshot, adata_umap_title)
             
