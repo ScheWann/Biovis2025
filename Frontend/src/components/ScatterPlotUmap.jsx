@@ -54,10 +54,8 @@ export const ScatterplotUmap = ({
   const [umapSettingsPosition, setUmapSettingsPosition] = useState({ x: 0, y: 0 });
 
 
-
   // State for direct Slingshot analysis
   const [selectedStartCluster, setSelectedStartCluster] = useState(null);
-  const [directSlingshotLoading, setDirectSlingshotLoading] = useState(false);
 
   // Get available clusters for the selection box
   const availableClusters = useMemo(() => {
@@ -126,7 +124,6 @@ export const ScatterplotUmap = ({
     }
 
     // Set loading state for this specific dataset
-    setDirectSlingshotLoading(true);
     setPseudotimeLoadingStates(prevStates => ({
       ...prevStates,
       [directSlingshotKey]: true
@@ -165,7 +162,6 @@ export const ScatterplotUmap = ({
       console.error("Failed to fetch direct Slingshot data", err);
     } finally {
       // Clear loading state for this specific dataset
-      setDirectSlingshotLoading(false);
       setPseudotimeLoadingStates(prevStates => ({
         ...prevStates,
         [directSlingshotKey]: false
