@@ -20,7 +20,6 @@ from scipy.stats import spearmanr
 warnings.filterwarnings("ignore")
 
 
-
 def check_r_availability():
     """
     Check if R and required packages are available for Slingshot analysis.
@@ -285,10 +284,7 @@ def run_slingshot_by_rpy2(
                         # Store lineage information as metadata instead of obs
                         lineage_paths = lineages_df.groupby("Lineage")["Cluster"].apply(list).to_dict()
                         adata.uns[f"slingshot_lineages_{embedding_key}"] = lineage_paths
-                        
-                        print(
-                            f"Slingshot analysis completed! Found {len(pseudotimes_df.columns)} trajectories"
-                        )
+
                         return adata
                     except Exception as read_error:
                         print(f"Error reading result files: {read_error}")
@@ -486,395 +482,6 @@ def run_slingshot_by_subprocess(
     except Exception as e:
         print(f"Error running Slingshot with subprocess: {e}")
         return None
-
-
-def analyze_trajectory_cluster_transitions(
-    adata, cluster_key="leiden_subset", embedding_key="X_umap_subset"
-):
-    """
-    Analyze cluster transition patterns in Slingshot trajectories.
-
-    Parameters:
-    -----------
-    adata : AnnData
-        The annotated data matrix with Slingshot results
-    cluster_key : str
-        The key in adata.obs for cluster labels
-    embedding_key : str
-        The key in adata.obsm for reduced dimension coordinates
-
-    Returns:
-    --------
-    dict
-        Dictionary containing trajectory analysis results
-    """
-    # Get pseudotime columns with embedding key
-    pseudotime_cols = [
-        col for col in adata.obs.columns if col.startswith(f"slingshot_pseudotime_{embedding_key}_")
-    ]
-
-    if not pseudotime_cols:
-        print("No Slingshot pseudotime results found")
-        return {}
-
-    print(
-        f"Analyzing cluster transition patterns for {len(pseudotime_cols)} trajectories"
-    )
-    print("=" * 60)
-
-    # Analyze cluster transitions for each trajectory
-    trajectory_analysis = {}
-
-    for i, pt_col in enumerate(pseudotime_cols):
-        lineage_num = i + 1
-        print(f"Trajectory {lineage_num} ({pt_col}):")
-        print("-" * 40)
-
-        # Get cells on this trajectory
-        valid_mask = ~np.isnan(adata.obs[pt_col])
-        if valid_mask.sum() == 0:
-            print("No valid cells")
-            continue
-
-        # Extract data for this trajectory
-        trajectory_data = adata.obs[valid_mask].copy()
-        trajectory_data = trajectory_data.sort_values(pt_col)
-
-        # Cluster distribution
-        cluster_counts = trajectory_data[cluster_key].value_counts().sort_index()
-        print(f"  Involved clusters: {', '.join(cluster_counts.index.astype(str))}")
-        print(f"  Cell count distribution: {dict(cluster_counts)}")
-
-        # Calculate average pseudotime for each cluster
-        cluster_pseudotime = trajectory_data.groupby(cluster_key)[pt_col].agg(
-            ["mean", "std", "min", "max", "count"]
-        )
-
-        # Exclude clusters with NaN average pseudotime
-        valid_clusters_mask = ~np.isnan(cluster_pseudotime["mean"])
-        cluster_pseudotime_filtered = cluster_pseudotime[valid_clusters_mask]
-
-        if len(cluster_pseudotime_filtered) == 0:
-            print("  Warning: No valid cluster data found for this trajectory")
-            continue
-
-        # Sort by average pseudotime
-        cluster_pseudotime_filtered = cluster_pseudotime_filtered.sort_values("mean")
-
-        print(f"  Valid clusters sorted by pseudotime:")
-        for cluster_id, row in cluster_pseudotime_filtered.iterrows():
-            std_str = f"{row['std']:.2f}" if not np.isnan(row["std"]) else "nan"
-            print(
-                f"Cluster {cluster_id}: Average pseudotime {row['mean']:.2f} ± {std_str} "
-                f"(Range: {row['min']:.2f}-{row['max']:.2f}, Cell count: {row['count']})"
-            )
-
-        # Check for excluded clusters
-        excluded_clusters = cluster_pseudotime[~valid_clusters_mask]
-        if len(excluded_clusters) > 0:
-            print(
-                f"Excluded clusters (NaN average pseudotime): {', '.join([str(c) for c in excluded_clusters.index])}"
-            )
-
-        # Infer transition order (only include valid clusters)
-        ordered_clusters = cluster_pseudotime_filtered.index.tolist()
-        if len(ordered_clusters) > 1:
-            transitions = " → ".join([str(c) for c in ordered_clusters])
-            print(f"Inferred trajectory: {transitions}")
-        elif len(ordered_clusters) == 1:
-            print(f"Single cluster trajectory: {ordered_clusters[0]}")
-
-        # Save analysis results
-        trajectory_analysis[f"lineage_{lineage_num}"] = {
-            "clusters_involved": ordered_clusters,
-            "transition_path": ordered_clusters,
-            "cluster_stats": cluster_pseudotime_filtered,
-            "excluded_clusters": (
-                excluded_clusters.index.tolist() if len(excluded_clusters) > 0 else []
-            ),
-            "total_cells": valid_mask.sum(),
-            "valid_clusters_count": len(ordered_clusters),
-        }
-
-    return trajectory_analysis
-
-
-def analyze_trajectory_relationships(trajectory_analysis):
-    """
-    Analyze relationships between trajectories to find subsets and branching points.
-
-    Parameters:
-    -----------
-    trajectory_analysis : dict
-        Dictionary containing trajectory analysis results
-
-    Returns:
-    --------
-    list
-        List of relationships between trajectories
-    """
-    print("=" * 60)
-
-    relationships = []
-    all_lineages = list(trajectory_analysis.keys())
-
-    # Check each pair of trajectories for subset or branching relationships
-    for i, lineage1 in enumerate(all_lineages):
-        for j, lineage2 in enumerate(all_lineages):
-            if i >= j:
-                continue
-
-            path1 = trajectory_analysis[lineage1]["clusters_involved"]
-            path2 = trajectory_analysis[lineage2]["clusters_involved"]
-
-            # Check for subset relationship
-            if is_subpath(path1, path2):
-                relationships.append(
-                    {
-                        "type": "subset",
-                        "shorter": lineage1,
-                        "longer": lineage2,
-                        "shorter_path": path1,
-                        "longer_path": path2,
-                        "divergence_point": len(path1),
-                        "extension": path2[len(path1) :],
-                    }
-                )
-            elif is_subpath(path2, path1):
-                relationships.append(
-                    {
-                        "type": "subset",
-                        "shorter": lineage2,
-                        "longer": lineage1,
-                        "shorter_path": path2,
-                        "longer_path": path1,
-                        "divergence_point": len(path2),
-                        "extension": path1[len(path2) :],
-                    }
-                )
-            else:
-                # Check for common prefix
-                common_prefix = find_common_prefix(path1, path2)
-                if len(common_prefix) > 1:  # At least 2 common steps
-                    relationships.append(
-                        {
-                            "type": "branching",
-                            "lineage1": lineage1,
-                            "lineage2": lineage2,
-                            "path1": path1,
-                            "path2": path2,
-                            "common_prefix": common_prefix,
-                            "branch1": path1[len(common_prefix) :],
-                            "branch2": path2[len(common_prefix) :],
-                            "divergence_point": len(common_prefix),
-                        }
-                    )
-
-    # Show results
-    if not relationships:
-        print("No relationships found between trajectories.")
-        return relationships
-
-    subset_relations = [r for r in relationships if r["type"] == "subset"]
-    branching_relations = [r for r in relationships if r["type"] == "branching"]
-
-    # Show subset relationships
-    if subset_relations:
-        print("\n📦 Found subset relationships:")
-        for rel in subset_relations:
-            shorter_num = rel["shorter"].split("_")[1]
-            longer_num = rel["longer"].split("_")[1]
-            print(f"Trajectory {shorter_num} ⊆ Trajectory {longer_num}")
-            print(f"Shorter path: {' → '.join(map(str, rel['shorter_path']))}")
-            print(f"Longer path: {' → '.join(map(str, rel['longer_path']))}")
-            print(
-                f"Divergence point: Step {rel['divergence_point']} (Cluster {rel['shorter_path'][-1]})"
-            )
-            print(f"Extension: {' → '.join(map(str, rel['extension']))}")
-
-            # Analyze cell counts
-            shorter_cells = trajectory_analysis[rel["shorter"]]["total_cells"]
-            longer_cells = trajectory_analysis[rel["longer"]]["total_cells"]
-            print(
-                f"    Cell counts: Shorter ({shorter_cells}) vs Longer ({longer_cells})"
-            )
-
-    # Show branching relationships
-    if branching_relations:
-        print("Found branching relationships:")
-        for rel in branching_relations:
-            lineage1_num = rel["lineage1"].split("_")[1]
-            lineage2_num = rel["lineage2"].split("_")[1]
-            print(f"Trajectory {lineage1_num} ↔ Trajectory {lineage2_num}")
-            print(f"Common prefix: {' → '.join(map(str, rel['common_prefix']))}")
-            print(f"Branch 1: {' → '.join(map(str, rel['branch1']))}")
-            print(f"Branch 2: {' → '.join(map(str, rel['branch2']))}")
-            print(
-                f"Divergence point: Step {rel['divergence_point']} (Cluster {rel['common_prefix'][-1]})"
-            )
-
-    return relationships
-
-
-def is_subpath(shorter_path, longer_path):
-    """Check if shorter_path is a prefix of longer_path."""
-    if len(shorter_path) > len(longer_path):
-        return False
-    return shorter_path == longer_path[: len(shorter_path)]
-
-
-def find_common_prefix(path1, path2):
-    """Find the common prefix between two paths."""
-    common = []
-    for i in range(min(len(path1), len(path2))):
-        if path1[i] == path2[i]:
-            common.append(path1[i])
-        else:
-            break
-    return common
-
-
-def suggest_trajectory_merging(trajectory_analysis, relationships):
-    """
-    Based on subset relationships, suggest trajectory merging.
-
-    Parameters:
-    -----------
-    trajectory_analysis : dict
-        Dictionary containing trajectory analysis results
-    relationships : list
-        List of relationships between trajectories
-    """
-    print("=" * 50)
-
-    subset_relations = [r for r in relationships if r["type"] == "subset"]
-
-    if not subset_relations:
-        print("No subset relationships found, no merging suggestions.")
-        return
-
-    for rel in subset_relations:
-        shorter_num = rel["shorter"].split("_")[1]
-        longer_num = rel["longer"].split("_")[1]
-
-        print(f"Suggest merging Trajectory {shorter_num} and Trajectory {longer_num}:")
-        print(
-            f"Reason: Trajectory {shorter_num} is a complete subset of Trajectory {longer_num}"
-        )
-
-        # Analyze biological significance based on cell counts
-        shorter_cells = trajectory_analysis[rel["shorter"]]["total_cells"]
-        longer_cells = trajectory_analysis[rel["longer"]]["total_cells"]
-
-        if shorter_cells > longer_cells * 0.8:
-            print(f"Biological explanation: Possible early differentiation stalling")
-            print(
-                f"- Most cells remain at cluster {rel['shorter_path'][-1]} (differentiation point)"
-            )
-            print(
-                f"- Some cells continue to differentiate into {' → '.join(map(str, rel['extension']))}"
-            )
-        else:
-            print(f"Biological explanation: Possible branching differentiation")
-            print(
-                f"- Main differentiation path: {' → '.join(map(str, rel['longer_path']))}"
-            )
-            print(f"- Some cells terminate early at cluster {rel['shorter_path'][-1]}")
-
-        print(f"Unified path after merging: {' → '.join(map(str, rel['longer_path']))}")
-        print(
-            f"Key differentiation point: Cluster {rel['shorter_path'][-1]} → Cluster {rel['extension'][0] if rel['extension'] else 'N/A'}"
-        )
-
-
-def merge_subset_trajectories(
-    adata, trajectory_analysis, relationships, merge_strategy="keep_longer"
-):
-    """
-    Merge trajectories that have subset relationships.
-
-    Parameters:
-    -----------
-    adata : AnnData
-        The annotated data matrix
-    trajectory_analysis : dict
-        Dictionary containing trajectory analysis results
-    relationships : list
-        List of relationships between trajectories
-    merge_strategy : str
-        Strategy for merging ('keep_longer', 'keep_shorter', 'combine')
-
-    Returns:
-    --------
-    dict
-        Updated trajectory analysis after merging
-    """
-    print("Executing trajectory merging based on subset relationships")
-    print("=" * 50)
-
-    subset_relations = [r for r in relationships if r["type"] == "subset"]
-
-    if not subset_relations:
-        print("No subset relationships found, no merging needed.")
-        return trajectory_analysis
-
-    merged_analysis = trajectory_analysis.copy()
-
-    for rel in subset_relations:
-        shorter_key = rel["shorter"]
-        longer_key = rel["longer"]
-        shorter_num = shorter_key.split("_")[1]
-        longer_num = longer_key.split("_")[1]
-
-        print(f"Merged trajectory {shorter_num} into {longer_num}")
-
-        if merge_strategy == 'keep_longer':
-            if shorter_key in merged_analysis:
-                del merged_analysis[shorter_key]
-
-            if longer_key in merged_analysis:
-                merged_analysis[longer_key]['merger_info'] = {
-                    'merged_from': shorter_key,
-                    'divergence_point': rel['divergence_point'],
-                    'divergence_cluster': rel['shorter_path'][-1],
-                    'extension_path': rel['extension'],
-                    'cells_before_divergence': trajectory_analysis[shorter_key]['total_cells'],
-                    'cells_after_divergence': trajectory_analysis[longer_key]['total_cells'] - trajectory_analysis[shorter_key]['total_cells']
-                }
-
-        elif merge_strategy == "keep_shorter":
-            # Keep the shorter trajectory as the main path and mark the longer trajectory as an extension
-            print(
-                f"Strategy: Keep main trajectory {shorter_num}, mark trajectory {longer_num} as extension"
-            )
-            merged_analysis[shorter_key]["extension_info"] = {
-                "extended_in": longer_key,
-                "extension_path": rel["extension"],
-                "total_extended_cells": trajectory_analysis[longer_key]["total_cells"],
-            }
-            del merged_analysis[longer_key]
-
-        elif merge_strategy == "combine":
-            # Combine the paths into a new trajectory
-            combined_key = f"combined_{shorter_num}_{longer_num}"
-            merged_analysis[combined_key] = {
-                "clusters_involved": rel["longer_path"],
-                "transition_path": rel["longer_path"],
-                "main_branch": rel["shorter_path"],
-                "extension_branch": rel["extension"],
-                "divergence_point": rel["divergence_point"],
-                "divergence_cluster": rel["shorter_path"][-1],
-                "main_branch_cells": trajectory_analysis[shorter_key]["total_cells"],
-                "extension_cells": trajectory_analysis[longer_key]["total_cells"]
-                - trajectory_analysis[shorter_key]["total_cells"],
-                "total_cells": trajectory_analysis[longer_key]["total_cells"],
-                "original_trajectories": [shorter_key, longer_key],
-            }
-            # Delete the original trajectories
-            del merged_analysis[shorter_key]
-            del merged_analysis[longer_key]
-
-    return merged_analysis
 
 
 def analyze_gene_expression_along_trajectories(
@@ -1099,7 +706,6 @@ def direct_slingshot_analysis(
         pt_cols = [key for key in result_adata.uns.keys() if key.startswith(f"slingshot_pseudotime_{embedding_key}")]
         
         print(f"Analysis completed successfully!")
-        print(f"Found {len(pt_cols)} trajectories")
         
         # Basic trajectory information
         trajectory_info = {}
@@ -1138,32 +744,29 @@ def direct_slingshot_analysis(
                 
                 # Find corresponding lineage path
                 lineage_key = f"Lineage{i+1}"  # Assuming lineages are numbered starting from 1
-                if lineage_key in lineage_paths:
-                    cluster_path = lineage_paths[lineage_key]
-                    
-                    # Calculate cluster statistics for validation
-                    # Create a temporary dataframe with pseudotime and cluster info
-                    traj_data = pd.DataFrame({
-                        pt_col: result_adata.uns[pt_col][valid_mask],
-                        cluster_key: result_adata.obs[cluster_key][valid_mask]
-                    })
-                    traj_data = traj_data.sort_values(pt_col)
-                    
-                    cluster_stats = traj_data.groupby(cluster_key)[pt_col].agg([
-                        "mean", "std", "min", "max", "count"
-                    ]).sort_values("mean")
-                    
-                    cluster_transitions[traj_name] = {
-                        "ordered_clusters": cluster_path,
-                        "cluster_statistics": cluster_stats.to_dict() if not cluster_stats.empty else {},
-                        "transition_path": " → ".join([str(c) for c in cluster_path])
-                    }
-                    
-                    print(f"  {traj_name}: {cluster_transitions[traj_name]['transition_path']}")
-                else:
-                    print(f"  Warning: No lineage path found for {traj_name}")
+                cluster_path = lineage_paths[lineage_key]
+                
+                # Calculate cluster statistics for validation
+                # Create a temporary dataframe with pseudotime and cluster info
+                traj_data = pd.DataFrame({
+                    pt_col: result_adata.uns[pt_col][valid_mask],
+                    cluster_key: result_adata.obs[cluster_key][valid_mask]
+                })
+                traj_data = traj_data.sort_values(pt_col)
+                
+                cluster_stats = traj_data.groupby(cluster_key)[pt_col].agg([
+                    "mean", "std", "min", "max", "count"
+                ]).sort_values("mean")
+                
+                cluster_transitions[traj_name] = {
+                    "ordered_clusters": cluster_path,
+                    "cluster_statistics": cluster_stats.to_dict() if not cluster_stats.empty else {},
+                    "transition_path": " → ".join([str(c) for c in cluster_path])
+                }
+                
+                print(f"{traj_name}: {cluster_transitions[traj_name]['transition_path']}")
         else:
-            print(f"  Warning: No lineages data found in adata.uns['{lineages_key}']")
+            print(f"Warning: No lineages data found in adata.uns['{lineages_key}']")
             # Fallback to original method if lineages data is not available
             for traj_name, traj_info in trajectory_info.items():
                 pt_col = traj_info["pseudotime_column"]
@@ -1195,21 +798,37 @@ def direct_slingshot_analysis(
                         "transition_path": " → ".join([str(c) for c in valid_clusters.index])
                     }
                     
-                    print(f"  {traj_name}: {cluster_transitions[traj_name]['transition_path']}")
+                    print(f"{traj_name}: {cluster_transitions[traj_name]['transition_path']}")
         
-        return {
-            "adata": result_adata,
-            "start_cluster": start_cluster,
-            "trajectory_info": trajectory_info,
-            "cluster_transitions": cluster_transitions,
-            "analysis_type": "direct",
-            "parameters": {
-                "cluster_key": cluster_key,
-                "embedding_key": embedding_key,
-                "end_clusters": end_clusters,
-                **kwargs
-            }
-        }
+        # Extract path and pseudotime information for simplified return
+        result_array = []
+        
+        for traj_name, traj_data in cluster_transitions.items():
+            if "ordered_clusters" in traj_data and "cluster_statistics" in traj_data:
+                path = traj_data["ordered_clusters"]
+                cluster_stats = traj_data["cluster_statistics"]
+                
+                # Extract mean pseudotime for each cluster in the path
+                pseudotime = []
+                if cluster_stats and "mean" in cluster_stats:
+                    mean_dict = cluster_stats["mean"]
+                    for cluster in path:
+                        # Convert cluster to string for lookup since mean_dict keys are strings
+                        cluster_str = str(cluster)
+                        if cluster_str in mean_dict:
+                            pseudotime.append(mean_dict[cluster_str])
+                        else:
+                            pseudotime.append(None)
+                else:
+                    # If no mean statistics available, fill with None
+                    pseudotime = [None] * len(path)
+                
+                result_array.append({
+                    "path": path,
+                    "pseudotime": pseudotime
+                })
+        
+        return result_array
         
     except Exception as e:
         print(f"Error during Slingshot analysis: {e}")
