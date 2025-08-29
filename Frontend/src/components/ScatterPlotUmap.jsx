@@ -53,8 +53,7 @@ export const ScatterplotUmap = ({
   const [umapSettingsVisible, setUmapSettingsVisible] = useState(false);
   const [umapSettingsPosition, setUmapSettingsPosition] = useState({ x: 0, y: 0 });
 
-  // State to store cluster info for GO analysis window
-  const [currentClusterInfo, setCurrentClusterInfo] = useState(null);
+
 
   // State for direct Slingshot analysis
   const [selectedStartCluster, setSelectedStartCluster] = useState(null);
@@ -388,12 +387,6 @@ export const ScatterplotUmap = ({
               .filter(Boolean);
             setCurrentCellIds(cellIds); 
 
-            const clusterNumber = cluster.split(" ")[1];
-            setCurrentClusterInfo({
-              cluster_name: cluster,
-              cluster_number: clusterNumber
-            });
-
             fetchGOAnalysisData(sampleId, cluster, adata_umap_title);
           })
           .on("mouseenter", (event) => {
@@ -449,12 +442,6 @@ export const ScatterplotUmap = ({
           .filter(Boolean);
         
         setCurrentCellIds(cellIds); 
-
-        const clusterNumber = cluster.split(" ")[1];
-        setCurrentClusterInfo({
-          cluster_name: cluster,
-          cluster_number: clusterNumber
-        });
 
         fetchGOAnalysisData(sampleId, cluster, adata_umap_title);
       })
@@ -620,11 +607,6 @@ export const ScatterplotUmap = ({
         setSelectedCellTypes={setSelectedCellTypes}
         setCellTypeColors={setCellTypeColors}
         sampleId={sampleId}
-        clusterInfo={currentClusterInfo}
-        adata_umap_title={adata_umap_title}
-        setPseudotimeDataSets={setPseudotimeDataSets}
-        setPseudotimeLoadingStates={setPseudotimeLoadingStates}
-        pseudotimeDataSets={pseudotimeDataSets}
       />
       <UmapSettingsPopup
         visible={umapSettingsVisible}
