@@ -12,9 +12,9 @@ import networkx as nx
 import random
 import squidpy as sq
 from slingshot_simple import (
-    analyze_trajectory_cluster_transitions,
-    analyze_trajectory_relationships,
-    merge_subset_trajectories,
+    # analyze_trajectory_cluster_transitions,
+    # analyze_trajectory_relationships,
+    # merge_subset_trajectories,
     analyze_gene_expression_along_trajectories,
     direct_slingshot_analysis
 )
@@ -1152,145 +1152,31 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
 
         # Run direct Slingshot analysis with specified start cluster
         try:
-            results = direct_slingshot_analysis(
+            adata_with_slingshot, results = direct_slingshot_analysis(
                 adata,
                 start_cluster=str(start_cluster),
                 cluster_key=leiden_col,
                 embedding_key=f'X_umap_{adata_umap_title}'
             )
-            
-            if results is None:
-                raise ValueError("Direct Slingshot analysis failed")
-            
-            adata_with_slingshot = results['adata']
-            
-            # Rename pseudotime columns to include embedding key for consistency
-            pseudotime_cols = [col for col in adata_with_slingshot.obs.columns if col.startswith("slingshot_pseudotime_")]
-            print(f"Found pseudotime columns: {pseudotime_cols}")
-            
-            for col in pseudotime_cols:
-                # Extract trajectory number from column name (e.g., "slingshot_pseudotime_1" -> "1")
-                traj_num = col.replace("slingshot_pseudotime_", "")
-                new_col_name = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
-                adata_with_slingshot.obs[new_col_name] = adata_with_slingshot.obs[col]
-                print(f"Renamed {col} to {new_col_name}")
-                
-            # Analyze trajectory cluster transitions
-            trajectory_analysis = analyze_trajectory_cluster_transitions(
-                adata_with_slingshot, 
-                cluster_key=leiden_col, 
-                embedding_key=f'X_umap_{adata_umap_title}'
-            )
-            
-            # Analyze relationships between trajectories
-            relationships = analyze_trajectory_relationships(trajectory_analysis)
-            
-            # Merge subset trajectories if any exist
-            merged_analysis = merge_subset_trajectories(
-                adata_with_slingshot, 
-                trajectory_analysis, 
-                relationships, 
-                merge_strategy="keep_longer"
-            )
-            
-            print(f"Original trajectory analysis keys: {list(trajectory_analysis.keys())}")
-            print(f"Merged analysis keys: {list(merged_analysis.keys())}")
-            print(f"Number of relationships found: {len(relationships)}")
-            
-            # Convert to the expected format
-            trajectory_objects = []
-            
-            # Use merged_analysis if available, otherwise fall back to original trajectory_analysis
-            analysis_to_use = merged_analysis if merged_analysis else trajectory_analysis
-            print(f"Processing {len(analysis_to_use)} trajectories from analysis")
-            
-            for traj_key, traj_info in analysis_to_use.items():
-                print(f"Processing trajectory key: {traj_key}")
-                if "clusters_involved" in traj_info:
-                    clusters_path = traj_info["clusters_involved"]
-                    print(f"  Clusters involved: {clusters_path}")
-                    
-                    # Get the trajectory number
-                    traj_num = traj_key.split("_")[-1] if "_" in traj_key else traj_key
-                    pseudotime_col = f"slingshot_pseudotime_X_umap_{adata_umap_title}_{traj_num}"
-                    print(f"  Expected pseudotime column: {pseudotime_col}")
-                    
-                    # Calculate pseudotime for each cluster in the path
-                    path_pseudotimes = []
-                    print(f"  Checking if pseudotime column exists: {pseudotime_col in adata_with_slingshot.obs.columns}")
-                    if pseudotime_col not in adata_with_slingshot.obs.columns:
-                        print(f"  Available pseudotime columns: {[col for col in adata_with_slingshot.obs.columns if col.startswith('slingshot_pseudotime')]}")
-                        # Try to find the original column name
-                        original_col = f"slingshot_pseudotime_{traj_num}"
-                        if original_col in adata_with_slingshot.obs.columns:
-                            print(f"  Found original column: {original_col}")
-                            pseudotime_col = original_col
-                    
-                    for cluster in clusters_path:
-                        cluster_cells = adata_with_slingshot.obs[leiden_col] == str(cluster)
-                        if cluster_cells.sum() > 0 and pseudotime_col in adata_with_slingshot.obs.columns:
-                            cluster_pt = adata_with_slingshot.obs.loc[cluster_cells, pseudotime_col]
-                            valid_pt = cluster_pt.dropna()
-                            if len(valid_pt) > 0:
-                                mean_pt = float(valid_pt.mean())
-                            else:
-                                mean_pt = 0.0
-                        else:
-                            mean_pt = 0.0
-                        path_pseudotimes.append(mean_pt)
-                    
-                    # Normalize pseudotimes to [0, 1] range for this trajectory
-                    if len(path_pseudotimes) > 1:
-                        min_pt = min(path_pseudotimes)
-                        max_pt = max(path_pseudotimes)
-                        if max_pt > min_pt:
-                            normalized_pt = [(pt - min_pt) / (max_pt - min_pt) for pt in path_pseudotimes]
-                        else:
-                            normalized_pt = [0.0] * len(path_pseudotimes)
-                    else:
-                        normalized_pt = [0.0] * len(path_pseudotimes)
-                    
-                    trajectory_obj = {
-                        'path': [int(cluster) for cluster in clusters_path],
-                        'pseudotimes': [f'{pt:.3f}' for pt in normalized_pt]
-                    }
-                    trajectory_objects.append(trajectory_obj)
-                    print(f"  Added trajectory object: {trajectory_obj}")
-            
-            print(f"Total trajectory objects created: {len(trajectory_objects)}")
-            
-            # If no trajectory objects were created, create a simple one based on cluster order
-            if len(trajectory_objects) == 0:
-                print("No trajectory objects created, creating fallback trajectory...")
-                # Get all unique clusters
-                all_clusters = sorted(adata_with_slingshot.obs[leiden_col].unique())
-                if len(all_clusters) > 1:
-                    fallback_trajectory = {
-                        'path': [int(cluster) for cluster in all_clusters],
-                        'pseudotimes': [f'{i/(len(all_clusters)-1):.3f}' for i in range(len(all_clusters))]
-                    }
-                    trajectory_objects.append(fallback_trajectory)
-                    print(f"Created fallback trajectory: {fallback_trajectory}")
-            
+
             # Get cluster order based on spatial enrichment analysis
             cluster_order = get_cluster_order_by_spatial_enrichment(adata_with_slingshot, adata_umap_title)
             
             # Store the processed adata for gene expression analysis
-            global PROCESSED_ADATA_CACHE
+            # global PROCESSED_ADATA_CACHE
             
-            cache_key = f"{sample_id}_{adata_umap_title}"
-            PROCESSED_ADATA_CACHE[cache_key] = {
-                'adata': adata_with_slingshot,
-                'trajectory_analysis': analysis_to_use,
-                'leiden_col': leiden_col,
-                'cluster_order': cluster_order
-            }
-            print(f"Stored trajectory data in cache with key: {cache_key}")
+            # cache_key = f"{sample_id}_{adata_umap_title}"
+            
+            # PROCESSED_ADATA_CACHE[cache_key] = {
+            #     'cluster_order': cluster_order,
+            #     'trajectory_objects': results
+            # }
+            # print(f"Stored trajectory data in cache with key: {cache_key}")
             
             # Return object with cluster_order and trajectory_objects
             return {
                 'cluster_order': cluster_order,
-                'trajectory_objects': trajectory_objects
+                'trajectory_objects': results
             }
             
         except Exception as e:
