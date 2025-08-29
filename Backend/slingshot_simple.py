@@ -1,9 +1,5 @@
 """
 Slingshot Trajectory and Gene Analysis Module
-
-This module contains functions extracted from the slingshot_real.ipynb notebook
-for trajectory inference using Slingshot and gene expression analysis along trajectories.
-Visualization functions have been removed for backend compatibility.
 """
 
 import pandas as pd
@@ -237,13 +233,18 @@ def run_slingshot_by_rpy2(
                     r_cmd += 'sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP")\n'
 
                 r_cmd += f"""
-
                     # Get result
                     pseudotimes <- slingPseudotime(sce)
-                    weights <- slingCurveWeights(sce)
+                    lineages <- slingLineages(sce)
 
-                    write.csv(pseudotimes, \"{temp_dir}/pseudotimes.csv\")
-                    write.csv(weights, \"{temp_dir}/weights.csv\")
+                    write.csv(pseudotimes, "{temp_dir}/pseudotimes.csv")
+
+                    # lineage list
+                    lineages_df <- data.frame(
+                        Lineage = rep(names(lineages), lengths(lineages)),
+                        Cluster = unlist(lineages)
+                    )
+                    write.csv(lineages_df, "{temp_dir}/lineages.csv", row.names=FALSE)
                     
                     # Return number of trajectories
                     n_lineages <- ncol(pseudotimes)
@@ -251,9 +252,6 @@ def run_slingshot_by_rpy2(
                     
                 }}, error = function(e) {{
                     cat("R Error:", conditionMessage(e), "\\n")
-                    # Create empty result files to indicate failure
-                    write.csv(data.frame(), \"{temp_dir}/pseudotimes.csv\")
-                    write.csv(data.frame(), \"{temp_dir}/weights.csv\")
                 }})
                 """
 
@@ -267,27 +265,27 @@ def run_slingshot_by_rpy2(
                 print("Reading results...")
 
                 pseudotimes_file = os.path.join(temp_dir, "pseudotimes.csv")
-                weights_file = os.path.join(temp_dir, "weights.csv")
+                # weights_file = os.path.join(temp_dir, "weights.csv")
+                lineages_file = os.path.join(temp_dir, "lineages.csv")
 
                 if os.path.exists(pseudotimes_file):
                     try:
                         pseudotimes_df = pd.read_csv(pseudotimes_file, index_col=0)
-                        weights_df = pd.read_csv(weights_file, index_col=0)
+                        lineages_df = pd.read_csv(lineages_file, index_col=0)
 
                         # Check if results are empty (indicating R error)
-                        if pseudotimes_df.empty or weights_df.empty:
+                        if pseudotimes_df.empty or lineages_df.empty:
                             print("R analysis failed - empty results returned")
                             return None
 
                         # Add to adata
                         for i, col in enumerate(pseudotimes_df.columns):
-                            adata.obs[f"slingshot_pseudotime_{i+1}"] = pseudotimes_df.iloc[
-                                :, i
-                            ].values
+                            adata.obs[f"slingshot_pseudotime_{embedding_key}_{col}"] = pseudotimes_df.iloc[:, i].values
 
-                        for i, col in enumerate(weights_df.columns):
-                            adata.obs[f"slingshot_weight_{i+1}"] = weights_df.iloc[:, i].values
-
+                        # Store lineage information as metadata instead of obs
+                        lineage_paths = lineages_df.groupby("Lineage")["Cluster"].apply(list).to_dict()
+                        adata.uns[f"slingshot_lineages_{embedding_key}"] = lineage_paths
+                        
                         print(
                             f"Slingshot analysis completed! Found {len(pseudotimes_df.columns)} trajectories"
                         )
@@ -405,11 +403,17 @@ def run_slingshot_by_subprocess(
             r_script += f'''
                     # Get results
                     pseudotimes <- slingPseudotime(sce)
-                    weights <- slingCurveWeights(sce)
+                    lineages <- slingLineages(sce)
 
                     # Save results
                     write.csv(pseudotimes, "{temp_dir}/pseudotimes.csv")
-                    write.csv(weights, "{temp_dir}/weights.csv")
+
+                    # lineage list
+                    lineages_df <- data.frame(
+                        Lineage = rep(names(lineages), lengths(lineages)),
+                        Cluster = unlist(lineages)
+                    )
+                    write.csv(lineages_df, "{temp_dir}/lineages.csv", row.names=FALSE)
 
                     # Print number of trajectories
                     n_lineages <- ncol(pseudotimes)
@@ -449,26 +453,24 @@ def run_slingshot_by_subprocess(
 
             # Read results
             pseudotimes_file = os.path.join(temp_dir, "pseudotimes.csv")
-            weights_file = os.path.join(temp_dir, "weights.csv")
+            lineages_file = os.path.join(temp_dir, "lineages.csv")
 
             if os.path.exists(pseudotimes_file):
                 try:
                     pseudotimes_df = pd.read_csv(pseudotimes_file, index_col=0)
-                    weights_df = pd.read_csv(weights_file, index_col=0)
+                    lineages_df = pd.read_csv(lineages_file, index_col=0)
 
                     # Check if results are empty
-                    if pseudotimes_df.empty or weights_df.empty:
+                    if pseudotimes_df.empty or lineages_df.empty:
                         print("R analysis failed - empty results returned")
                         return None
 
                     # Add to adata
                     for i, col in enumerate(pseudotimes_df.columns):
-                        adata.obs[f"slingshot_pseudotime_{i+1}"] = pseudotimes_df.iloc[
-                            :, i
-                        ].values
+                        adata.obs[f"slingshot_pseudotime_{embedding_key}_{col}"] = pseudotimes_df.iloc[:, i].values
 
-                    for i, col in enumerate(weights_df.columns):
-                        adata.obs[f"slingshot_weight_{i+1}"] = weights_df.iloc[:, i].values
+                    lineage_paths = lineages_df.groupby("Lineage")["Cluster"].apply(list).to_dict()
+                    adata.uns[f"slingshot_lineages_{embedding_key}"] = lineage_paths
 
                     print(
                         f"Slingshot analysis completed via subprocess! Found {len(pseudotimes_df.columns)} trajectories"
