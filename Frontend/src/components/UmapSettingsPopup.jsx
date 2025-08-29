@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Input, Button, AutoComplete } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Input, Button, AutoComplete, Select } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
 
 export const UmapSettingsPopup = ({
@@ -11,7 +11,13 @@ export const UmapSettingsPopup = ({
   sampleId,
   cellIds,
   adata_umap_title,
-  currentTitle
+  currentTitle,
+  data,
+  clusterAccessor,
+  setPseudotimeDataSets,
+  setPseudotimeLoadingStates,
+  pseudotimeDataSets,
+  pseudotimeLoadingStates
 }) => {
   const [settings, setSettings] = useState({
     n_neighbors: 10,
@@ -20,6 +26,128 @@ export const UmapSettingsPopup = ({
   });
   const [umapName, setUmapName] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // State for direct Slingshot analysis
+  const [selectedStartCluster, setSelectedStartCluster] = useState(null);
+
+  // Get available clusters for the selection box
+  const availableClusters = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    
+    const clusters = Array.from(new Set(data.map(clusterAccessor))).sort((a, b) => {
+      const numA = parseInt(a.toString().replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.toString().replace(/\D/g, '')) || 0;
+      return numA - numB;
+    });
+    
+    return clusters.map(cluster => ({
+      value: cluster,
+      label: cluster
+    }));
+  }, [data, clusterAccessor]);
+
+  // Function to handle direct Slingshot analysis
+  const handleDirectSlingshot = async () => {
+    if (!selectedStartCluster || !adata_umap_title || !setPseudotimeDataSets || !setPseudotimeLoadingStates) {
+      console.warn("Missing required data for direct Slingshot analysis");
+      return;
+    }
+
+    // Extract cluster number from selected cluster
+    const clusterNumber = selectedStartCluster.toString().replace(/\D/g, '');
+    if (!clusterNumber) {
+      console.warn("No cluster number found in selected cluster");
+      return;
+    }
+
+    // Parse parameters from adata_umap_title
+    let n_neighbors = 15;
+    let n_pcas = 30;
+    let resolutions = 1;
+
+    try {
+      const parts = adata_umap_title.split('_');
+      if (parts.length >= 5) {
+        // Extract the last 3 parts as the parameters
+        n_neighbors = parseInt(parts[parts.length - 3]) || 15;
+        n_pcas = parseInt(parts[parts.length - 2]) || 30;
+        resolutions = parseFloat(parts[parts.length - 1]) || 1;
+      }
+    } catch (error) {
+      console.warn("Could not parse parameters from adata_umap_title, using defaults", error);
+    }
+
+    // Create a unique key for direct slingshot data
+    const directSlingshotKey = `${adata_umap_title}_direct_slingshot`;
+
+    // Check if data for this direct slingshot key already exists in cache
+    if (pseudotimeDataSets && pseudotimeDataSets[directSlingshotKey]) {
+      setPseudotimeLoadingStates(prevStates => ({
+        ...prevStates,
+        [directSlingshotKey]: true
+      }));
+      setPseudotimeDataSets(prevDataSets => ({ ...prevDataSets }));
+      setTimeout(() => {
+        setPseudotimeLoadingStates(prevStates => ({
+          ...prevStates,
+          [directSlingshotKey]: false
+        }));
+      }, 0);
+      return;
+    }
+
+    // Set loading state for this specific dataset
+    setPseudotimeLoadingStates(prevStates => ({
+      ...prevStates,
+      [directSlingshotKey]: true
+    }));
+
+    try {
+      const res = await fetch("/api/get_direct_slingshot_data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sample_id: sampleId,
+          cell_ids: data.map(d => d.id || d.cell_id).filter(Boolean),
+          adata_umap_title: adata_umap_title,
+          start_cluster: clusterNumber,
+          n_neighbors: n_neighbors,
+          n_pcas: n_pcas,
+          resolutions: resolutions,
+        }),
+      });
+      const responseData = await res.json();
+
+      if (responseData.error) {
+        console.error("Direct Slingshot analysis failed:", responseData.error);
+        return;
+      }
+
+      // Add the new data to the datasets object with the unique key
+      setPseudotimeDataSets(prevDataSets => {
+        const newDataSets = {
+          ...prevDataSets,
+          [directSlingshotKey]: responseData
+        };
+        return newDataSets;
+      });
+    } catch (err) {
+      console.error("Failed to fetch direct Slingshot data", err);
+    } finally {
+      // Clear loading state for this specific dataset
+      setPseudotimeLoadingStates(prevStates => ({
+        ...prevStates,
+        [directSlingshotKey]: false
+      }));
+    }
+  };
+
+  // Get loading state for direct slingshot
+  const directSlingshotLoading = useMemo(() => {
+    if (!pseudotimeLoadingStates || !adata_umap_title) return false;
+    const directSlingshotKey = `${adata_umap_title}_direct_slingshot`;
+    return pseudotimeLoadingStates[directSlingshotKey] || false;
+  }, [pseudotimeLoadingStates, adata_umap_title]);
 
   // Initialize settings from current adata_umap_title when popup opens
   useEffect(() => {
@@ -357,6 +485,57 @@ export const UmapSettingsPopup = ({
         >
           {loading ? 'Updating...' : 'Update UMAP'}
         </Button>
+
+        {/* Direct Slingshot Controls */}
+        <div style={{ 
+          marginTop: 12, 
+          paddingTop: 12, 
+          borderTop: '1px solid #f0f0f0' 
+        }}>
+          <div style={{
+            fontWeight: 'bold',
+            marginBottom: 8,
+            fontSize: 12,
+            color: '#262626',
+            textAlign: 'left'
+          }}>
+            Direct Slingshot Analysis
+          </div>
+          
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{
+                fontSize: 12,
+                fontWeight: 500,
+                color: '#595959',
+                minWidth: '100px',
+                textAlign: 'left'
+              }}>
+                Start Cluster:
+              </label>
+              <Select
+                placeholder="Select start cluster"
+                value={selectedStartCluster}
+                onChange={setSelectedStartCluster}
+                style={{ flex: 1 }}
+                size="small"
+                options={availableClusters}
+                allowClear
+              />
+            </div>
+          </div>
+
+          <Button
+            onClick={handleDirectSlingshot}
+            disabled={!selectedStartCluster || directSlingshotLoading}
+            loading={directSlingshotLoading}
+            type="primary"
+            size="small"
+            style={{ width: '100%' }}
+          >
+            {directSlingshotLoading ? 'Running...' : 'Run Slingshot'}
+          </Button>
+        </div>
       </div>
     </>
   );

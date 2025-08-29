@@ -23,6 +23,7 @@ export const UmapComponent = ({
   cellTypeColors,
   setCellTypeColors,
   pseudotimeDataSets,
+  pseudotimeLoadingStates,
   onUmapDataUpdate,
   onUmapLoadingStart,
   isUpdating = false
@@ -71,6 +72,7 @@ export const UmapComponent = ({
           cellTypeColors={cellTypeColors}
           setCellTypeColors={setCellTypeColors}
           pseudotimeDataSets={pseudotimeDataSets}
+          pseudotimeLoadingStates={pseudotimeLoadingStates}
           onUmapDataUpdate={onUmapDataUpdate}
           onUmapLoadingStart={onUmapLoadingStart}
         />

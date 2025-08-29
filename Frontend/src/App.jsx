@@ -515,6 +515,7 @@ function App() {
                                       cellTypeColors={cellTypeColors}
                                       setCellTypeColors={setCellTypeColors}
                                       pseudotimeDataSets={pseudotimeDataSets}
+                                      pseudotimeLoadingStates={pseudotimeLoadingStates}
                                       onUmapDataUpdate={(newData, newAdataUmapTitle, newSettings, newName) => 
                                         handleUmapDataUpdate(newData, newAdataUmapTitle, newSettings, newName, dataset.id)
                                       }
