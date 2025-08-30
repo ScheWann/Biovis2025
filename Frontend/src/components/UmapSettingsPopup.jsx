@@ -48,17 +48,13 @@ export const UmapSettingsPopup = ({
 
   // Function to handle direct Slingshot analysis
   const handleDirectSlingshot = async () => {
-    if (!selectedStartCluster || !adata_umap_title || !setPseudotimeDataSets || !setPseudotimeLoadingStates) {
+    if (!adata_umap_title || !setPseudotimeDataSets || !setPseudotimeLoadingStates) {
       console.warn("Missing required data for direct Slingshot analysis");
       return;
     }
 
-    // Extract cluster number from selected cluster
-    const clusterNumber = selectedStartCluster.toString().replace(/\D/g, '');
-    if (!clusterNumber) {
-      console.warn("No cluster number found in selected cluster");
-      return;
-    }
+    // Extract cluster number from selected cluster (can be empty)
+    const clusterNumber = selectedStartCluster ? selectedStartCluster.toString().replace(/\D/g, '') : '';
 
     // Parse parameters from adata_umap_title
     let n_neighbors = 15;
@@ -103,18 +99,25 @@ export const UmapSettingsPopup = ({
     }));
 
     try {
+      // Prepare request body without start_cluster if it's empty
+      const requestBody = {
+        sample_id: sampleId,
+        cell_ids: data.map(d => d.id || d.cell_id).filter(Boolean),
+        adata_umap_title: adata_umap_title,
+        n_neighbors: n_neighbors,
+        n_pcas: n_pcas,
+        resolutions: resolutions,
+      };
+
+      // Only add start_cluster if clusterNumber is not empty
+      if (clusterNumber) {
+        requestBody.start_cluster = clusterNumber;
+      }
+
       const res = await fetch("/api/get_direct_slingshot_data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sample_id: sampleId,
-          cell_ids: data.map(d => d.id || d.cell_id).filter(Boolean),
-          adata_umap_title: adata_umap_title,
-          start_cluster: clusterNumber,
-          n_neighbors: n_neighbors,
-          n_pcas: n_pcas,
-          resolutions: resolutions,
-        }),
+        body: JSON.stringify(requestBody),
       });
       const responseData = await res.json();
 
@@ -527,7 +530,7 @@ export const UmapSettingsPopup = ({
 
           <Button
             onClick={handleDirectSlingshot}
-            disabled={!selectedStartCluster || directSlingshotLoading}
+            disabled={directSlingshotLoading}
             loading={directSlingshotLoading}
             type="primary"
             size="small"

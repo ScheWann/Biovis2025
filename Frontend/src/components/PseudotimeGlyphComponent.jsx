@@ -613,7 +613,7 @@ export const PseudotimeGlyphComponent = ({
             <div style={{
                 top: '5px',
                 right: '10px',
-                zIndex: 1000,
+                zIndex: 999,
                 display: 'flex',
                 gap: '8px',
                 alignItems: 'center',

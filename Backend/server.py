@@ -404,12 +404,12 @@ def upload_spaceranger():
 @app.route("/api/get_direct_slingshot_data", methods=["POST"])
 def get_direct_slingshot_data_route():
     """
-    Generate direct Slingshot analysis data with a specified start cluster
+    Generate direct Slingshot analysis data with an optional start cluster
     """
     sample_id = request.json["sample_id"]
     cell_ids = request.json["cell_ids"]
     adata_umap_title = request.json["adata_umap_title"]
-    start_cluster = request.json["start_cluster"]
+    start_cluster = request.json.get("start_cluster", None)  # Optional parameter
     n_neighbors = request.json.get("n_neighbors", 15)
     n_pcas = request.json.get("n_pcas", 30)
     resolutions = request.json.get("resolutions", 1)

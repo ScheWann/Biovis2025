@@ -1094,15 +1094,15 @@ def get_trajectory_data(sample_id, selected_genes=None, is_vertical=False):
 #         raise ValueError(f"No gene expression data available for sample {sample_id}")
 
 
-def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_cluster, n_neighbors=15, n_pcas=30, resolutions=1):
+def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_cluster=None, n_neighbors=15, n_pcas=30, resolutions=1):
     """
-    Get direct Slingshot analysis data with a specified start cluster.
+    Get direct Slingshot analysis data with an optional start cluster.
     
     Parameters:
     - sample_id: ID of the sample
     - cell_ids: List of cell IDs to analyze
     - adata_umap_title: Title for the UMAP analysis
-    - start_cluster: The cluster ID to use as the starting point for trajectory analysis
+    - start_cluster: The cluster ID to use as the starting point for trajectory analysis (optional)
     - n_neighbors: Number of neighbors for neighbor graph construction (default: 15)
     - n_pcas: Number of principal components to use (default: 30)
     - resolutions: Resolution parameter for Leiden clustering (default: 1)
@@ -1143,14 +1143,19 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
         if not pd.api.types.is_categorical_dtype(adata.obs[leiden_col]):
             adata.obs[leiden_col] = adata.obs[leiden_col].astype('category')
 
-        # Run direct Slingshot analysis with specified start cluster
+        # Run direct Slingshot analysis with optional start cluster
         try:
-            adata_with_slingshot, results = direct_slingshot_analysis(
-                adata,
-                start_cluster=str(start_cluster),
-                cluster_key=leiden_col,
-                embedding_key=f'X_umap_{adata_umap_title}'
-            )
+            # Only pass start_cluster if it's not None
+            analysis_kwargs = {
+                'adata': adata,
+                'cluster_key': leiden_col,
+                'embedding_key': f'X_umap_{adata_umap_title}'
+            }
+            
+            if start_cluster is not None:
+                analysis_kwargs['start_cluster'] = str(start_cluster)
+            
+            adata_with_slingshot, results = direct_slingshot_analysis(**analysis_kwargs)
 
             print(adata_with_slingshot)
             print(results)

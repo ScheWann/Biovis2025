@@ -1944,25 +1944,28 @@ def analyze_gene_expression_along_trajectories(
 
 def direct_slingshot_analysis(
     adata,
-    start_cluster,
+    start_cluster=None,
     cluster_key="leiden",
     embedding_key="X_umap",
     end_clusters=None,
     **kwargs
 ):
     """
-    Direct Slingshot Analysis with a specified start cluster.
+    Direct Slingshot Analysis with an optional start cluster.
     
     This function bypasses the intelligent analysis workflow and directly runs
     Slingshot with the specified starting cluster. Use this when you already
     know which cluster should be the starting point for trajectory analysis.
+    If no start_cluster is provided, Slingshot will automatically determine
+    the starting point.
     
     Parameters:
     -----------
     adata : AnnData
         Single-cell data
-    start_cluster : str or int
-        The cluster ID to use as the starting point for trajectory analysis
+    start_cluster : str or int, optional
+        The cluster ID to use as the starting point for trajectory analysis.
+        If None, Slingshot will automatically determine the starting point.
     cluster_key : str
         Clustering information key in adata.obs
     embedding_key : str
@@ -1980,7 +1983,10 @@ def direct_slingshot_analysis(
     
     print("=====Direct Slingshot Analysis=====")
     print("=" * 50)
-    print(f"Start cluster: {start_cluster}")
+    if start_cluster is not None:
+        print(f"Start cluster: {start_cluster}")
+    else:
+        print("Start cluster: Auto-determined by Slingshot")
     print(f"Cluster key: {cluster_key}")
     print(f"Embedding key: {embedding_key}")
     if end_clusters:
@@ -1989,22 +1995,23 @@ def direct_slingshot_analysis(
         print("End clusters: Auto-determined by Slingshot")
     print("=" * 50)
     
-    # Validate start_cluster exists in the data
-    unique_clusters = adata.obs[cluster_key].unique()
-    unique_clusters = [str(c) for c in unique_clusters if pd.notna(c)]
-    
-    if str(start_cluster) not in unique_clusters:
-        print(f"Error: Start cluster '{start_cluster}' not found in data.")
-        print(f"Available clusters: {unique_clusters}")
-        return None
-    
-    # Check cluster size
-    cluster_mask = adata.obs[cluster_key] == start_cluster
-    cluster_size = cluster_mask.sum()
-    print(f"Start cluster size: {cluster_size} cells")
-    
-    if cluster_size < 5:
-        print(f"Warning: Start cluster has only {cluster_size} cells, which may be too small for reliable trajectory analysis.")
+    # Validate start_cluster exists in the data (only if provided)
+    if start_cluster is not None:
+        unique_clusters = adata.obs[cluster_key].unique()
+        unique_clusters = [str(c) for c in unique_clusters if pd.notna(c)]
+        
+        if str(start_cluster) not in unique_clusters:
+            print(f"Error: Start cluster '{start_cluster}' not found in data.")
+            print(f"Available clusters: {unique_clusters}")
+            return None
+        
+        # Check cluster size
+        cluster_mask = adata.obs[cluster_key] == start_cluster
+        cluster_size = cluster_mask.sum()
+        print(f"Start cluster size: {cluster_size} cells")
+        
+        if cluster_size < 5:
+            print(f"Warning: Start cluster has only {cluster_size} cells, which may be too small for reliable trajectory analysis.")
     
     # Validate embedding exists
     if embedding_key not in adata.obsm:
@@ -2015,14 +2022,20 @@ def direct_slingshot_analysis(
     # Run Slingshot analysis directly
     print("Running Slingshot analysis...")
     try:
-        result_adata = run_slingshot_via_rpy2_improved(
-            adata.copy(),
-            cluster_key=cluster_key,
-            embedding_key=embedding_key,
-            start_cluster=str(start_cluster),
-            end_clusters=end_clusters,
+        # Prepare arguments for run_slingshot_via_rpy2_improved
+        slingshot_kwargs = {
+            'adata': adata.copy(),
+            'cluster_key': cluster_key,
+            'embedding_key': embedding_key,
+            'end_clusters': end_clusters,
             **kwargs
-        )
+        }
+        
+        # Only add start_cluster if it's provided
+        if start_cluster is not None:
+            slingshot_kwargs['start_cluster'] = str(start_cluster)
+        
+        result_adata = run_slingshot_via_rpy2_improved(**slingshot_kwargs)
         
         if result_adata is None:
             print("Slingshot analysis failed.")
@@ -2105,7 +2118,7 @@ def direct_slingshot_analysis(
 
 def quick_slingshot_analysis(
     adata,
-    start_cluster,
+    start_cluster=None,
     cluster_key="leiden",
     embedding_key="X_umap",
     **kwargs
@@ -2120,8 +2133,9 @@ def quick_slingshot_analysis(
     -----------
     adata : AnnData
         Single-cell data
-    start_cluster : str or int
-        The cluster ID to use as the starting point
+    start_cluster : str or int, optional
+        The cluster ID to use as the starting point. If None, Slingshot will
+        automatically determine the starting point.
     cluster_key : str
         Clustering information key
     embedding_key : str
@@ -2134,16 +2148,25 @@ def quick_slingshot_analysis(
     AnnData or None : Updated AnnData with pseudotime information, or None if failed
     """
     
-    print(f"Quick Slingshot analysis with start cluster: {start_cluster}")
+    if start_cluster is not None:
+        print(f"Quick Slingshot analysis with start cluster: {start_cluster}")
+    else:
+        print("Quick Slingshot analysis with auto-determined start cluster")
     
     try:
-        result_adata = run_slingshot_via_rpy2_improved(
-            adata.copy(),
-            cluster_key=cluster_key,
-            embedding_key=embedding_key,
-            start_cluster=str(start_cluster),
+        # Prepare arguments for run_slingshot_via_rpy2_improved
+        slingshot_kwargs = {
+            'adata': adata.copy(),
+            'cluster_key': cluster_key,
+            'embedding_key': embedding_key,
             **kwargs
-        )
+        }
+        
+        # Only add start_cluster if it's provided
+        if start_cluster is not None:
+            slingshot_kwargs['start_cluster'] = str(start_cluster)
+        
+        result_adata = run_slingshot_via_rpy2_improved(**slingshot_kwargs)
         
         if result_adata is not None:
             pt_cols = [col for col in result_adata.obs.columns if col.startswith("slingshot_pseudotime")]
