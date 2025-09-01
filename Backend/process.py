@@ -936,6 +936,11 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
             
             PROCESSED_ADATA_CACHE[sample_id][adata_umap_title] = adata_with_slingshot
             
+            # Store trajectory results in the cache for later use
+            if 'trajectory_results' not in PROCESSED_ADATA_CACHE[sample_id]:
+                PROCESSED_ADATA_CACHE[sample_id]['trajectory_results'] = {}
+            PROCESSED_ADATA_CACHE[sample_id]['trajectory_results'][adata_umap_title] = results
+            
             print(adata_with_slingshot)
             # Get cluster order based on spatial enrichment analysis
             cluster_order = get_cluster_order_by_spatial_enrichment(adata_with_slingshot, adata_umap_title)
@@ -954,7 +959,7 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
 
 def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, trajectory_path):
     """
-    Get gene expression data along a specific trajectory path.
+    Get gene expression data along a specific trajectory path using pre-calculated pseudotime values.
     
     Parameters:
     - sample_id: ID of the sample
@@ -988,31 +993,6 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
     if not available_genes:
         raise ValueError("No valid genes found in dataset")
     
-    # Find available pseudotime columns in uns
-    available_pseudotime_cols = [col for col in adata.uns.keys() if col.startswith("slingshot_pseudotime")]
-    print(f"Available pseudotime columns: {available_pseudotime_cols}")
-    
-    if not available_pseudotime_cols:
-        raise ValueError("No pseudotime data found in the dataset")
-    
-    # Use the first available pseudotime column (you might want to make this configurable)
-    # If multiple lineages exist, prefer Lineage1
-    pseudotime_col = available_pseudotime_cols[0]
-    if len(available_pseudotime_cols) > 1:
-        # Try to find Lineage1 first
-        lineage1_cols = [col for col in available_pseudotime_cols if "Lineage1" in col]
-        if lineage1_cols:
-            pseudotime_col = lineage1_cols[0]
-        else:
-            # If no Lineage1, use the first one but warn
-            print(f"Multiple lineages found: {available_pseudotime_cols}")
-            print(f"Using first lineage: {pseudotime_col}")
-    
-    print(f"Using pseudotime column: {pseudotime_col}")
-    
-    # Get the pseudotime values
-    pseudotime_values = adata.uns[pseudotime_col]
-    
     # Get the leiden column name
     leiden_col = f'leiden_{adata_umap_title}'
     if leiden_col not in adata.obs.columns:
@@ -1022,6 +1002,71 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
             leiden_col = leiden_cols[0]
         else:
             raise ValueError("No leiden clustering column found in the dataset")
+    
+    # Try to get trajectory results from cache first (preferred method)
+    trajectory_results = None
+    if 'trajectory_results' in PROCESSED_ADATA_CACHE[sample_id] and adata_umap_title in PROCESSED_ADATA_CACHE[sample_id]['trajectory_results']:
+        trajectory_results = PROCESSED_ADATA_CACHE[sample_id]['trajectory_results'][adata_umap_title]
+        print("Using cached trajectory results for pseudotime values")
+    
+    if trajectory_results and isinstance(trajectory_results, list) and len(trajectory_results) > 0:
+        # Use the first trajectory result (you might want to make this configurable)
+        trajectory_result = trajectory_results[0]
+        
+        # Extract cluster path and pseudotime values
+        if 'path' in trajectory_result and 'pseudotime' in trajectory_result:
+            cluster_path = trajectory_result['path']
+            pseudotime_values = trajectory_result['pseudotime']
+        elif 'correction_info' in trajectory_result:
+            # Use corrected pseudotime if available
+            cluster_path = trajectory_result['correction_info']['trajectory_path']
+            pseudotime_values = trajectory_result['correction_info']['corrected_pseudotime']
+        else:
+            print("Warning: No valid trajectory path or pseudotime data found in cached results")
+            trajectory_results = None
+        
+        if trajectory_results:
+            # Create a mapping from cluster to pseudotime
+            cluster_pseudotime_map = {}
+            for cluster, pseudotime in zip(cluster_path, pseudotime_values):
+                cluster_pseudotime_map[str(cluster)] = pseudotime
+    
+    # Fallback: Try to find pseudotime data in the AnnData object
+    if not trajectory_results:
+        available_pseudotime_cols = [col for col in adata.uns.keys() if col.startswith("slingshot_pseudotime")]
+        
+        if available_pseudotime_cols:
+            # Use the first available pseudotime column
+            pseudotime_col = available_pseudotime_cols[0]
+            if len(available_pseudotime_cols) > 1:
+                # Try to find Lineage1 first
+                lineage1_cols = [col for col in available_pseudotime_cols if "Lineage1" in col]
+                if lineage1_cols:
+                    pseudotime_col = lineage1_cols[0]
+            
+            print(f"Using pseudotime column: {pseudotime_col}")
+            pseudotime_values = adata.uns[pseudotime_col]
+            
+            # Create a mapping from cluster to pseudotime
+            cluster_pseudotime_map = {}
+            cluster_labels = adata.obs[leiden_col].astype(str)
+            
+            for i, cluster in enumerate(cluster_labels):
+                if cluster not in cluster_pseudotime_map:
+                    cluster_pseudotime_map[cluster] = []
+                cluster_pseudotime_map[cluster].append(pseudotime_values[i])
+            
+            # Calculate mean pseudotime for each cluster
+            for cluster in cluster_pseudotime_map:
+                cluster_pseudotime_map[cluster] = np.mean(cluster_pseudotime_map[cluster])
+        
+        else:
+            # If no slingshot pseudotime data, try to use the trajectory_path order as a proxy
+            # This is a fallback that assumes the trajectory_path order represents temporal progression
+            print("No slingshot pseudotime data found. Using trajectory path order as temporal proxy.")
+            cluster_pseudotime_map = {}
+            for i, cluster in enumerate(trajectory_path):
+                cluster_pseudotime_map[str(cluster)] = float(i)
     
     # Analyze gene expression along the trajectory
     result_data = []
@@ -1036,49 +1081,22 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
         else:
             gene_expr = adata.X[:, gene_idx]
         
-        # Get cluster labels and pseudotime values
+        # Get cluster labels
         cluster_labels = adata.obs[leiden_col].astype(str)
-        pseudotime = pseudotime_values
-        
-        # Create a mapping from cluster to pseudotime
-        cluster_pseudotime_map = {}
-        for i, cluster in enumerate(cluster_labels):
-            if cluster not in cluster_pseudotime_map:
-                cluster_pseudotime_map[cluster] = []
-            cluster_pseudotime_map[cluster].append(pseudotime[i])
-        
-        # Calculate mean pseudotime for each cluster
-        cluster_mean_pseudotime = {}
-        for cluster, times in cluster_pseudotime_map.items():
-            cluster_mean_pseudotime[cluster] = np.mean(times)
-        
-        # Sort clusters by pseudotime to get trajectory order
-        sorted_clusters = sorted(cluster_mean_pseudotime.items(), key=lambda x: x[1])
-        trajectory_clusters = [cluster for cluster, _ in sorted_clusters]
-        
-        # Map the input trajectory_path to the actual trajectory clusters
-        # If trajectory_path is provided, use it; otherwise use all clusters
-        if trajectory_path:
-            # Filter to only include clusters in the trajectory_path
-            valid_clusters = [str(c) for c in trajectory_path if str(c) in trajectory_clusters]
-            if not valid_clusters:
-                print(f"Warning: No clusters from trajectory_path found in dataset. Using all clusters.")
-                valid_clusters = trajectory_clusters
-        else:
-            valid_clusters = trajectory_clusters
         
         # Calculate mean expression for each cluster in the trajectory
         time_points = []
         expression_values = []
         
-        for cluster in valid_clusters:
-            if cluster in cluster_mean_pseudotime:
-                cluster_cells = cluster_labels == cluster
+        for cluster in trajectory_path:
+            cluster_str = str(cluster)
+            if cluster_str in cluster_pseudotime_map:
+                cluster_cells = cluster_labels == cluster_str
                 if cluster_cells.sum() > 0:
                     # Get gene expression for this cluster
                     cluster_expr = gene_expr[cluster_cells]
                     mean_expr = float(np.mean(cluster_expr))
-                    time_point = cluster_mean_pseudotime[cluster]
+                    time_point = cluster_pseudotime_map[cluster_str]
                     
                     time_points.append(time_point)
                     expression_values.append(mean_expr)
