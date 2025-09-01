@@ -483,10 +483,15 @@ export const PseudotimeGlyphComponent = ({
 
                     // For merged trajectories, we need to handle multiple paths
                     trajectoryData.mergedTrajectories.forEach((singleTrajectory, trajIndex) => {
+                        // Use the base title without "_direct_slingshot" suffix for the API request
+                        const baseTitleForApi = trajectoryData.isDirectSlingshot 
+                            ? trajectoryData.source_title.replace('_direct_slingshot', '')
+                            : trajectoryData.source_title;
+                        
                         analysisRequests.push({
                             sample_id: sampleId,
                             genes: geneNames,
-                            adata_umap_title: trajectoryData.source_title, // Use the source_title of the UMAP dataset
+                            adata_umap_title: baseTitleForApi, // Use the base title without suffix for API calls
                             trajectory_id: `${trajectoryId}_${trajIndex}`,
                             trajectory_path: singleTrajectory.path
                         });

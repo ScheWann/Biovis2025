@@ -58,9 +58,9 @@ function App() {
     fetchSamplesOption();
 
     // Cleanup function to clear AnnData cache when component unmounts
-    return () => {
-      clearCache();
-    };
+    // return () => {
+    //   clearCache();
+    // };
   }, []);
 
   // get all aviailable sample options
