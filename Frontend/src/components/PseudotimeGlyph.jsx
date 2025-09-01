@@ -714,6 +714,23 @@ export const PseudotimeGlyph = ({
                 .text(`t${time.toFixed(1)}`);
         }
 
+        // Add expression level indicators for upper semicircle (always show these)
+        topSection.append("text")
+            .attr("x", centerX - maxRadius * 0.7)
+            .attr("y", centerY - 5)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "10px")
+            .attr("fill", "#666")
+            .text("Low Expr");
+
+        topSection.append("text")
+            .attr("x", centerX + maxRadius * 0.7)
+            .attr("y", centerY - 5)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "10px")
+            .attr("fill", "#666")
+            .text("High Expr");
+
         // Only proceed with gene expression specific elements if data is provided
         if (!geneData || !Array.isArray(geneData) || geneData.length === 0) {
             return;
@@ -933,23 +950,6 @@ export const PseudotimeGlyph = ({
                     });
             });
         });
-
-        // Add expression level indicators for upper semicircle
-        topSection.append("text")
-            .attr("x", centerX - maxRadius * 0.7)
-            .attr("y", centerY - 10)
-            .attr("text-anchor", "middle")
-            .attr("font-size", "10px")
-            .attr("fill", "#666")
-            .text("Low Expr");
-
-        topSection.append("text")
-            .attr("x", centerX + maxRadius * 0.7)
-            .attr("y", centerY - 10)
-            .attr("text-anchor", "middle")
-            .attr("font-size", "10px")
-            .attr("fill", "#666")
-            .text("High Expr");
 
         // Add selected trajectory indicator if gene data is available
         if (geneData && Array.isArray(geneData) && geneData.length > 0) {
