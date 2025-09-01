@@ -11,10 +11,7 @@ from scipy.sparse import issparse
 import networkx as nx
 import random
 import squidpy as sq
-from slingshot_simple import (
-    # analyze_trajectory_cluster_transitions,
-    # analyze_trajectory_relationships,
-    # merge_subset_trajectories,
+from slingshot import (
     analyze_gene_expression_along_trajectories,
     direct_slingshot_analysis
 )

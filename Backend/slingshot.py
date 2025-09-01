@@ -1,14 +1,11 @@
 """
 Slingshot Trajectory and Gene Analysis Module
-
-This module contains functions extracted from the slingshot_real.ipynb notebook
-for trajectory inference using Slingshot and gene expression analysis along trajectories.
-Visualization functions have been removed for backend compatibility.
 """
 
 import pandas as pd
 import numpy as np
 import scanpy as sc
+import subprocess
 from scipy import sparse
 import warnings
 import rpy2.robjects as ro
@@ -26,10 +23,6 @@ warnings.filterwarnings("ignore")
 def check_r_availability():
     """
     Check if R and required packages are available for Slingshot analysis.
-    
-    Returns:
-    --------
-    dict : Dictionary with availability status and error messages
     """
     availability = {
         "rpy2": False,
@@ -49,8 +42,7 @@ def check_r_availability():
     except ImportError:
         availability["errors"].append("RPy2 not installed. Install with: pip install rpy2")
         return availability
-    
-    # Use localconverter to handle rpy2 conversions, especially in threaded environments
+
     with localconverter(ro.default_converter + pandas2ri.converter):
         # Check R installation
         try:
@@ -84,889 +76,7 @@ def check_r_availability():
     return availability
 
 
-def install_r_packages():
-    """
-    Attempt to install required R packages for Slingshot analysis.
-    
-    Returns:
-    --------
-    bool : True if installation was successful, False otherwise
-    """
-    try:
-        import rpy2.robjects as ro
-        from rpy2.robjects.packages import importr
-        from rpy2.robjects import pandas2ri
-        from rpy2.robjects.conversion import localconverter
-
-        with localconverter(ro.default_converter + pandas2ri.converter):
-            # Install BiocManager if not available
-            try:
-                biocmanager = importr("BiocManager")
-            except Exception:
-                print("Installing BiocManager...")
-                ro.r('install.packages("BiocManager")')
-                biocmanager = importr("BiocManager")
-            
-            # Install required packages
-            required_packages = ["slingshot", "SingleCellExperiment"]
-            for pkg in required_packages:
-                try:
-                    importr(pkg)
-                    print(f"{pkg} is already installed")
-                except Exception:
-                    print(f"Installing {pkg}...")
-                    ro.r(f'BiocManager::install("{pkg}")')
-        
-        return True
-        
-    except Exception as e:
-        print(f"Error installing R packages: {e}")
-        return False
-
-
-SKIN_GENE_SIGNATURES = {
-    # Epidermis-related genes
-    "Epidermis": [
-        "KRT5",
-        "KRT14",
-        "KRT15",
-        "KRT19",  # Basal layer keratin
-        "TP63",
-        "TP73",  # Epidermal stem cell transcription factor(?)
-        "ITGA6",
-        "ITGB4",  # Epidermal stem cell marker
-        "COL17A1",
-        "LAMA5",  # Basement membrane component
-    ],
-    # Dermis-related genes
-    "Dermis": [
-        "COL1A1",
-        "COL1A2",
-        "COL3A1",  # Collagen
-        "VIM",
-        "ACTA2",  # Fibroblast marker
-        "PDGFRA",  # (?)
-        "PDGFRB",  # Fibroblast receptor(?)
-        "ELN",
-        "FBN1",  # Elastic fiber
-    ],
-    # Hair follicle-related genes
-    "Hair_Follicle": [
-        "LGR5",
-        "LGALS7",  # Hair follicle stem cells(?)
-        "SOX9",
-        "NFATC1",  # Hair follicle development
-        "BMP2",  # (?)
-        "BMP4",  # Hair follicle morphogenesis(?)
-        "WNT3",
-        "WNT10A",  # Wnt signaling pathway
-    ],
-    # Sebaceous gland-related genes(?)
-    "Sebaceous": [
-        "BLIMP1",
-        "CEBPA",  # Sebaceous gland differentiation
-        "PPARG",
-        "SREBF1",  # Lipid metabolism
-        "FASN",
-        "SCD",  # Fatty acid synthesis
-    ],
-    # Immune/inflammation-related genes(?)
-    "Immune": [
-        "CD68",
-        "CD163",  # Macrophages
-        "CD3E",
-        "CD8A",  # T cells
-        "IL1B",
-        "TNF",  # Inflammatory factors
-        "PTPRC",  # Common leukocyte antigen
-    ],
-    # Vascular-related genes(?)
-    "Vascular": [
-        "PECAM1",
-        "CDH5",  # Endothelial cells
-        "ACTA2",
-        "TAGLN",  # Smooth muscle cells
-        "VEGFA",
-        "ANGPT1",  # Angiogenesis
-    ],
-}
-
-
-def intelligent_slingshot_analysis(
-    adata,
-    gene_signatures=None,
-    cluster_key="leiden",
-    embedding_key="X_umap",
-    expected_trajectories=None,
-    min_cluster_size=10,
-    plot_analysis=True,
-    auto_infer_trajectories=True,
-):
-    """
-    Intelligent Slingshot Analysis for Single-Cell Data
-
-    Parameters:
-    -----------
-    adata : AnnData
-        single-cell data
-    gene_signatures : dict
-        gene signature dictionary, if None, use the default SKIN_GENE_SIGNATURES
-    cluster_key : str
-        clustering information key
-    embedding_key : str
-        embedding coordinates key
-    expected_trajectories : list, optional
-        expected trajectory directions, e.g. [('Hair_Follicle', 'Epidermis'), ('Epidermis', 'Dermis')]
-        If None and auto_infer_trajectories=True, will infer automatically
-    min_cluster_size : int
-        minimum cluster size threshold
-    plot_analysis : bool
-        whether to plot analysis results
-    auto_infer_trajectories : bool
-        whether to automatically infer trajectory directions (based on gene expression)
-
-    Returns:
-    --------
-    dict : containing analysis results and adjusted adata
-    """
-
-    if gene_signatures is None:
-        gene_signatures = SKIN_GENE_SIGNATURES
-
-    print("=====Starting Intelligent Slingshot Analysis=====")
-    print("=" * 80)
-
-    # 1. Analyzing gene expression patterns
-    print("1. Analyzing gene expression patterns...")
-    gene_analysis = analyze_cluster_gene_signatures(
-        adata, gene_signatures, cluster_key, min_cluster_size
-    )
-
-    if not gene_analysis["valid_clusters"]:
-        print("No enough valid clusters found.")
-        return None
-
-    # 2. Determining the best trajectory starting points
-    print("2. Determining the best trajectory starting points...")
-
-    # If auto-inference is needed and no expected trajectories are provided
-    if auto_infer_trajectories and expected_trajectories is None:
-        print(
-            " Automatically inferring trajectory directions based on gene expression..."
-        )
-        inferred_trajectories = auto_infer_developmental_trajectories(
-            adata, gene_analysis, cluster_key, embedding_key
-        )
-        expected_trajectories = inferred_trajectories["trajectories"]
-
-        print(f"There are {len(expected_trajectories)} potential trajectories:")
-        for i, (start, end) in enumerate(expected_trajectories):
-            print(f"Trajectory {i+1}: {start} → {end}")
-
-    trajectory_plan = determine_trajectory_starting_points(
-        adata, gene_analysis, expected_trajectories, cluster_key
-    )
-
-    # 3. Running optimized Slingshot analysis
-    print("3. Running optimized Slingshot analysis")
-    optimized_results = {}
-
-    for i, start_info in enumerate(trajectory_plan["starting_points"]):
-        start_cluster = start_info["cluster_id"]
-        rationale = start_info["rationale"]
-
-        print(f"Trajectory {i+1}: Starting Cluster {start_cluster}")
-        print(f"Rationale: {rationale}")
-
-        # Run Slingshot with error handling
-        try:
-            adata_result = run_slingshot_via_rpy2_improved(
-                adata.copy(),
-                cluster_key=cluster_key,
-                embedding_key=embedding_key,
-                start_cluster=str(start_cluster),
-            )
-
-            if adata_result is not None:
-                optimized_results[f"start_cluster_{start_cluster}"] = adata_result
-            else:
-                print(f"Slingshot analysis failed for cluster {start_cluster}")
-                
-        except Exception as e:
-            print(f"Error running Slingshot for cluster {start_cluster}: {e}")
-            continue
-
-    # If no optimized results found, run default analysis (No specified starting points)
-    if not optimized_results:
-        print("Running default Slingshot analysis...(No specified starting points)")
-        try:
-            default_result = run_slingshot_via_rpy2_improved(
-                adata.copy(), cluster_key=cluster_key, embedding_key=embedding_key
-            )
-            if default_result is not None:
-                optimized_results["default"] = default_result
-            else:
-                print("Default Slingshot analysis also failed")
-        except Exception as e:
-            print(f"Error running default Slingshot analysis: {e}")
-
-    # If still no results, try mock implementation for testing
-    if not optimized_results:
-        print("All Slingshot methods failed. Trying mock implementation for testing...")
-        mock_result = _run_slingshot_mock(adata, cluster_key, embedding_key)
-        if mock_result is not None:
-            optimized_results["mock"] = mock_result
-            print("Mock implementation successful for testing purposes")
-
-    # 4. Evaluating and selecting the best trajectory result
-    print("4. Evaluating and selecting the best trajectory result")
-    best_result = select_best_trajectory_result(
-        optimized_results, gene_signatures, cluster_key
-    )
-
-    if best_result is None:
-        print("No valid trajectory result found.")
-        return None
-
-    # 5. Validating and visualizing
-    print("5. Validating trajectory biological significance")
-    validation_results = validate_trajectory_biology(
-        best_result["adata"], gene_signatures, cluster_key
-    )
-
-    return {
-        "final_adata": best_result["adata"],
-        "gene_analysis": gene_analysis,
-        "trajectory_plan": trajectory_plan,
-        "all_results": optimized_results,
-        "best_result_info": best_result,
-        "validation": validation_results,
-    }
-
-
-def analyze_cluster_gene_signatures(
-    adata, gene_signatures, cluster_key, min_cluster_size
-):
-    """
-    Analyzing cluster gene signatures
-    The average expression level of all cells and all signature genes in the cluster
-    """
-
-    print("Calculating cluster gene signature scores...")
-
-    cluster_gene_scores = {}
-    cluster_info = {}
-
-    for cluster_id in adata.obs[cluster_key].unique():
-        if pd.isna(cluster_id):
-            continue
-
-        cluster_mask = adata.obs[cluster_key] == cluster_id
-        cluster_size = cluster_mask.sum()
-
-        if cluster_size < min_cluster_size:
-            print(f"Skipping cluster {cluster_id} due to insufficient cell count.")
-            continue
-
-        cluster_cells = adata[cluster_mask]
-        cluster_scores = {}
-
-        # Calculating gene signature scores
-        for cell_type, genes in gene_signatures.items():
-            available_genes = [g for g in genes if g in adata.var_names]
-            if len(available_genes) == 0:
-                cluster_scores[cell_type] = 0
-                continue
-
-            if hasattr(cluster_cells.X, "toarray"):
-                gene_expr = cluster_cells[:, available_genes].X.toarray()
-            else:
-                gene_expr = cluster_cells[:, available_genes].X
-
-            # Using mean expression as signature score
-            signature_score = np.mean(gene_expr)
-            cluster_scores[cell_type] = signature_score
-
-        cluster_gene_scores[cluster_id] = cluster_scores
-        cluster_info[cluster_id] = {
-            "size": cluster_size,
-            "dominant_signature": max(cluster_scores, key=cluster_scores.get),
-            "max_score": max(cluster_scores.values()),
-            "scores": cluster_scores,
-        }
-
-        # Output cluster features
-        dominant = cluster_info[cluster_id]["dominant_signature"]
-        max_score = cluster_info[cluster_id]["max_score"]
-        print(
-            f"Cluster {cluster_id:2}: {cluster_size:3} cells | Dominant Feature: {dominant:12} (Score: {max_score:.3f})"
-        )
-
-    return {
-        "cluster_scores": cluster_gene_scores,
-        "cluster_info": cluster_info,
-        "valid_clusters": list(cluster_info.keys()),
-    }
-
-
-def auto_infer_developmental_trajectories(
-    adata, gene_analysis, cluster_key, embedding_key
-):
-    """
-    Automatically inferring developmental trajectories based on gene expression and spatial proximity
-    """
-
-    cluster_info = gene_analysis["cluster_info"]
-    cluster_scores = gene_analysis["cluster_scores"]
-
-    print("Analyzing cluster cell type primitiveness and differentiation potential...")
-
-    # 1. Calculating cell type primitiveness scores
-    primitiveness_scores = calculate_cluster_primitiveness(cluster_info)
-
-    # 2. Calculating transcriptional similarity between clusters
-    transcriptional_distances = calculate_cluster_transcriptional_distances(
-        adata, cluster_key, list(cluster_info.keys())
-    )
-
-    # 3. Calculating spatial adjacency (based on UMAP)
-    spatial_adjacency = calculate_cluster_spatial_adjacency(
-        adata, cluster_key, embedding_key, list(cluster_info.keys())
-    )
-
-    # 4. Inferring potential trajectories
-    potential_trajectories = infer_trajectories_from_analysis(
-        cluster_info, primitiveness_scores, transcriptional_distances, spatial_adjacency
-    )
-
-    return {
-        "trajectories": potential_trajectories,
-        "primitiveness_scores": primitiveness_scores,
-        "transcriptional_distances": transcriptional_distances,
-        "spatial_adjacency": spatial_adjacency,
-        "analysis_details": {
-            "method": "gene_expression_based",
-            "n_trajectories": len(potential_trajectories),
-        },
-    }
-
-
-def calculate_cluster_primitiveness(cluster_info):
-    """
-    Calculating the primitiveness scores for each cluster
-    The primitiveness score is the product of the developmental hierarchy and the gene signature strength
-    """
-
-    # Defining the developmental hierarchy of cell types
-    developmental_hierarchy = {
-        "Hair_Follicle": 1.0,  # Hair follicle stem cells - most primitive
-        "Sebaceous": 0.8,  # Sebaceous gland progenitors
-        "Epidermis": 0.6,  # Epidermal cells
-        "Dermis": 0.4,  # Dermal fibroblasts
-        "Vascular": 0.2,  # Vascular cells
-        "Immune": 0.1,  # Immune cells - most differentiated
-    }
-
-    primitiveness_scores = {}
-
-    for cluster_id, info in cluster_info.items():
-        dominant_type = info["dominant_signature"]
-        base_score = developmental_hierarchy.get(dominant_type, 0.5)
-
-        signature_strength = info["max_score"]
-
-        # Original Score: Primitiveness Score = Base Developmental Level * Gene Signature Strength
-        primitiveness_score = base_score * min(signature_strength, 1.0)
-
-        primitiveness_scores[cluster_id] = {
-            "score": primitiveness_score,
-            "cell_type": dominant_type,
-            "signature_strength": signature_strength,
-        }
-
-        print(
-            f"Cluster {cluster_id}: {dominant_type:12} | Primitiveness: {primitiveness_score:.3f}"
-        )
-
-    return primitiveness_scores
-
-
-def calculate_cluster_transcriptional_distances(adata, cluster_key, valid_clusters):
-    """
-    Calculating the transcriptional distances between clusters
-    The Pearson correlation coefficient between the gene expression profiles of two clusters
-    """
-
-    print("Calculating transcriptional similarity between clusters...")
-
-    # Calculating the average gene expression for each cluster
-    cluster_profiles = {}
-
-    for cluster_id in valid_clusters:
-        cluster_mask = adata.obs[cluster_key] == cluster_id
-        cluster_cells = adata[cluster_mask]
-
-        if hasattr(cluster_cells.X, "toarray"):
-            cluster_expr = np.mean(cluster_cells.X.toarray(), axis=0)
-        else:
-            cluster_expr = np.mean(cluster_cells.X, axis=0)
-
-        cluster_profiles[cluster_id] = cluster_expr
-
-    # Calculating the distance matrix
-    cluster_ids = list(cluster_profiles.keys())
-    n_clusters = len(cluster_ids)
-    distance_matrix = np.zeros((n_clusters, n_clusters))
-
-    for i, cluster1 in enumerate(cluster_ids):
-        for j, cluster2 in enumerate(cluster_ids):
-            if i != j:
-                # Using Pearson correlation coefficient distance
-                correlation = np.corrcoef(
-                    cluster_profiles[cluster1], cluster_profiles[cluster2]
-                )[0, 1]
-                distance = 1 - abs(correlation)  # Distance = 1 - |Correlation|
-                distance_matrix[i, j] = distance
-
-    # Converting to dictionary format
-    distance_dict = {}
-    for i, cluster1 in enumerate(cluster_ids):
-        distance_dict[cluster1] = {}
-        for j, cluster2 in enumerate(cluster_ids):
-            distance_dict[cluster1][cluster2] = distance_matrix[i, j]
-
-    return distance_dict
-
-
-def calculate_cluster_spatial_adjacency(
-    adata, cluster_key, embedding_key, valid_clusters
-):
-    """
-    Calculating the spatial adjacency of clusters
-    The distance between the center points of two clusters
-    """
-
-    print("Calculating spatial adjacency...")
-    if embedding_key not in adata.obsm:
-        print("Warning: Embedding coordinates not found, skipping spatial analysis")
-        return {}
-
-    # Calculating the center point for each cluster
-    cluster_centers = {}
-    embedding = adata.obsm[embedding_key]
-
-    for cluster_id in valid_clusters:
-        cluster_mask = adata.obs[cluster_key] == cluster_id
-        cluster_coords = embedding[cluster_mask]
-        center = np.mean(cluster_coords, axis=0)
-        cluster_centers[cluster_id] = center
-
-    # Calculate the distance between cluster centers
-    adjacency_dict = {}
-    cluster_ids = list(cluster_centers.keys())
-
-    for cluster1 in cluster_ids:
-        adjacency_dict[cluster1] = {}
-        center1 = cluster_centers[cluster1]
-
-        for cluster2 in cluster_ids:
-            if cluster1 != cluster2:
-                center2 = cluster_centers[cluster2]
-                distance = np.linalg.norm(center1 - center2)
-                # Convert distance to adjacency (smaller distance means higher adjacency)
-                adjacency = 1.0 / (1.0 + distance)
-                adjacency_dict[cluster1][cluster2] = adjacency
-            else:
-                adjacency_dict[cluster1][cluster2] = 1.0
-
-    return adjacency_dict
-
-
-def infer_trajectories_from_analysis(
-    cluster_info, primitiveness_scores, transcriptional_distances, spatial_adjacency
-):
-    """
-    Based on multi-omics analysis to infer developmental trajectories
-    The primitiveness score is the product of the developmental hierarchy and the gene signature strength
-    The transcriptional similarity is the Pearson correlation coefficient between the gene expression profiles of two clusters
-    The spatial adjacency is the distance between the center points of two clusters
-    """
-
-    print("Integrating analysis results to infer trajectories...")
-
-    trajectories = []
-    cluster_ids = list(cluster_info.keys())
-
-    # Sort clusters by primitiveness
-    sorted_clusters = sorted(
-        cluster_ids, key=lambda x: primitiveness_scores[x]["score"], reverse=True
-    )
-
-    # Strategy 1: Start from the most primitive clusters and look for potential differentiation paths
-    for i, start_cluster in enumerate(
-        sorted_clusters[:3]
-    ):  # Consider the top 3 most primitive clusters
-        start_type = cluster_info[start_cluster]["dominant_signature"]
-        start_primitiveness = primitiveness_scores[start_cluster]["score"]
-
-        # Find potential end clusters
-        potential_ends = []
-
-        for end_cluster in cluster_ids:
-            if end_cluster == start_cluster:
-                continue
-
-            end_type = cluster_info[end_cluster]["dominant_signature"]
-            end_primitiveness = primitiveness_scores[end_cluster]["score"]
-
-            # Condition 1: The end cluster should be more differentiated than the start cluster (lower primitiveness)
-            if end_primitiveness >= start_primitiveness:
-                continue
-
-            # Condition 2: Check biological plausibility
-            if not is_biologically_plausible_transition(start_type, end_type):
-                continue
-
-            # Condition 3: Calculate overall connection strength
-            transcriptional_similarity = 1 - transcriptional_distances.get(
-                start_cluster, {}
-            ).get(end_cluster, 1.0)
-            spatial_proximity = spatial_adjacency.get(start_cluster, {}).get(
-                end_cluster, 0.0
-            )
-            primitiveness_gradient = start_primitiveness - end_primitiveness
-
-            connection_score = (
-                transcriptional_similarity * 0.4
-                + spatial_proximity * 0.3
-                + primitiveness_gradient * 0.3
-            )
-
-            potential_ends.append(
-                {"cluster": end_cluster, "type": end_type, "score": connection_score}
-            )
-
-        # Select the best end cluster
-        if potential_ends:
-            potential_ends.sort(key=lambda x: x["score"], reverse=True)
-            best_end = potential_ends[0]
-
-            if best_end["score"] > 0.2:
-                trajectories.append((start_type, best_end["type"]))
-                print(
-                    f"Found trajectory: {start_type} → {best_end['type']} (Score: {best_end['score']:.3f})"
-                )
-
-    # Remove duplicates
-    trajectories = list(set(trajectories))
-
-    if not trajectories:
-        print("No clear trajectories found, using default strategy")
-        # Backup strategy: Select the most primitive and most differentiated cell types
-        if len(sorted_clusters) >= 2:
-            start_type = cluster_info[sorted_clusters[0]]["dominant_signature"]
-            end_type = cluster_info[sorted_clusters[-1]]["dominant_signature"]
-            trajectories = [(start_type, end_type)]
-
-    return trajectories
-
-
-def is_biologically_plausible_transition(start_type, end_type):
-    """Check if the transition between two cell types is biologically plausible"""
-
-    # Define known biological transition relationships
-    plausible_transitions = {
-        "Hair_Follicle": ["Epidermis", "Sebaceous"],
-        "Sebaceous": ["Epidermis"],
-        "Epidermis": ["Dermis"],
-        "Dermis": ["Vascular"],
-        "Vascular": [],
-        "Immune": [],
-    }
-
-    # Check if the transition is in the known list
-    allowed_targets = plausible_transitions.get(start_type, [])
-    return (
-        end_type in allowed_targets or len(allowed_targets) == 0
-    )  # If not defined, allow transition
-
-
-def determine_trajectory_starting_points(
-    adata, gene_analysis, expected_trajectories, cluster_key
-):
-    """Determine trajectory starting points"""
-
-    cluster_info = gene_analysis["cluster_info"]
-
-    # Define the primitiveness hierarchy of cell types (lower values are more primitive)
-    primitiveness_hierarchy = {
-        "Hair_Follicle": 1,  # Hair follicle stem cells are the most primitive
-        "Sebaceous": 2,  # Sebaceous stem cells
-        "Epidermis": 3,  # Epidermal cells
-        "Dermis": 4,  # Dermal fibroblasts
-        "Vascular": 5,  # Vascular cells
-        "Immune": 6,  # Immune cells (usually not developmental starting points)
-    }
-
-    starting_points = []
-
-    # Strategy 1: If there are expected trajectories, use the expected starting points
-    if expected_trajectories:
-        print("Determine starting points based on expected trajectories:")
-        for start_type, end_type in expected_trajectories:
-            # Find the cluster that best matches the starting type
-            best_cluster = None
-            best_score = -1
-
-            for cluster_id, info in cluster_info.items():
-                if info["dominant_signature"] == start_type:
-                    score = info["scores"][start_type]
-                    if score > best_score:
-                        best_score = score
-                        best_cluster = cluster_id
-
-            if best_cluster is not None:
-                starting_points.append(
-                    {
-                        "cluster_id": best_cluster,
-                        "rationale": f"Expected starting point for {start_type}→{end_type}",
-                        "confidence": "high",
-                    }
-                )
-                print(f"{start_type}→{end_type}: Choosing cluster {best_cluster}")
-
-    # Strategy 2: Automatically select starting points based on primitiveness
-    if not starting_points:
-        print("Automatically selecting starting points based on cell primitiveness:")
-
-        # Sort clusters by primitiveness
-        cluster_primitiveness = []
-        for cluster_id, info in cluster_info.items():
-            dominant_type = info["dominant_signature"]
-            primitiveness_score = primitiveness_hierarchy.get(dominant_type, 10)
-
-            cluster_primitiveness.append(
-                {
-                    "cluster_id": cluster_id,
-                    "type": dominant_type,
-                    "primitiveness": primitiveness_score,
-                    "expression_score": info["max_score"],
-                    "size": info["size"],
-                }
-            )
-
-        # Sort by: primitiveness > expression score > cluster size
-        cluster_primitiveness.sort(
-            key=lambda x: (x["primitiveness"], -x["expression_score"], -x["size"])
-        )
-
-        # Select the most primitive 1-2 clusters as starting points
-        for i, cluster_data in enumerate(cluster_primitiveness[:2]):
-            starting_points.append(
-                {
-                    "cluster_id": cluster_data["cluster_id"],
-                    "rationale": f"The most primitive cell type ({cluster_data['type']}, primitiveness: {cluster_data['primitiveness']})",
-                    "confidence": "medium" if i == 0 else "low",
-                }
-            )
-            print(f"Choosing {cluster_data['cluster_id']}: {cluster_data['type']}")
-
-    # Strategy 3: If all else fails, select the largest cluster
-    if not starting_points:
-        print("Backup strategy: Select the largest cluster")
-        largest_cluster = max(
-            cluster_info.keys(), key=lambda x: cluster_info[x]["size"]
-        )
-        starting_points.append(
-            {
-                "cluster_id": largest_cluster,
-                "rationale": f"max size {cluster_info[largest_cluster]['size']}",
-                "confidence": "low",
-            }
-        )
-        print(f"Choose Cluster {largest_cluster}")
-
-    return {
-        "starting_points": starting_points,
-        "primitiveness_hierarchy": primitiveness_hierarchy,
-        "strategy_used": "expected" if expected_trajectories else "automatic",
-    }
-
-
-def select_best_trajectory_result(results_dict, gene_signatures, cluster_key):
-    """Choose the best trajectory from multiple results"""
-
-    if not results_dict:
-        return None
-
-    print("Evaluating the quality of each trajectory result:")
-
-    result_scores = {}
-
-    for result_name, adata_result in results_dict.items():
-        # Get pseudotime columns
-        pt_cols = [
-            col
-            for col in adata_result.obs.columns
-            if col.startswith("slingshot_pseudotime")
-        ]
-
-        if not pt_cols:
-            continue
-
-        total_score = 0
-        trajectory_count = len(pt_cols)
-
-        for pt_col in pt_cols:
-            # Calculate the quality score for this trajectory
-            valid_mask = ~np.isnan(adata_result.obs[pt_col])
-            if valid_mask.sum() < 10:
-                continue
-
-            # Calculate gene expression correlation score
-            correlation_score = calculate_trajectory_gene_correlation_score(
-                adata_result, pt_col, gene_signatures
-            )
-
-            # Calculate cell count-based score
-            coverage_score = valid_mask.sum() / len(adata_result)
-
-            # Combine scores
-            trajectory_score = correlation_score * 0.7 + coverage_score * 0.3
-            total_score += trajectory_score
-
-        avg_score = total_score / trajectory_count if trajectory_count > 0 else 0
-        result_scores[result_name] = {
-            "score": avg_score,
-            "trajectory_count": trajectory_count,
-            "adata": adata_result,
-        }
-
-        print(f"{result_name}: Score {avg_score:.3f} ({trajectory_count} trajectories)")
-
-    # Select the best result
-    if result_scores:
-        best_name = max(result_scores, key=lambda x: result_scores[x]["score"])
-        best_result = result_scores[best_name]
-        print(f"Best result: {best_name} (Score: {best_result['score']:.3f})")
-        return {
-            "name": best_name,
-            "adata": best_result["adata"],
-            "score": best_result["score"],
-        }
-
-    return None
-
-
-def calculate_trajectory_gene_correlation_score(adata, pt_col, gene_signatures):
-    """Calculate the correlation score between trajectory and gene expression"""
-
-    valid_mask = ~np.isnan(adata.obs[pt_col])
-    if valid_mask.sum() < 10:
-        return 0
-
-    valid_adata = adata[valid_mask]
-    pseudotime = valid_adata.obs[pt_col].values
-
-    correlation_scores = []
-
-    for cell_type, genes in gene_signatures.items():
-        available_genes = [g for g in genes if g in adata.var_names]
-        if len(available_genes) == 0:
-            continue
-
-        # Calculate gene signature score
-        if hasattr(valid_adata.X, "toarray"):
-            gene_expr = valid_adata[:, available_genes].X.toarray()
-        else:
-            gene_expr = valid_adata[:, available_genes].X
-
-        signature_score = np.mean(gene_expr, axis=1)
-
-        # Calculate correlation
-        correlation, p_value = spearmanr(pseudotime, signature_score)
-
-        if p_value < 0.05:
-            correlation_scores.append(abs(correlation))
-
-    return np.mean(correlation_scores) if correlation_scores else 0
-
-
-def validate_trajectory_biology(adata, gene_signatures, cluster_key):
-    """Verify the biological relevance of trajectories"""
-
-    pt_cols = [
-        col for col in adata.obs.columns if col.startswith("slingshot_pseudotime")
-    ]
-    
-    print(f"Validation: Found {len(pt_cols)} pseudotime columns: {pt_cols}")
-
-    validation_results = {}
-
-    for pt_col in pt_cols:
-        traj_name = pt_col.replace("slingshot_pseudotime_", "Trajectory_")
-
-        valid_mask = ~np.isnan(adata.obs[pt_col])
-        if valid_mask.sum() < 10:
-            continue
-
-        # Analysis the trajectory direction
-        correlations = {}
-        for cell_type, genes in gene_signatures.items():
-            available_genes = [g for g in genes if g in adata.var_names]
-            if len(available_genes) == 0:
-                continue
-
-            valid_adata = adata[valid_mask]
-            pseudotime = valid_adata.obs[pt_col].values
-
-            if hasattr(valid_adata.X, "toarray"):
-                gene_expr = valid_adata[:, available_genes].X.toarray()
-            else:
-                gene_expr = valid_adata[:, available_genes].X
-
-            signature_score = np.mean(gene_expr, axis=1)
-            correlation, p_value = spearmanr(pseudotime, signature_score)
-
-            correlations[cell_type] = {
-                "correlation": correlation,
-                "p_value": p_value,
-                "significant": p_value < 0.05,
-            }
-
-        # Infer trajectory direction
-        start_features = [
-            ct
-            for ct, data in correlations.items()
-            if data["correlation"] < -0.3 and data["significant"]
-        ]
-        end_features = [
-            ct
-            for ct, data in correlations.items()
-            if data["correlation"] > 0.3 and data["significant"]
-        ]
-
-        validation_results[traj_name] = {
-            "correlations": correlations,
-            "inferred_start": start_features,
-            "inferred_end": end_features,
-            "direction": (
-                f"{start_features} → {end_features}"
-                if start_features and end_features
-                else "N/A"
-            ),
-            "valid_cells": valid_mask.sum(),
-        }
-
-        print(
-            f"{traj_name}: {validation_results[traj_name]['direction']} ({valid_mask.sum()} cells)"
-        )
-
-    return validation_results
-
-
-# Improved Slingshot Function
-def run_slingshot_via_rpy2_improved(
+def run_slingshot(
     adata,
     cluster_key="leiden",
     embedding_key="X_umap",
@@ -975,50 +85,68 @@ def run_slingshot_via_rpy2_improved(
 ):
     """
     Run Slingshot analysis with improved error handling and fallback mechanisms.
+
+    Parameters
+    ----------
+    adata : AnnData
+        The annotated data matrix with Slingshot results
+    cluster_key : str
+        The key in adata.obs for cluster labels
+    embedding_key : str
+        The key in adata.obsm for reduced dimension coordinates
+    start_cluster : str
+        The starting cluster for trajectory analysis
+    end_clusters : list of str
+        The end clusters for trajectory analysis
+
+    Returns:
+    -------
+    AnnData : The annotated data matrix with Slingshot results
     """
-    
     # Check R availability first
     availability = check_r_availability()
-    print(availability, 'R availability')
+
     if not availability["rpy2"] or not availability["r_installed"]:
         print("R/RPy2 not available, trying subprocess fallback...")
-        return _run_slingshot_subprocess(adata, cluster_key, embedding_key, start_cluster, end_clusters)
-    
-    if availability["errors"]:
-        print("R package issues detected:")
-        for error in availability["errors"]:
-            print(f"  - {error}")
-        print("Attempting to install missing packages...")
-        if install_r_packages():
-            print("Package installation successful, retrying RPy2...")
-        else:
-            print("Package installation failed, trying subprocess fallback...")
-            return _run_slingshot_subprocess(adata, cluster_key, embedding_key, start_cluster, end_clusters)
+        return run_slingshot_by_subprocess(adata, cluster_key, embedding_key, start_cluster, end_clusters)
     
     # Try RPy2 first, then fallback to subprocess if needed
-    result = _run_slingshot_rpy2(adata, cluster_key, embedding_key, start_cluster, end_clusters)
+    result = run_slingshot_by_rpy2(adata, cluster_key, embedding_key, start_cluster, end_clusters)
     if result is not None:
         return result
     
     print("RPy2 method failed, trying subprocess fallback...")
-    return _run_slingshot_subprocess(adata, cluster_key, embedding_key, start_cluster, end_clusters)
+    return run_slingshot_by_subprocess(adata, cluster_key, embedding_key, start_cluster, end_clusters)
 
 
-def _run_slingshot_rpy2(
+def run_slingshot_by_rpy2(
     adata,
     cluster_key="leiden",
     embedding_key="X_umap",
     start_cluster=None,
     end_clusters=None,
 ):
-    """Run Slingshot using RPy2 with proper context management."""
-    try:
-        # Import R with proper context management
-        import rpy2.robjects as ro
-        from rpy2.robjects.packages import importr
-        from rpy2.robjects import pandas2ri
-        from rpy2.robjects.conversion import localconverter
+    """
+    Run Slingshot using RPy2 with proper context management.
 
+    Parameters
+    ----------
+    adata : AnnData
+        The annotated data matrix with Slingshot results
+    cluster_key : str
+        The key in adata.obs for cluster labels
+    embedding_key : str
+        The key in adata.obsm for reduced dimension coordinates
+    start_cluster : str
+        The starting cluster for trajectory analysis
+    end_clusters : list of str
+        The end clusters for trajectory analysis
+
+    Returns:
+    -------
+    AnnData : The annotated data matrix with Slingshot results
+    """
+    try:
         with localconverter(ro.default_converter + pandas2ri.converter):
             # Import R packages with error handling
             try:
@@ -1104,13 +232,18 @@ def _run_slingshot_rpy2(
                     r_cmd += 'sce <- slingshot(sce, clusterLabels = "clusters", reducedDim = "UMAP")\n'
 
                 r_cmd += f"""
-
                     # Get result
                     pseudotimes <- slingPseudotime(sce)
-                    weights <- slingCurveWeights(sce)
+                    lineages <- slingLineages(sce)
 
-                    write.csv(pseudotimes, \"{temp_dir}/pseudotimes.csv\")
-                    write.csv(weights, \"{temp_dir}/weights.csv\")
+                    write.csv(pseudotimes, "{temp_dir}/pseudotimes.csv")
+
+                    # lineage list
+                    lineages_df <- data.frame(
+                        Lineage = rep(names(lineages), lengths(lineages)),
+                        Cluster = unlist(lineages)
+                    )
+                    write.csv(lineages_df, "{temp_dir}/lineages.csv", row.names=FALSE)
                     
                     # Return number of trajectories
                     n_lineages <- ncol(pseudotimes)
@@ -1118,9 +251,6 @@ def _run_slingshot_rpy2(
                     
                 }}, error = function(e) {{
                     cat("R Error:", conditionMessage(e), "\\n")
-                    # Create empty result files to indicate failure
-                    write.csv(data.frame(), \"{temp_dir}/pseudotimes.csv\")
-                    write.csv(data.frame(), \"{temp_dir}/weights.csv\")
                 }})
                 """
 
@@ -1134,30 +264,26 @@ def _run_slingshot_rpy2(
                 print("Reading results...")
 
                 pseudotimes_file = os.path.join(temp_dir, "pseudotimes.csv")
-                weights_file = os.path.join(temp_dir, "weights.csv")
+                lineages_file = os.path.join(temp_dir, "lineages.csv")
 
                 if os.path.exists(pseudotimes_file):
                     try:
                         pseudotimes_df = pd.read_csv(pseudotimes_file, index_col=0)
-                        weights_df = pd.read_csv(weights_file, index_col=0)
+                        lineages_df = pd.read_csv(lineages_file, index_col=0)
 
                         # Check if results are empty (indicating R error)
-                        if pseudotimes_df.empty or weights_df.empty:
+                        if pseudotimes_df.empty or lineages_df.empty:
                             print("R analysis failed - empty results returned")
                             return None
 
                         # Add to adata
                         for i, col in enumerate(pseudotimes_df.columns):
-                            adata.obs[f"slingshot_pseudotime_{i+1}"] = pseudotimes_df.iloc[
-                                :, i
-                            ].values
+                            adata.uns[f"slingshot_pseudotime_{embedding_key}_{col}"] = pseudotimes_df.iloc[:, i].values
 
-                        for i, col in enumerate(weights_df.columns):
-                            adata.obs[f"slingshot_weight_{i+1}"] = weights_df.iloc[:, i].values
+                        # Store lineage information as metadata instead of obs
+                        lineage_paths = lineages_df.groupby("Lineage")["Cluster"].apply(list).to_dict()
+                        adata.uns[f"slingshot_lineages_{embedding_key}"] = lineage_paths
 
-                        print(
-                            f"Slingshot analysis completed! Found {len(pseudotimes_df.columns)} trajectories"
-                        )
                         return adata
                     except Exception as read_error:
                         print(f"Error reading result files: {read_error}")
@@ -1176,17 +302,32 @@ def _run_slingshot_rpy2(
         return None
 
 
-def _run_slingshot_subprocess(
+def run_slingshot_by_subprocess(
     adata,
     cluster_key="leiden",
     embedding_key="X_umap",
     start_cluster=None,
     end_clusters=None,
 ):
-    """Run Slingshot using subprocess to call R directly."""
-    import subprocess
-    import json
-    
+    """
+    Run Slingshot using subprocess to call R directly.
+    Parameters:
+    -----------
+    adata : AnnData
+        The annotated data matrix with Slingshot results
+    cluster_key : str
+        The key in adata.obs for cluster labels
+    embedding_key : str
+        The key in adata.obsm for reduced dimension coordinates
+    start_cluster : str
+        The starting cluster for trajectory analysis
+    end_clusters : list of str
+        The end clusters for trajectory analysis
+        
+    Returns:
+    --------
+    AnnData : The annotated data matrix with Slingshot results
+    """
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
             print("Creating temporary files for subprocess R call...")
@@ -1257,11 +398,17 @@ def _run_slingshot_subprocess(
             r_script += f'''
                     # Get results
                     pseudotimes <- slingPseudotime(sce)
-                    weights <- slingCurveWeights(sce)
+                    lineages <- slingLineages(sce)
 
                     # Save results
                     write.csv(pseudotimes, "{temp_dir}/pseudotimes.csv")
-                    write.csv(weights, "{temp_dir}/weights.csv")
+
+                    # lineage list
+                    lineages_df <- data.frame(
+                        Lineage = rep(names(lineages), lengths(lineages)),
+                        Cluster = unlist(lineages)
+                    )
+                    write.csv(lineages_df, "{temp_dir}/lineages.csv", row.names=FALSE)
 
                     # Print number of trajectories
                     n_lineages <- ncol(pseudotimes)
@@ -1301,26 +448,24 @@ def _run_slingshot_subprocess(
 
             # Read results
             pseudotimes_file = os.path.join(temp_dir, "pseudotimes.csv")
-            weights_file = os.path.join(temp_dir, "weights.csv")
+            lineages_file = os.path.join(temp_dir, "lineages.csv")
 
             if os.path.exists(pseudotimes_file):
                 try:
                     pseudotimes_df = pd.read_csv(pseudotimes_file, index_col=0)
-                    weights_df = pd.read_csv(weights_file, index_col=0)
+                    lineages_df = pd.read_csv(lineages_file, index_col=0)
 
                     # Check if results are empty
-                    if pseudotimes_df.empty or weights_df.empty:
+                    if pseudotimes_df.empty or lineages_df.empty:
                         print("R analysis failed - empty results returned")
                         return None
 
                     # Add to adata
                     for i, col in enumerate(pseudotimes_df.columns):
-                        adata.obs[f"slingshot_pseudotime_{i+1}"] = pseudotimes_df.iloc[
-                            :, i
-                        ].values
+                        adata.uns[f"slingshot_pseudotime_{embedding_key}_{col}"] = pseudotimes_df.iloc[:, i].values
 
-                    for i, col in enumerate(weights_df.columns):
-                        adata.obs[f"slingshot_weight_{i+1}"] = weights_df.iloc[:, i].values
+                    lineage_paths = lineages_df.groupby("Lineage")["Cluster"].apply(list).to_dict()
+                    adata.uns[f"slingshot_lineages_{embedding_key}"] = lineage_paths
 
                     print(
                         f"Slingshot analysis completed via subprocess! Found {len(pseudotimes_df.columns)} trajectories"
@@ -1338,473 +483,178 @@ def _run_slingshot_subprocess(
         return None
 
 
-def _run_slingshot_mock(adata, cluster_key="leiden", embedding_key="X_umap", start_cluster=None):
+def correct_pseudotime_order(trajectory_path, cluster_statistics, method='weighted_interpolation'):
     """
-    Mock implementation of Slingshot for testing purposes when R is not available.
-    Creates synthetic pseudotime values based on cluster positions.
-    """
-    print("Running mock Slingshot implementation for testing...")
+    Correct pseudotime values to ensure monotonic progression along trajectory path.
     
-    try:
-        # Create a copy of the data
-        adata_copy = adata.copy()
-        
-        # Get unique clusters
-        unique_clusters = adata_copy.obs[cluster_key].unique()
-        unique_clusters = [c for c in unique_clusters if pd.notna(c)]
-        
-        if len(unique_clusters) < 2:
-            print("Mock implementation requires at least 2 clusters")
-            return None
-            
-        # Create synthetic pseudotime based on cluster order
-        # If start_cluster is specified, use it as the starting point
-        if start_cluster is not None and str(start_cluster) in unique_clusters:
-            # Reorder clusters to start with the specified cluster
-            cluster_order = [str(start_cluster)]
-            remaining_clusters = [c for c in unique_clusters if str(c) != str(start_cluster)]
-            cluster_order.extend(remaining_clusters)
-        else:
-            # Use cluster order as is
-            cluster_order = [str(c) for c in unique_clusters]
-        
-        # Create pseudotime values
-        pseudotime_values = np.full(len(adata_copy), np.nan)
-        
-        for i, cluster in enumerate(cluster_order):
-            cluster_mask = adata_copy.obs[cluster_key] == cluster
-            # Assign pseudotime based on cluster order (0 to 1)
-            pseudotime_values[cluster_mask] = i / (len(cluster_order) - 1)
-        
-        # Add some noise to make it more realistic
-        noise = np.random.normal(0, 0.05, len(adata_copy))
-        pseudotime_values = np.clip(pseudotime_values + noise, 0, 1)
-        
-        # Add to adata
-        adata_copy.obs["slingshot_pseudotime_1"] = pseudotime_values
-        
-        # Create weights (all cells have weight 1 for the single trajectory)
-        adata_copy.obs["slingshot_weight_1"] = 1.0
-        
-        print(f"Mock Slingshot completed! Created 1 trajectory with {len(cluster_order)} clusters")
-        print(f"Cluster order: {' → '.join(cluster_order)}")
-        
-        return adata_copy
-        
-    except Exception as e:
-        print(f"Error in mock Slingshot implementation: {e}")
-        return None
-
-
-def smart_slingshot_skin_analysis(adata, expected_trajectories=None, auto_infer=True, **kwargs):
-    # If automatic inference is enabled and no expected trajectories are provided, set to None for automatic analysis
-    if auto_infer and expected_trajectories is None:
-        print("Automatic trajectory inference enabled.")
-        expected_trajectories = None
-    elif not auto_infer and expected_trajectories is None:
-        expected_trajectories = [
-            ("Hair_Follicle", "Epidermis"),
-            ("Epidermis", "Dermis"),
-            ("Sebaceous", "Epidermis"),
-        ]
-        print("Default trajectories set.")
-
-    return intelligent_slingshot_analysis(
-        adata,
-        gene_signatures=SKIN_GENE_SIGNATURES,
-        expected_trajectories=expected_trajectories,
-        auto_infer_trajectories=auto_infer,
-        **kwargs,
-    )
-
-
-def analyze_trajectory_cluster_transitions(
-    adata, cluster_key="leiden_subset", embedding_key="X_umap_subset"
-):
-    """
-    Analyze cluster transition patterns in Slingshot trajectories.
-
     Parameters:
     -----------
-    adata : AnnData
-        The annotated data matrix with Slingshot results
-    cluster_key : str
-        The key in adata.obs for cluster labels
-    embedding_key : str
-        The key in adata.obsm for reduced dimension coordinates
-
+    trajectory_path : list
+        Fixed order of clusters in the trajectory (DO NOT CHANGE)
+    cluster_statistics : dict
+        Dictionary containing 'mean', 'std', 'min', 'max', 'count' for each cluster
+    method : str
+        Method to use for correction
+    
     Returns:
     --------
-    dict
-        Dictionary containing trajectory analysis results
+    dict : containing corrected pseudotime values and metrics
     """
-    # Get pseudotime columns with embedding key
-    pseudotime_cols = [
-        col for col in adata.obs.columns if col.startswith(f"slingshot_pseudotime_{embedding_key}_")
-    ]
-
-    if not pseudotime_cols:
-        print("No Slingshot pseudotime results found")
-        return {}
-
-    print(
-        f"Analyzing cluster transition patterns for {len(pseudotime_cols)} trajectories"
-    )
-    print("=" * 60)
-
-    # Analyze cluster transitions for each trajectory
-    trajectory_analysis = {}
-
-    for i, pt_col in enumerate(pseudotime_cols):
-        lineage_num = i + 1
-        print(f"Trajectory {lineage_num} ({pt_col}):")
-        print("-" * 40)
-
-        # Get cells on this trajectory
-        valid_mask = ~np.isnan(adata.obs[pt_col])
-        if valid_mask.sum() == 0:
-            print("No valid cells")
-            continue
-
-        # Extract data for this trajectory
-        trajectory_data = adata.obs[valid_mask].copy()
-        trajectory_data = trajectory_data.sort_values(pt_col)
-
-        # Cluster distribution
-        cluster_counts = trajectory_data[cluster_key].value_counts().sort_index()
-        print(f"  Involved clusters: {', '.join(cluster_counts.index.astype(str))}")
-        print(f"  Cell count distribution: {dict(cluster_counts)}")
-
-        # Calculate average pseudotime for each cluster
-        cluster_pseudotime = trajectory_data.groupby(cluster_key)[pt_col].agg(
-            ["mean", "std", "min", "max", "count"]
-        )
-
-        # Exclude clusters with NaN average pseudotime
-        valid_clusters_mask = ~np.isnan(cluster_pseudotime["mean"])
-        cluster_pseudotime_filtered = cluster_pseudotime[valid_clusters_mask]
-
-        if len(cluster_pseudotime_filtered) == 0:
-            print("  Warning: No valid cluster data found for this trajectory")
-            continue
-
-        # Sort by average pseudotime
-        cluster_pseudotime_filtered = cluster_pseudotime_filtered.sort_values("mean")
-
-        print(f"  Valid clusters sorted by pseudotime:")
-        for cluster_id, row in cluster_pseudotime_filtered.iterrows():
-            std_str = f"{row['std']:.2f}" if not np.isnan(row["std"]) else "nan"
-            print(
-                f"Cluster {cluster_id}: Average pseudotime {row['mean']:.2f} ± {std_str} "
-                f"(Range: {row['min']:.2f}-{row['max']:.2f}, Cell count: {row['count']})"
-            )
-
-        # Check for excluded clusters
-        excluded_clusters = cluster_pseudotime[~valid_clusters_mask]
-        if len(excluded_clusters) > 0:
-            print(
-                f"Excluded clusters (NaN average pseudotime): {', '.join([str(c) for c in excluded_clusters.index])}"
-            )
-
-        # Infer transition order (only include valid clusters)
-        ordered_clusters = cluster_pseudotime_filtered.index.tolist()
-        if len(ordered_clusters) > 1:
-            transitions = " → ".join([str(c) for c in ordered_clusters])
-            print(f"Inferred trajectory: {transitions}")
-        elif len(ordered_clusters) == 1:
-            print(f"Single cluster trajectory: {ordered_clusters[0]}")
-
-        # Save analysis results
-        trajectory_analysis[f"lineage_{lineage_num}"] = {
-            "clusters_involved": ordered_clusters,
-            "transition_path": ordered_clusters,
-            "cluster_stats": cluster_pseudotime_filtered,
-            "excluded_clusters": (
-                excluded_clusters.index.tolist() if len(excluded_clusters) > 0 else []
-            ),
-            "total_cells": valid_mask.sum(),
-            "valid_clusters_count": len(ordered_clusters),
+    
+    # Extract cluster data
+    cluster_data = []
+    for cluster in trajectory_path:
+        cluster_str = str(cluster)
+        if cluster_str in cluster_statistics['mean']:
+            cluster_data.append({
+                'cluster': cluster,
+                'original_mean': cluster_statistics['mean'][cluster_str],
+                'std': cluster_statistics['std'][cluster_str],
+                'min': cluster_statistics['min'][cluster_str],
+                'max': cluster_statistics['max'][cluster_str],
+                'count': cluster_statistics['count'][cluster_str]
+            })
+    
+    if len(cluster_data) < 2:
+        original_times = [cd['original_mean'] for cd in cluster_data]
+        return {
+            'corrected_pseudotime': original_times,
+            'original_pseudotime': original_times,
+            'trajectory_path': trajectory_path,
+            'method_used': method,
+            'corrections_made': 0,
+            'total_deviation': 0.0,
+            'is_monotonic': True,
+            'notes': 'Single cluster or no data - no correction needed'
         }
-
-    return trajectory_analysis
-
-
-def analyze_trajectory_relationships(trajectory_analysis):
-    """
-    Analyze relationships between trajectories to find subsets and branching points.
-
-    Parameters:
-    -----------
-    trajectory_analysis : dict
-        Dictionary containing trajectory analysis results
-
-    Returns:
-    --------
-    list
-        List of relationships between trajectories
-    """
-    print("=" * 60)
-
-    relationships = []
-    all_lineages = list(trajectory_analysis.keys())
-
-    # Check each pair of trajectories for subset or branching relationships
-    for i, lineage1 in enumerate(all_lineages):
-        for j, lineage2 in enumerate(all_lineages):
-            if i >= j:
-                continue
-
-            path1 = trajectory_analysis[lineage1]["clusters_involved"]
-            path2 = trajectory_analysis[lineage2]["clusters_involved"]
-
-            # Check for subset relationship
-            if is_subpath(path1, path2):
-                relationships.append(
-                    {
-                        "type": "subset",
-                        "shorter": lineage1,
-                        "longer": lineage2,
-                        "shorter_path": path1,
-                        "longer_path": path2,
-                        "divergence_point": len(path1),
-                        "extension": path2[len(path1) :],
-                    }
-                )
-            elif is_subpath(path2, path1):
-                relationships.append(
-                    {
-                        "type": "subset",
-                        "shorter": lineage2,
-                        "longer": lineage1,
-                        "shorter_path": path2,
-                        "longer_path": path1,
-                        "divergence_point": len(path2),
-                        "extension": path1[len(path2) :],
-                    }
-                )
-            else:
-                # Check for common prefix
-                common_prefix = find_common_prefix(path1, path2)
-                if len(common_prefix) > 1:  # At least 2 common steps
-                    relationships.append(
-                        {
-                            "type": "branching",
-                            "lineage1": lineage1,
-                            "lineage2": lineage2,
-                            "path1": path1,
-                            "path2": path2,
-                            "common_prefix": common_prefix,
-                            "branch1": path1[len(common_prefix) :],
-                            "branch2": path2[len(common_prefix) :],
-                            "divergence_point": len(common_prefix),
-                        }
-                    )
-
-    # Show results
-    if not relationships:
-        print("No relationships found between trajectories.")
-        return relationships
-
-    subset_relations = [r for r in relationships if r["type"] == "subset"]
-    branching_relations = [r for r in relationships if r["type"] == "branching"]
-
-    # Show subset relationships
-    if subset_relations:
-        print("\n📦 Found subset relationships:")
-        for rel in subset_relations:
-            shorter_num = rel["shorter"].split("_")[1]
-            longer_num = rel["longer"].split("_")[1]
-            print(f"Trajectory {shorter_num} ⊆ Trajectory {longer_num}")
-            print(f"Shorter path: {' → '.join(map(str, rel['shorter_path']))}")
-            print(f"Longer path: {' → '.join(map(str, rel['longer_path']))}")
-            print(
-                f"Divergence point: Step {rel['divergence_point']} (Cluster {rel['shorter_path'][-1]})"
-            )
-            print(f"Extension: {' → '.join(map(str, rel['extension']))}")
-
-            # Analyze cell counts
-            shorter_cells = trajectory_analysis[rel["shorter"]]["total_cells"]
-            longer_cells = trajectory_analysis[rel["longer"]]["total_cells"]
-            print(
-                f"    Cell counts: Shorter ({shorter_cells}) vs Longer ({longer_cells})"
-            )
-
-    # Show branching relationships
-    if branching_relations:
-        print("Found branching relationships:")
-        for rel in branching_relations:
-            lineage1_num = rel["lineage1"].split("_")[1]
-            lineage2_num = rel["lineage2"].split("_")[1]
-            print(f"Trajectory {lineage1_num} ↔ Trajectory {lineage2_num}")
-            print(f"Common prefix: {' → '.join(map(str, rel['common_prefix']))}")
-            print(f"Branch 1: {' → '.join(map(str, rel['branch1']))}")
-            print(f"Branch 2: {' → '.join(map(str, rel['branch2']))}")
-            print(
-                f"Divergence point: Step {rel['divergence_point']} (Cluster {rel['common_prefix'][-1]})"
-            )
-
-    return relationships
+    
+    original_pseudotime = [cd['original_mean'] for cd in cluster_data]
+    
+    if method == 'weighted_interpolation':
+        corrected_pseudotime = weighted_interpolation_method(cluster_data)
+    elif method == 'confidence_aware':
+        corrected_pseudotime = confidence_aware_method(cluster_data)
+    else:
+        raise ValueError(f"Unknown method: {method}")
+    
+    # Calculate metrics
+    corrections_made = sum(1 for orig, corr in zip(original_pseudotime, corrected_pseudotime) if abs(orig - corr) > 0.001)
+    
+    total_deviation = sum(abs(orig - corr) for orig, corr in zip(original_pseudotime, corrected_pseudotime))
+    
+    is_monotonic = all(corrected_pseudotime[i] <= corrected_pseudotime[i+1] for i in range(len(corrected_pseudotime)-1))
+    
+    return {
+        'corrected_pseudotime': corrected_pseudotime,
+        'original_pseudotime': original_pseudotime,
+        'trajectory_path': trajectory_path,
+        'method_used': method,
+        'corrections_made': corrections_made,
+        'total_deviation': total_deviation,
+        'is_monotonic': is_monotonic,
+        'cluster_data': cluster_data,
+        'notes': f'Successfully corrected {corrections_made} time points with total deviation {total_deviation:.3f}'
+    }
 
 
-def is_subpath(shorter_path, longer_path):
-    """Check if shorter_path is a prefix of longer_path."""
-    if len(shorter_path) > len(longer_path):
-        return False
-    return shorter_path == longer_path[: len(shorter_path)]
-
-
-def find_common_prefix(path1, path2):
-    """Find the common prefix between two paths."""
-    common = []
-    for i in range(min(len(path1), len(path2))):
-        if path1[i] == path2[i]:
-            common.append(path1[i])
-        else:
+def weighted_interpolation_method(cluster_data):
+    """Weighted interpolation with confidence interval awareness."""
+    n = len(cluster_data)
+    original_means = [cd['original_mean'] for cd in cluster_data]
+    
+    # Calculate weights and confidence intervals
+    weights = []
+    ci_bounds = []
+    
+    for cd in cluster_data:
+        # Weight by sample size and stability
+        count_weight = np.sqrt(cd['count'])
+        cv = cd['std'] / abs(cd['original_mean']) if cd['original_mean'] != 0 else 1
+        stability_weight = 1 / (1 + cv)
+        weights.append(count_weight * stability_weight)
+        
+        # Confidence interval
+        ci_half = 1.96 * cd['std'] / np.sqrt(cd['count'])
+        ci_bounds.append((cd['original_mean'] - ci_half, cd['original_mean'] + ci_half))
+    
+    # Normalize weights
+    weights = np.array(weights)
+    weights = weights / weights.sum()
+    
+    # Initialize with original means
+    corrected_times = np.array(original_means, dtype=float)
+    
+    # Iterative correction to ensure monotonicity while minimizing weighted deviation
+    for iteration in range(10):  # Max iterations
+        changed = False
+        
+        # Forward pass
+        for i in range(1, n):
+            if corrected_times[i] <= corrected_times[i-1]:
+                # Need to correct this position
+                min_required = corrected_times[i-1] + 0.01  # Small increment
+                
+                # Try to stay within confidence interval
+                ci_lower, ci_upper = ci_bounds[i]
+                
+                if ci_upper >= min_required:
+                    # Can maintain some connection to original data
+                    new_time = max(min_required, ci_lower)
+                    new_time = min(new_time, ci_upper)
+                else:
+                    # Must go outside CI - use minimal increase
+                    new_time = min_required
+                
+                if abs(new_time - corrected_times[i]) > 0.001:
+                    corrected_times[i] = new_time
+                    changed = True
+        
+        # Backward adjustment pass
+        for i in range(n-2, -1, -1):
+            if i < n-1:
+                max_allowed = corrected_times[i+1] - 0.01
+                ci_lower, ci_upper = ci_bounds[i]
+                
+                # Try to get closer to original while respecting monotonicity
+                target = original_means[i]
+                new_time = min(max(target, ci_lower), min(max_allowed, ci_upper))
+                
+                if new_time != corrected_times[i] and abs(new_time - corrected_times[i]) > 0.001:
+                    corrected_times[i] = new_time
+                    changed = True
+        
+        if not changed:
             break
-    return common
+    
+    return corrected_times.tolist()
 
 
-def suggest_trajectory_merging(trajectory_analysis, relationships):
-    """
-    Based on subset relationships, suggest trajectory merging.
-
-    Parameters:
-    -----------
-    trajectory_analysis : dict
-        Dictionary containing trajectory analysis results
-    relationships : list
-        List of relationships between trajectories
-    """
-    print("=" * 50)
-
-    subset_relations = [r for r in relationships if r["type"] == "subset"]
-
-    if not subset_relations:
-        print("No subset relationships found, no merging suggestions.")
-        return
-
-    for rel in subset_relations:
-        shorter_num = rel["shorter"].split("_")[1]
-        longer_num = rel["longer"].split("_")[1]
-
-        print(f"Suggest merging Trajectory {shorter_num} and Trajectory {longer_num}:")
-        print(
-            f"Reason: Trajectory {shorter_num} is a complete subset of Trajectory {longer_num}"
-        )
-
-        # Analyze biological significance based on cell counts
-        shorter_cells = trajectory_analysis[rel["shorter"]]["total_cells"]
-        longer_cells = trajectory_analysis[rel["longer"]]["total_cells"]
-
-        if shorter_cells > longer_cells * 0.8:
-            print(f"Biological explanation: Possible early differentiation stalling")
-            print(
-                f"- Most cells remain at cluster {rel['shorter_path'][-1]} (differentiation point)"
-            )
-            print(
-                f"- Some cells continue to differentiate into {' → '.join(map(str, rel['extension']))}"
-            )
+def confidence_aware_method(cluster_data):
+    """Simple confidence interval aware correction."""
+    n = len(cluster_data)
+    corrected_times = []
+    
+    for i, cd in enumerate(cluster_data):
+        original_mean = cd['original_mean']
+        ci_half = 1.96 * cd['std'] / np.sqrt(cd['count'])
+        
+        if i == 0:
+            corrected_times.append(original_mean)
         else:
-            print(f"Biological explanation: Possible branching differentiation")
-            print(
-                f"- Main differentiation path: {' → '.join(map(str, rel['longer_path']))}"
-            )
-            print(f"- Some cells terminate early at cluster {rel['shorter_path'][-1]}")
-
-        print(f"Unified path after merging: {' → '.join(map(str, rel['longer_path']))}")
-        print(
-            f"Key differentiation point: Cluster {rel['shorter_path'][-1]} → Cluster {rel['extension'][0] if rel['extension'] else 'N/A'}"
-        )
-
-
-def merge_subset_trajectories(
-    adata, trajectory_analysis, relationships, merge_strategy="keep_longer"
-):
-    """
-    Merge trajectories that have subset relationships.
-
-    Parameters:
-    -----------
-    adata : AnnData
-        The annotated data matrix
-    trajectory_analysis : dict
-        Dictionary containing trajectory analysis results
-    relationships : list
-        List of relationships between trajectories
-    merge_strategy : str
-        Strategy for merging ('keep_longer', 'keep_shorter', 'combine')
-
-    Returns:
-    --------
-    dict
-        Updated trajectory analysis after merging
-    """
-    print("Executing trajectory merging based on subset relationships")
-    print("=" * 50)
-
-    subset_relations = [r for r in relationships if r["type"] == "subset"]
-
-    if not subset_relations:
-        print("No subset relationships found, no merging needed.")
-        return trajectory_analysis
-
-    merged_analysis = trajectory_analysis.copy()
-
-    for rel in subset_relations:
-        shorter_key = rel["shorter"]
-        longer_key = rel["longer"]
-        shorter_num = shorter_key.split("_")[1]
-        longer_num = longer_key.split("_")[1]
-
-        print(f"Merged trajectory {shorter_num} into {longer_num}")
-
-        if merge_strategy == 'keep_longer':
-            if shorter_key in merged_analysis:
-                del merged_analysis[shorter_key]
-
-            if longer_key in merged_analysis:
-                merged_analysis[longer_key]['merger_info'] = {
-                    'merged_from': shorter_key,
-                    'divergence_point': rel['divergence_point'],
-                    'divergence_cluster': rel['shorter_path'][-1],
-                    'extension_path': rel['extension'],
-                    'cells_before_divergence': trajectory_analysis[shorter_key]['total_cells'],
-                    'cells_after_divergence': trajectory_analysis[longer_key]['total_cells'] - trajectory_analysis[shorter_key]['total_cells']
-                }
-
-        elif merge_strategy == "keep_shorter":
-            # Keep the shorter trajectory as the main path and mark the longer trajectory as an extension
-            print(
-                f"Strategy: Keep main trajectory {shorter_num}, mark trajectory {longer_num} as extension"
-            )
-            merged_analysis[shorter_key]["extension_info"] = {
-                "extended_in": longer_key,
-                "extension_path": rel["extension"],
-                "total_extended_cells": trajectory_analysis[longer_key]["total_cells"],
-            }
-            del merged_analysis[longer_key]
-
-        elif merge_strategy == "combine":
-            # Combine the paths into a new trajectory
-            combined_key = f"combined_{shorter_num}_{longer_num}"
-            merged_analysis[combined_key] = {
-                "clusters_involved": rel["longer_path"],
-                "transition_path": rel["longer_path"],
-                "main_branch": rel["shorter_path"],
-                "extension_branch": rel["extension"],
-                "divergence_point": rel["divergence_point"],
-                "divergence_cluster": rel["shorter_path"][-1],
-                "main_branch_cells": trajectory_analysis[shorter_key]["total_cells"],
-                "extension_cells": trajectory_analysis[longer_key]["total_cells"]
-                - trajectory_analysis[shorter_key]["total_cells"],
-                "total_cells": trajectory_analysis[longer_key]["total_cells"],
-                "original_trajectories": [shorter_key, longer_key],
-            }
-            # Delete the original trajectories
-            del merged_analysis[shorter_key]
-            del merged_analysis[longer_key]
-
-    return merged_analysis
+            prev_time = corrected_times[i-1]
+            min_required = prev_time + 0.01
+            
+            # Try to stay close to original mean while ensuring monotonicity
+            if original_mean >= min_required:
+                corrected_times.append(original_mean)
+            elif original_mean + ci_half >= min_required:
+                # Can stay within upper CI bound
+                corrected_times.append(min_required)
+            else:
+                # Must go outside CI
+                corrected_times.append(min_required)
+    
+    return corrected_times
 
 
 def analyze_gene_expression_along_trajectories(
@@ -1952,13 +802,7 @@ def direct_slingshot_analysis(
 ):
     """
     Direct Slingshot Analysis with an optional start cluster.
-    
-    This function bypasses the intelligent analysis workflow and directly runs
-    Slingshot with the specified starting cluster. Use this when you already
-    know which cluster should be the starting point for trajectory analysis.
-    If no start_cluster is provided, Slingshot will automatically determine
-    the starting point.
-    
+
     Parameters:
     -----------
     adata : AnnData
@@ -1974,7 +818,7 @@ def direct_slingshot_analysis(
         List of cluster IDs to use as end points. If None, Slingshot will
         automatically determine end points.
     **kwargs : dict
-        Additional arguments passed to run_slingshot_via_rpy2_improved
+        Additional arguments passed to run_slingshot
         
     Returns:
     --------
@@ -1989,6 +833,7 @@ def direct_slingshot_analysis(
         print("Start cluster: Auto-determined by Slingshot")
     print(f"Cluster key: {cluster_key}")
     print(f"Embedding key: {embedding_key}")
+
     if end_clusters:
         print(f"End clusters: {end_clusters}")
     else:
@@ -2022,7 +867,7 @@ def direct_slingshot_analysis(
     # Run Slingshot analysis directly
     print("Running Slingshot analysis...")
     try:
-        # Prepare arguments for run_slingshot_via_rpy2_improved
+        # Prepare arguments for run_slingshot
         slingshot_kwargs = {
             'adata': adata.copy(),
             'cluster_key': cluster_key,
@@ -2035,147 +880,173 @@ def direct_slingshot_analysis(
         if start_cluster is not None:
             slingshot_kwargs['start_cluster'] = str(start_cluster)
         
-        result_adata = run_slingshot_via_rpy2_improved(**slingshot_kwargs)
+        result_adata = run_slingshot(**slingshot_kwargs)
         
         if result_adata is None:
             print("Slingshot analysis failed.")
             return None
         
-        # Get pseudotime columns
-        pt_cols = [col for col in result_adata.obs.columns if col.startswith("slingshot_pseudotime")]
-        weight_cols = [col for col in result_adata.obs.columns if col.startswith("slingshot_weight")]
+        # Get pseudotime columns from adata.uns (where slingshot results are stored)
+        pt_cols = [key for key in result_adata.uns.keys() if key.startswith(f"slingshot_pseudotime_{embedding_key}")]
         
         print(f"Analysis completed successfully!")
-        print(f"Found {len(pt_cols)} trajectories")
         
         # Basic trajectory information
         trajectory_info = {}
         for i, pt_col in enumerate(pt_cols):
             traj_name = f"Trajectory_{i+1}"
-            valid_mask = ~np.isnan(result_adata.obs[pt_col])
+            valid_mask = ~np.isnan(result_adata.uns[pt_col])
             valid_cells = valid_mask.sum()
             
             trajectory_info[traj_name] = {
                 "pseudotime_column": pt_col,
-                "weight_column": weight_cols[i] if i < len(weight_cols) else None,
                 "valid_cells": valid_cells,
                 "total_cells": len(result_adata),
                 "coverage": valid_cells / len(result_adata)
             }
             
-            print(f"  {traj_name}: {valid_cells} cells ({trajectory_info[traj_name]['coverage']:.1%} coverage)")
+            print(f"{traj_name}: {valid_cells} cells ({trajectory_info[traj_name]['coverage']:.1%} coverage)")
         
-        # Analyze cluster transitions for each trajectory
+        # Analyze cluster transitions using lineages data
         print("\nAnalyzing cluster transitions...")
         cluster_transitions = {}
         
-        for traj_name, traj_info in trajectory_info.items():
-            pt_col = traj_info["pseudotime_column"]
-            valid_mask = ~np.isnan(result_adata.obs[pt_col])
+        # Get lineages data from adata.uns
+        lineages_key = f"slingshot_lineages_{embedding_key}"
+        if lineages_key in result_adata.uns:
+            lineage_paths = result_adata.uns[lineages_key]
+            print(f"Found lineages data: {lineage_paths}")
             
-            if valid_mask.sum() == 0:
-                continue
-            
-            # Get trajectory data
-            traj_data = result_adata.obs[valid_mask].copy()
-            traj_data = traj_data.sort_values(pt_col)
-            
-            # Calculate cluster statistics along trajectory
-            cluster_stats = traj_data.groupby(cluster_key)[pt_col].agg([
-                "mean", "std", "min", "max", "count"
-            ]).sort_values("mean")
-            
-            # Filter out clusters with NaN mean pseudotime
-            valid_clusters = cluster_stats[~np.isnan(cluster_stats["mean"])]
-            
-            if len(valid_clusters) > 0:
+            # Match trajectories with lineage paths
+            for i, (traj_name, traj_info) in enumerate(trajectory_info.items()):
+                pt_col = traj_info["pseudotime_column"]
+                valid_mask = ~np.isnan(result_adata.uns[pt_col])
+                
+                if valid_mask.sum() == 0:
+                    continue
+                
+                # Find corresponding lineage path
+                lineage_key = f"Lineage{i+1}"  # Assuming lineages are numbered starting from 1
+                cluster_path = lineage_paths[lineage_key]
+                
+                # Calculate cluster statistics for validation
+                # Create a temporary dataframe with pseudotime and cluster info
+                traj_data = pd.DataFrame({
+                    pt_col: result_adata.uns[pt_col][valid_mask],
+                    cluster_key: result_adata.obs[cluster_key][valid_mask]
+                })
+                traj_data = traj_data.sort_values(pt_col)
+                
+                cluster_stats = traj_data.groupby(cluster_key)[pt_col].agg([
+                    "mean", "std", "min", "max", "count"
+                ]).sort_values("mean")
+                
                 cluster_transitions[traj_name] = {
-                    "ordered_clusters": valid_clusters.index.tolist(),
-                    "cluster_statistics": valid_clusters.to_dict(),
-                    "transition_path": " → ".join([str(c) for c in valid_clusters.index])
+                    "ordered_clusters": cluster_path,
+                    "cluster_statistics": cluster_stats.to_dict() if not cluster_stats.empty else {},
+                    "transition_path": " → ".join([str(c) for c in cluster_path])
                 }
                 
-                print(f"  {traj_name}: {cluster_transitions[traj_name]['transition_path']}")
+                print(f"{traj_name}: {cluster_transitions[traj_name]['transition_path']}")
+        else:
+            print(f"Warning: No lineages data found in adata.uns['{lineages_key}']")
+            # Fallback to original method if lineages data is not available
+            for traj_name, traj_info in trajectory_info.items():
+                pt_col = traj_info["pseudotime_column"]
+                valid_mask = ~np.isnan(result_adata.uns[pt_col])
+                
+                if valid_mask.sum() == 0:
+                    continue
+                
+                # Get trajectory data
+                # Create a temporary dataframe with pseudotime and cluster info
+                traj_data = pd.DataFrame({
+                    pt_col: result_adata.uns[pt_col][valid_mask],
+                    cluster_key: result_adata.obs[cluster_key][valid_mask]
+                })
+                traj_data = traj_data.sort_values(pt_col)
+                
+                # Calculate cluster statistics along trajectory
+                cluster_stats = traj_data.groupby(cluster_key)[pt_col].agg([
+                    "mean", "std", "min", "max", "count"
+                ]).sort_values("mean")
+                
+                # Filter out clusters with NaN mean pseudotime
+                valid_clusters = cluster_stats[~np.isnan(cluster_stats["mean"])]
+                
+                if len(valid_clusters) > 0:
+                    cluster_transitions[traj_name] = {
+                        "ordered_clusters": valid_clusters.index.tolist(),
+                        "cluster_statistics": valid_clusters.to_dict(),
+                        "transition_path": " → ".join([str(c) for c in valid_clusters.index])
+                    }
+                    
+                    print(f"{traj_name}: {cluster_transitions[traj_name]['transition_path']}")
         
-        return {
-            "adata": result_adata,
-            "start_cluster": start_cluster,
-            "trajectory_info": trajectory_info,
-            "cluster_transitions": cluster_transitions,
-            "analysis_type": "direct",
-            "parameters": {
-                "cluster_key": cluster_key,
-                "embedding_key": embedding_key,
-                "end_clusters": end_clusters,
-                **kwargs
-            }
-        }
+        # Extract path and pseudotime information for simplified return
+        result_array = []
+        
+        for traj_name, traj_data in cluster_transitions.items():
+            if "ordered_clusters" in traj_data and "cluster_statistics" in traj_data:
+                path = traj_data["ordered_clusters"]
+                cluster_stats = traj_data["cluster_statistics"]
+                
+                # Extract mean pseudotime for each cluster in the path
+                pseudotime = []
+                if cluster_stats and "mean" in cluster_stats:
+                    mean_dict = cluster_stats["mean"]
+                    for cluster in path:
+                        # Convert cluster to string for lookup since mean_dict keys are strings
+                        cluster_str = str(cluster)
+                        if cluster_str in mean_dict:
+                            pseudotime.append(mean_dict[cluster_str])
+                        else:
+                            pseudotime.append(None)
+                else:
+                    # If no mean statistics available, fill with None
+                    pseudotime = [None] * len(path)
+                
+                # Apply pseudotime correction using 'Confidence Aware' method
+                if cluster_stats and len(path) > 1:
+                    try:
+                        correction_result = correct_pseudotime_order(
+                            trajectory_path=path,
+                            cluster_statistics=cluster_stats,
+                            method='confidence_aware'
+                        )
+                        corrected_pseudotime = correction_result['corrected_pseudotime']
+                        
+                        print(f"{traj_name}: Applied confidence aware correction")
+                        print(f"  Original pseudotime: {[f'{pt:.3f}' if pt is not None else 'None' for pt in pseudotime]}")
+                        print(f"  Corrected pseudotime: {[f'{pt:.3f}' for pt in corrected_pseudotime]}")
+                        print(f"  Corrections made: {correction_result['corrections_made']}")
+                        print(f"  Total deviation: {correction_result['total_deviation']:.3f}")
+                        print(f"  Is monotonic: {correction_result['is_monotonic']}")
+                        
+                        result_array.append({
+                            "path": path,
+                            "pseudotime": corrected_pseudotime,
+                            "original_pseudotime": pseudotime,
+                            "correction_info": correction_result
+                        })
+                    except Exception as e:
+                        print(f"Warning: Pseudotime correction failed for {traj_name}: {e}")
+                        result_array.append({
+                            "path": path,
+                            "pseudotime": pseudotime,
+                            "original_pseudotime": pseudotime,
+                            "correction_info": {"error": str(e)}
+                        })
+                else:
+                    result_array.append({
+                        "path": path,
+                        "pseudotime": pseudotime,
+                        "original_pseudotime": pseudotime,
+                        "correction_info": {"note": "No correction applied - insufficient data or single cluster"}
+                    })
+        
+        return result_adata, result_array
         
     except Exception as e:
         print(f"Error during Slingshot analysis: {e}")
-        return None
-
-
-def quick_slingshot_analysis(
-    adata,
-    start_cluster=None,
-    cluster_key="leiden",
-    embedding_key="X_umap",
-    **kwargs
-):
-    """
-    Quick Slingshot analysis with minimal output.
-    
-    A simplified version of direct_slingshot_analysis that returns just the
-    updated AnnData object with pseudotime information.
-    
-    Parameters:
-    -----------
-    adata : AnnData
-        Single-cell data
-    start_cluster : str or int, optional
-        The cluster ID to use as the starting point. If None, Slingshot will
-        automatically determine the starting point.
-    cluster_key : str
-        Clustering information key
-    embedding_key : str
-        Embedding coordinates key
-    **kwargs : dict
-        Additional arguments for Slingshot
-        
-    Returns:
-    --------
-    AnnData or None : Updated AnnData with pseudotime information, or None if failed
-    """
-    
-    if start_cluster is not None:
-        print(f"Quick Slingshot analysis with start cluster: {start_cluster}")
-    else:
-        print("Quick Slingshot analysis with auto-determined start cluster")
-    
-    try:
-        # Prepare arguments for run_slingshot_via_rpy2_improved
-        slingshot_kwargs = {
-            'adata': adata.copy(),
-            'cluster_key': cluster_key,
-            'embedding_key': embedding_key,
-            **kwargs
-        }
-        
-        # Only add start_cluster if it's provided
-        if start_cluster is not None:
-            slingshot_kwargs['start_cluster'] = str(start_cluster)
-        
-        result_adata = run_slingshot_via_rpy2_improved(**slingshot_kwargs)
-        
-        if result_adata is not None:
-            pt_cols = [col for col in result_adata.obs.columns if col.startswith("slingshot_pseudotime")]
-            print(f"Analysis completed: {len(pt_cols)} trajectories found")
-            return result_adata
-        else:
-            print("Analysis failed")
-            return None
-            
-    except Exception as e:
-        print(f"Error: {e}")
         return None
