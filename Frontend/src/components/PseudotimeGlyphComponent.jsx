@@ -324,20 +324,11 @@ export const PseudotimeGlyphComponent = ({
             }
 
             if (hasValidData) {
-                // Determine if this is direct slingshot data or regular pseudotime data
-                const isDirectSlingshot = title.endsWith('_direct_slingshot');
-                const baseTitle = isDirectSlingshot ? title.replace('_direct_slingshot', '') : title;
-                
                 // Get consistent display title using helper function
-                let displayTitle = getConsistentDisplayTitle(baseTitle, umapDataSets);
+                let displayTitle = getConsistentDisplayTitle(title, umapDataSets);
                 
-                // Extract UMAP parameters from the base title
-                const umapParameters = extractUmapParameters(baseTitle);
-
-                // Add suffix to distinguish between regular and direct slingshot data
-                if (isDirectSlingshot) {
-                    displayTitle = `${displayTitle} (Direct Slingshot)`;
-                }
+                // Extract UMAP parameters from the title
+                const umapParameters = extractUmapParameters(title);
 
                 // Process trajectories for this specific UMAP dataset
                 const processedTrajectories = trajectoryObjects.map((trajectoryData) => {
@@ -351,7 +342,7 @@ export const PseudotimeGlyphComponent = ({
 
                     // Second fallback: try to extract from title (format: prefix_sampleId_suffix)
                     if (!sampleId) {
-                        const titleToCheck = baseTitle || adata_umap_title;
+                        const titleToCheck = title || adata_umap_title;
                         if (titleToCheck && typeof titleToCheck === 'string') {
                             // Look for patterns like skin_TXK6Z4X_A1 or similar
                             const match = titleToCheck.match(/(skin_[A-Z0-9]+_[A-Z0-9]+)/);
@@ -375,7 +366,6 @@ export const PseudotimeGlyphComponent = ({
                     isLoading: false,
                     isPlaceholder: false,
                     fullPseudotimeData: pseudotimeData,
-                    isDirectSlingshot: isDirectSlingshot,
                     umapParameters: umapParameters
                 });
             }
@@ -388,36 +378,18 @@ export const PseudotimeGlyphComponent = ({
         if (umapDataSets && Array.isArray(umapDataSets)) {
             umapDataSets.forEach((umapDataset) => {
                 const isThisDatasetLoading = pseudotimeLoadingStates[umapDataset.adata_umap_title];
-                const directSlingshotKey = `${umapDataset.adata_umap_title}_direct_slingshot`;
-                const isDirectSlingshotLoading = pseudotimeLoadingStates[directSlingshotKey];
                 
                 const hasDataForThisDataset = allPseudotimeData.some(data =>
                     data.source_title === umapDataset.adata_umap_title
                 );
-                const hasDirectSlingshotData = allPseudotimeData.some(data =>
-                    data.source_title === directSlingshotKey
-                );
 
-                // If regular pseudotime is loading and we don't have data for it yet, add a loading placeholder
+                // If pseudotime is loading and we don't have data for it yet, add a loading placeholder
                 if (isThisDatasetLoading && !hasDataForThisDataset) {
                     const consistentTitle = getConsistentDisplayTitle(umapDataset.adata_umap_title, umapDataSets);
                     const umapParams = extractUmapParameters(umapDataset.adata_umap_title);
                     allPseudotimeData.push({
                         source_title: umapDataset.adata_umap_title,
                         display_title: consistentTitle,
-                        isLoading: true,
-                        isPlaceholder: true,
-                        umapParameters: umapParams
-                    });
-                }
-
-                // If direct slingshot is loading and we don't have data for it yet, add a loading placeholder
-                if (isDirectSlingshotLoading && !hasDirectSlingshotData) {
-                    const consistentTitle = getConsistentDisplayTitle(umapDataset.adata_umap_title, umapDataSets);
-                    const umapParams = extractUmapParameters(umapDataset.adata_umap_title);
-                    allPseudotimeData.push({
-                        source_title: directSlingshotKey,
-                        display_title: `${consistentTitle} (Direct Slingshot)`,
                         isLoading: true,
                         isPlaceholder: true,
                         umapParameters: umapParams
@@ -483,15 +455,10 @@ export const PseudotimeGlyphComponent = ({
 
                     // For merged trajectories, we need to handle multiple paths
                     trajectoryData.mergedTrajectories.forEach((singleTrajectory, trajIndex) => {
-                        // Use the base title without "_direct_slingshot" suffix for the API request
-                        const baseTitleForApi = trajectoryData.isDirectSlingshot 
-                            ? trajectoryData.source_title.replace('_direct_slingshot', '')
-                            : trajectoryData.source_title;
-                        
                         analysisRequests.push({
                             sample_id: sampleId,
                             genes: geneNames,
-                            adata_umap_title: baseTitleForApi, // Use the base title without suffix for API calls
+                            adata_umap_title: trajectoryData.source_title,
                             trajectory_id: `${trajectoryId}_${trajIndex}`,
                             trajectory_path: singleTrajectory.path
                         });

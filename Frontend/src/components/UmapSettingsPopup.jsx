@@ -73,20 +73,17 @@ export const UmapSettingsPopup = ({
       console.warn("Could not parse parameters from adata_umap_title, using defaults", error);
     }
 
-    // Create a unique key for direct slingshot data
-    const directSlingshotKey = `${adata_umap_title}_direct_slingshot`;
-
-    // Check if data for this direct slingshot key already exists in cache
-    if (pseudotimeDataSets && pseudotimeDataSets[directSlingshotKey]) {
+    // Check if data for this adata_umap_title already exists in cache
+    if (pseudotimeDataSets && pseudotimeDataSets[adata_umap_title]) {
       setPseudotimeLoadingStates(prevStates => ({
         ...prevStates,
-        [directSlingshotKey]: true
+        [adata_umap_title]: true
       }));
       setPseudotimeDataSets(prevDataSets => ({ ...prevDataSets }));
       setTimeout(() => {
         setPseudotimeLoadingStates(prevStates => ({
           ...prevStates,
-          [directSlingshotKey]: false
+          [adata_umap_title]: false
         }));
       }, 0);
       return;
@@ -95,7 +92,7 @@ export const UmapSettingsPopup = ({
     // Set loading state for this specific dataset
     setPseudotimeLoadingStates(prevStates => ({
       ...prevStates,
-      [directSlingshotKey]: true
+      [adata_umap_title]: true
     }));
 
     try {
@@ -126,11 +123,11 @@ export const UmapSettingsPopup = ({
         return;
       }
 
-      // Add the new data to the datasets object with the unique key
+      // Add the new data to the datasets object with the adata_umap_title as key
       setPseudotimeDataSets(prevDataSets => {
         const newDataSets = {
           ...prevDataSets,
-          [directSlingshotKey]: responseData
+          [adata_umap_title]: responseData
         };
         return newDataSets;
       });
@@ -140,7 +137,7 @@ export const UmapSettingsPopup = ({
       // Clear loading state for this specific dataset
       setPseudotimeLoadingStates(prevStates => ({
         ...prevStates,
-        [directSlingshotKey]: false
+        [adata_umap_title]: false
       }));
     }
   };
@@ -148,8 +145,7 @@ export const UmapSettingsPopup = ({
   // Get loading state for direct slingshot
   const directSlingshotLoading = useMemo(() => {
     if (!pseudotimeLoadingStates || !adata_umap_title) return false;
-    const directSlingshotKey = `${adata_umap_title}_direct_slingshot`;
-    return pseudotimeLoadingStates[directSlingshotKey] || false;
+    return pseudotimeLoadingStates[adata_umap_title] || false;
   }, [pseudotimeLoadingStates, adata_umap_title]);
 
   // Initialize settings from current adata_umap_title when popup opens
