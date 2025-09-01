@@ -291,9 +291,9 @@ export const PseudotimeGlyph = ({
         // Add time point label - show actual minimum time if available
         g.append("text")
             .attr("x", centerX)
-            .attr("y", centerY + 4)
+            .attr("y", centerY + 2)
             .attr("text-anchor", "middle")
-            .attr("font-size", "10px")
+            .attr("font-size", "5px")
             .attr("font-weight", "bold")
             .attr("fill", "#333")
             .text(`t${minPseudotime.toFixed(1)}`);
@@ -431,16 +431,6 @@ export const PseudotimeGlyph = ({
                 .attr("stroke-width", 0.5)
                 .attr("stroke-dasharray", "2,2")
                 .attr("opacity", 0.7);
-
-            // Add time labels for the bottom section
-            bottomSection.append("text")
-                .attr("x", centerX + radius + 15)
-                .attr("y", centerY)
-                .attr("text-anchor", "start")
-                .attr("dominant-baseline", "central")
-                .attr("font-size", "8px")
-                .attr("fill", "#666")
-                .text(`t${timeValue.toFixed(1)}`);
         });
 
         // Scale for converting pseudotime to radial distance
