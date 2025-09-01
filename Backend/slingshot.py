@@ -658,7 +658,7 @@ def confidence_aware_method(cluster_data):
 
 
 def analyze_gene_expression_along_trajectories(
-    adata, gene_names, trajectory_analysis=None, use_merged=True, embedding_key="X_umap"
+    adata, gene_names, trajectory_analysis=None, embedding_key="X_umap"
 ):
     """
     Analyze the expression of specified genes along trajectories based on pseudotime.
@@ -671,8 +671,6 @@ def analyze_gene_expression_along_trajectories(
         Gene name(s) to analyze
     trajectory_analysis : dict, optional
         Dictionary containing trajectory analysis results
-    use_merged : bool
-        Whether to use merged trajectory analysis if available
     embedding_key : str
         The embedding key used for the trajectory analysis
 
