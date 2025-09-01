@@ -483,6 +483,180 @@ def run_slingshot_by_subprocess(
         return None
 
 
+def correct_pseudotime_order(trajectory_path, cluster_statistics, method='weighted_interpolation'):
+    """
+    Correct pseudotime values to ensure monotonic progression along trajectory path.
+    
+    Parameters:
+    -----------
+    trajectory_path : list
+        Fixed order of clusters in the trajectory (DO NOT CHANGE)
+    cluster_statistics : dict
+        Dictionary containing 'mean', 'std', 'min', 'max', 'count' for each cluster
+    method : str
+        Method to use for correction
+    
+    Returns:
+    --------
+    dict : containing corrected pseudotime values and metrics
+    """
+    
+    # Extract cluster data
+    cluster_data = []
+    for cluster in trajectory_path:
+        cluster_str = str(cluster)
+        if cluster_str in cluster_statistics['mean']:
+            cluster_data.append({
+                'cluster': cluster,
+                'original_mean': cluster_statistics['mean'][cluster_str],
+                'std': cluster_statistics['std'][cluster_str],
+                'min': cluster_statistics['min'][cluster_str],
+                'max': cluster_statistics['max'][cluster_str],
+                'count': cluster_statistics['count'][cluster_str]
+            })
+    
+    if len(cluster_data) < 2:
+        original_times = [cd['original_mean'] for cd in cluster_data]
+        return {
+            'corrected_pseudotime': original_times,
+            'original_pseudotime': original_times,
+            'trajectory_path': trajectory_path,
+            'method_used': method,
+            'corrections_made': 0,
+            'total_deviation': 0.0,
+            'is_monotonic': True,
+            'notes': 'Single cluster or no data - no correction needed'
+        }
+    
+    original_pseudotime = [cd['original_mean'] for cd in cluster_data]
+    
+    if method == 'weighted_interpolation':
+        corrected_pseudotime = weighted_interpolation_method(cluster_data)
+    elif method == 'confidence_aware':
+        corrected_pseudotime = confidence_aware_method(cluster_data)
+    else:
+        raise ValueError(f"Unknown method: {method}")
+    
+    # Calculate metrics
+    corrections_made = sum(1 for orig, corr in zip(original_pseudotime, corrected_pseudotime) if abs(orig - corr) > 0.001)
+    
+    total_deviation = sum(abs(orig - corr) for orig, corr in zip(original_pseudotime, corrected_pseudotime))
+    
+    is_monotonic = all(corrected_pseudotime[i] <= corrected_pseudotime[i+1] for i in range(len(corrected_pseudotime)-1))
+    
+    return {
+        'corrected_pseudotime': corrected_pseudotime,
+        'original_pseudotime': original_pseudotime,
+        'trajectory_path': trajectory_path,
+        'method_used': method,
+        'corrections_made': corrections_made,
+        'total_deviation': total_deviation,
+        'is_monotonic': is_monotonic,
+        'cluster_data': cluster_data,
+        'notes': f'Successfully corrected {corrections_made} time points with total deviation {total_deviation:.3f}'
+    }
+
+
+def weighted_interpolation_method(cluster_data):
+    """Weighted interpolation with confidence interval awareness."""
+    n = len(cluster_data)
+    original_means = [cd['original_mean'] for cd in cluster_data]
+    
+    # Calculate weights and confidence intervals
+    weights = []
+    ci_bounds = []
+    
+    for cd in cluster_data:
+        # Weight by sample size and stability
+        count_weight = np.sqrt(cd['count'])
+        cv = cd['std'] / abs(cd['original_mean']) if cd['original_mean'] != 0 else 1
+        stability_weight = 1 / (1 + cv)
+        weights.append(count_weight * stability_weight)
+        
+        # Confidence interval
+        ci_half = 1.96 * cd['std'] / np.sqrt(cd['count'])
+        ci_bounds.append((cd['original_mean'] - ci_half, cd['original_mean'] + ci_half))
+    
+    # Normalize weights
+    weights = np.array(weights)
+    weights = weights / weights.sum()
+    
+    # Initialize with original means
+    corrected_times = np.array(original_means, dtype=float)
+    
+    # Iterative correction to ensure monotonicity while minimizing weighted deviation
+    for iteration in range(10):  # Max iterations
+        changed = False
+        
+        # Forward pass
+        for i in range(1, n):
+            if corrected_times[i] <= corrected_times[i-1]:
+                # Need to correct this position
+                min_required = corrected_times[i-1] + 0.01  # Small increment
+                
+                # Try to stay within confidence interval
+                ci_lower, ci_upper = ci_bounds[i]
+                
+                if ci_upper >= min_required:
+                    # Can maintain some connection to original data
+                    new_time = max(min_required, ci_lower)
+                    new_time = min(new_time, ci_upper)
+                else:
+                    # Must go outside CI - use minimal increase
+                    new_time = min_required
+                
+                if abs(new_time - corrected_times[i]) > 0.001:
+                    corrected_times[i] = new_time
+                    changed = True
+        
+        # Backward adjustment pass
+        for i in range(n-2, -1, -1):
+            if i < n-1:
+                max_allowed = corrected_times[i+1] - 0.01
+                ci_lower, ci_upper = ci_bounds[i]
+                
+                # Try to get closer to original while respecting monotonicity
+                target = original_means[i]
+                new_time = min(max(target, ci_lower), min(max_allowed, ci_upper))
+                
+                if new_time != corrected_times[i] and abs(new_time - corrected_times[i]) > 0.001:
+                    corrected_times[i] = new_time
+                    changed = True
+        
+        if not changed:
+            break
+    
+    return corrected_times.tolist()
+
+
+def confidence_aware_method(cluster_data):
+    """Simple confidence interval aware correction."""
+    n = len(cluster_data)
+    corrected_times = []
+    
+    for i, cd in enumerate(cluster_data):
+        original_mean = cd['original_mean']
+        ci_half = 1.96 * cd['std'] / np.sqrt(cd['count'])
+        
+        if i == 0:
+            corrected_times.append(original_mean)
+        else:
+            prev_time = corrected_times[i-1]
+            min_required = prev_time + 0.01
+            
+            # Try to stay close to original mean while ensuring monotonicity
+            if original_mean >= min_required:
+                corrected_times.append(original_mean)
+            elif original_mean + ci_half >= min_required:
+                # Can stay within upper CI bound
+                corrected_times.append(min_required)
+            else:
+                # Must go outside CI
+                corrected_times.append(min_required)
+    
+    return corrected_times
+
+
 def analyze_gene_expression_along_trajectories(
     adata, gene_names, trajectory_analysis=None, use_merged=True, embedding_key="X_umap"
 ):
@@ -832,10 +1006,44 @@ def direct_slingshot_analysis(
                     # If no mean statistics available, fill with None
                     pseudotime = [None] * len(path)
                 
-                result_array.append({
-                    "path": path,
-                    "pseudotime": pseudotime
-                })
+                # Apply pseudotime correction using 'Confidence Aware' method
+                if cluster_stats and len(path) > 1:
+                    try:
+                        correction_result = correct_pseudotime_order(
+                            trajectory_path=path,
+                            cluster_statistics=cluster_stats,
+                            method='confidence_aware'
+                        )
+                        corrected_pseudotime = correction_result['corrected_pseudotime']
+                        
+                        print(f"{traj_name}: Applied confidence aware correction")
+                        print(f"  Original pseudotime: {[f'{pt:.3f}' if pt is not None else 'None' for pt in pseudotime]}")
+                        print(f"  Corrected pseudotime: {[f'{pt:.3f}' for pt in corrected_pseudotime]}")
+                        print(f"  Corrections made: {correction_result['corrections_made']}")
+                        print(f"  Total deviation: {correction_result['total_deviation']:.3f}")
+                        print(f"  Is monotonic: {correction_result['is_monotonic']}")
+                        
+                        result_array.append({
+                            "path": path,
+                            "pseudotime": corrected_pseudotime,
+                            "original_pseudotime": pseudotime,
+                            "correction_info": correction_result
+                        })
+                    except Exception as e:
+                        print(f"Warning: Pseudotime correction failed for {traj_name}: {e}")
+                        result_array.append({
+                            "path": path,
+                            "pseudotime": pseudotime,
+                            "original_pseudotime": pseudotime,
+                            "correction_info": {"error": str(e)}
+                        })
+                else:
+                    result_array.append({
+                        "path": path,
+                        "pseudotime": pseudotime,
+                        "original_pseudotime": pseudotime,
+                        "correction_info": {"note": "No correction applied - insufficient data or single cluster"}
+                    })
         
         return result_adata, result_array
         

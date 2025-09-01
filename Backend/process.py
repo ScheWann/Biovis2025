@@ -1122,7 +1122,6 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
     if "adata_path" in scale_info:
         adata = get_processed_adata(sample_id, adata_umap_title)
 
-        print(adata)
         if cell_ids is not None:
             # Convert cell_ids to regular Python strings to avoid numpy string issues
             if hasattr(cell_ids, '__iter__') and not isinstance(cell_ids, str):
@@ -1138,14 +1137,12 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
         if adata.n_obs == 0:
             raise ValueError("No cells remaining after filtering. Please check your cell_ids parameter.")
 
-        print(adata)
         leiden_col = f'leiden_{adata_umap_title}'
         if not pd.api.types.is_categorical_dtype(adata.obs[leiden_col]):
             adata.obs[leiden_col] = adata.obs[leiden_col].astype('category')
 
         # Run direct Slingshot analysis with optional start cluster
         try:
-            # Only pass start_cluster if it's not None
             analysis_kwargs = {
                 'adata': adata,
                 'cluster_key': leiden_col,
