@@ -1157,23 +1157,9 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
             
             adata_with_slingshot, results = direct_slingshot_analysis(**analysis_kwargs)
 
-            print(adata_with_slingshot)
-            print(results)
             # Get cluster order based on spatial enrichment analysis
             cluster_order = get_cluster_order_by_spatial_enrichment(adata_with_slingshot, adata_umap_title)
             
-            # Store the processed adata for gene expression analysis
-            # global PROCESSED_ADATA_CACHE
-            
-            # cache_key = f"{sample_id}_{adata_umap_title}"
-            
-            # PROCESSED_ADATA_CACHE[cache_key] = {
-            #     'cluster_order': cluster_order,
-            #     'trajectory_objects': results
-            # }
-            # print(f"Stored trajectory data in cache with key: {cache_key}")
-            
-            # Return object with cluster_order and trajectory_objects
             return {
                 'cluster_order': cluster_order,
                 'trajectory_objects': results

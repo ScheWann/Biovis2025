@@ -173,8 +173,6 @@ def run_slingshot_by_rpy2(
                     )
                     clusters_df = pd.DataFrame({"clusters": adata.obs[cluster_key].astype(str)})
 
-                    print(adata.obs[cluster_key].astype(str).unique(), 'cluster key?????????')
-
                     expr_file = os.path.join(temp_dir, "expr.csv")
                     umap_file = os.path.join(temp_dir, "umap.csv")
                     clusters_file = os.path.join(temp_dir, "clusters.csv")
@@ -728,13 +726,12 @@ def direct_slingshot_analysis(
             
             trajectory_info[traj_name] = {
                 "pseudotime_column": pt_col,
-                # "weight_column": weight_cols[i] if i < len(weight_cols) else None,
                 "valid_cells": valid_cells,
                 "total_cells": len(result_adata),
                 "coverage": valid_cells / len(result_adata)
             }
             
-            print(f"  {traj_name}: {valid_cells} cells ({trajectory_info[traj_name]['coverage']:.1%} coverage)")
+            print(f"{traj_name}: {valid_cells} cells ({trajectory_info[traj_name]['coverage']:.1%} coverage)")
         
         # Analyze cluster transitions using lineages data
         print("\nAnalyzing cluster transitions...")
