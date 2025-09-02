@@ -566,10 +566,18 @@ export const PseudotimeGlyphComponent = ({
 
     if (!allPseudotimeData || allPseudotimeData.length === 0) {
         return (
-            <Empty
-                description="No pseudotime data available"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-            />
+            <div style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center'
+            }}>
+                <Empty
+                    description="No pseudotime data available"
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                />
+            </div>
         );
     }
 
