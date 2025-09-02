@@ -69,10 +69,6 @@ export const PseudotimeGlyph = ({
         if (selectedData) {
             return selectedData.gene_expression_data;
         } else {
-            // Fallback to first available trajectory if no match found
-            if (geneExpressionData.length > 0) {
-                return geneExpressionData[0].gene_expression_data;
-            }
             return null;
         }
     }, [geneExpressionData, selectedTrajectory, trajectoryIndex]);
@@ -120,7 +116,7 @@ export const PseudotimeGlyph = ({
         if (hasValidData && dimensions.width > 0 && dimensions.height > 0) {
             createGlyph(pseudotimeData);
         }
-    }, [pseudotimeData, dimensions, geneExpressionData, clusterColors, selectedTrajectory]);
+    }, [pseudotimeData, dimensions, geneExpressionData, clusterColors, selectedTrajectory, selectedGeneData]);
 
     // Cleanup tooltip on unmount
     useEffect(() => {
