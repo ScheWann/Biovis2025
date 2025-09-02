@@ -138,73 +138,81 @@ export const TrajectoryViewer = ({ sampleId }) => {
     return (
         <div ref={containerRef} className="trajectory-viewer" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
             {/* Control Panel */}
-            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexShrink: 0, padding: "8px 10px 8px 10px" }}>
-                <Row gutter={16} align="middle">
-                    <Col>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span style={{ fontSize: "12px", color: "#666" }}>Horizontal</span>
-                            <Switch
-                                size="small"
-                                checked={isVertical}
-                                onChange={setIsVertical}
-                            />
-                            <span style={{ fontSize: "12px", color: "#666" }}>Vertical</span>
-                        </div>
-                    </Col>
-                    <Col flex="200px">
-                        <Select
+            <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexShrink: 0,
+                padding: "8px 10px 8px 10px",
+                flexWrap: "wrap",
+                gap: "8px"
+            }}>
+                <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    gap: "8px",
+                    flexWrap: "wrap",
+                    flex: 1
+                }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontSize: "12px", color: "#666" }}>Horizontal</span>
+                        <Switch
                             size="small"
-                            placeholder="Select Sample"
-                            style={{ width: "100%" }}
-                            value={selectedSample}
-                            onChange={setSelectedSample}
-                            showSearch
-                            filterOption={(input, option) =>
-                                option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                            }
-                        >
-                            {sampleOptions.map(sample => (
-                                <Option key={sample.value} value={sample.value}>
-                                    {sample.label}
-                                </Option>
-                            ))}
-                        </Select>
-                    </Col>
-                    <Col flex="200px">
-                        <Select
-                            size="small"
-                            mode="multiple"
-                            placeholder="Select Genes"
-                            style={{ width: "100%" }}
-                            value={selectedGenes}
-                            onChange={setSelectedGenes}
-                            disabled={!selectedSample || geneListLoading}
-                            loading={geneListLoading}
-                            showSearch
-                            filterOption={(input, option) =>
-                                option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                            }
-                            maxTagCount="responsive"
-                        >
-                            {availableGenes.map(gene => (
-                                <Option key={gene} value={gene}>
-                                    {gene}
-                                </Option>
-                            ))}
-                        </Select>
-                    </Col>
-                    <Col>
-                        <Button
-                            size="small"
-                            type="primary"
-                            onClick={handleConfirm}
-                            disabled={!selectedSample || selectedGenes.length === 0 || loading}
-                            loading={loading}
-                        >
-                            OK
-                        </Button>
-                    </Col>
-                </Row>
+                            checked={isVertical}
+                            onChange={setIsVertical}
+                        />
+                        <span style={{ fontSize: "12px", color: "#666" }}>Vertical</span>
+                    </div>
+                    <Select
+                        size="small"
+                        placeholder="Select Sample"
+                        style={{ width: "200px", minWidth: "150px" }}
+                        value={selectedSample}
+                        onChange={setSelectedSample}
+                        showSearch
+                        filterOption={(input, option) =>
+                            option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                        }
+                    >
+                        {sampleOptions.map(sample => (
+                            <Option key={sample.value} value={sample.value}>
+                                {sample.label}
+                            </Option>
+                        ))}
+                    </Select>
+                    <Select
+                        size="small"
+                        mode="multiple"
+                        placeholder="Select Genes"
+                        style={{ width: "200px", minWidth: "150px" }}
+                        value={selectedGenes}
+                        onChange={setSelectedGenes}
+                        disabled={!selectedSample || geneListLoading}
+                        loading={geneListLoading}
+                        showSearch
+                        filterOption={(input, option) =>
+                            option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                        }
+                        maxTagCount="responsive"
+                    >
+                        {availableGenes.map(gene => (
+                            <Option key={gene} value={gene}>
+                                {gene}
+                            </Option>
+                        ))}
+                    </Select>
+                    <Button
+                        size="small"
+                        type="primary"
+                        onClick={handleConfirm}
+                        disabled={!selectedSample || selectedGenes.length === 0 || loading}
+                        loading={loading}
+                        style={{ flexShrink: 0 }}
+                    >
+                        OK
+                    </Button>
+                </div>
             </div>
 
             {/* Charts Container */}
