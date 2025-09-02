@@ -1173,7 +1173,7 @@ def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
         return []
 
     def rank_by_significant_interactions(enrichment_matrix, cluster_names, zscore_threshold=2.0):
-        """Sorting based on the number of significant interactions"""
+        """Sorting based on the number of significant positive interactions (excluding diagonal)"""
         if isinstance(enrichment_matrix, pd.DataFrame):
             matrix = enrichment_matrix.values
             names = enrichment_matrix.index.tolist()
@@ -1187,22 +1187,23 @@ def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
             # Get the row for this cluster (interactions with other clusters)
             interactions = matrix[i, :]
             
-            # Calculate significant interactions
-            significant_positive = (interactions > zscore_threshold).sum()
-            significant_negative = (interactions < -zscore_threshold).sum()
-            total_significant = significant_positive + significant_negative
+            # Exclude diagonal (self-interactions) by setting to 0
+            interactions_no_diag = interactions.copy()
+            interactions_no_diag[i] = 0
+            
+            # Only consider positive interactions above threshold
+            significant_positive = (interactions_no_diag > zscore_threshold).sum()
+            
+            # Get max positive interaction (excluding diagonal)
+            max_zscore = interactions_no_diag.max()
             
             results.append({
                 'cluster': cluster,
-                'significant_interactions': total_significant,
                 'positive_interactions': significant_positive,
-                'negative_interactions': significant_negative,
-                'max_zscore': interactions.max(),
-                'min_zscore': interactions.min(),
-                'self_enrichment': matrix[i, i]
+                'max_zscore': max_zscore
             })
         
-        return pd.DataFrame(results).sort_values('significant_interactions', ascending=False)
+        return pd.DataFrame(results).sort_values('positive_interactions', ascending=False)
     
     # Sort clusters by spatial coherence
     sorted_clusters = rank_by_significant_interactions(enrichment_results, cluster_names)
