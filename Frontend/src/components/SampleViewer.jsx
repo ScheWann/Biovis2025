@@ -745,10 +745,84 @@ export const SampleViewer = ({
         return relativeBounds;
     }, [mainViewState, containerSize, selectedSamples, imageSizes, sampleOffsets]);
 
+    // Function to detect which sample was clicked in the minimap
+    const getSampleFromMinimapClick = useCallback((clickX, clickY) => {
+        if (!selectedSamples.length) return null;
+
+        // Calculate total world bounds for all samples
+        let totalLeft = Infinity;
+        let totalRight = -Infinity;
+        let totalTop = Infinity;
+        let totalBottom = -Infinity;
+
+        selectedSamples.forEach(sample => {
+            const imageSize = imageSizes[sample.id];
+            const offset = sampleOffsets[sample.id] || [0, 0];
+            if (imageSize) {
+                totalLeft = Math.min(totalLeft, offset[0]);
+                totalRight = Math.max(totalRight, offset[0] + imageSize[0]);
+                totalTop = Math.min(totalTop, offset[1]);
+                totalBottom = Math.max(totalBottom, offset[1] + imageSize[1]);
+            }
+        });
+
+        if (totalLeft === Infinity) return null;
+
+        const totalWidth = totalRight - totalLeft;
+        const totalHeight = totalBottom - totalTop;
+
+        // Check which sample contains the click coordinates
+        for (const sample of selectedSamples) {
+            const imageSize = imageSizes[sample.id];
+            const offset = sampleOffsets[sample.id] || [0, 0];
+            
+            if (!imageSize) continue;
+
+            // Calculate relative position and size within the total bounds
+            const relativeLeft = (offset[0] - totalLeft) / totalWidth;
+            const relativeTop = (offset[1] - totalTop) / totalHeight;
+            const relativeWidth = imageSize[0] / totalWidth;
+            const relativeHeight = imageSize[1] / totalHeight;
+
+            // Check if click is within this sample's bounds
+            if (clickX >= relativeLeft && clickX <= relativeLeft + relativeWidth &&
+                clickY >= relativeTop && clickY <= relativeTop + relativeHeight) {
+                return sample;
+            }
+        }
+
+        return null;
+    }, [selectedSamples, imageSizes, sampleOffsets]);
+
     // Handle minimap click to navigate
     const handleMinimapClick = useCallback((event) => {
         if (!minimapRef.current || !selectedSamples.length) return;
 
+        const rect = minimapRef.current.getBoundingClientRect();
+        const x = (event.clientX - rect.left) / rect.width;
+        const y = (event.clientY - rect.top) / rect.height;
+
+        // First, check if we clicked on a specific sample
+        const clickedSample = getSampleFromMinimapClick(x, y);
+        
+        if (clickedSample) {
+            // Center the view on the clicked sample
+            const imageSize = imageSizes[clickedSample.id];
+            const offset = sampleOffsets[clickedSample.id] || [0, 0];
+            
+            if (imageSize) {
+                const centerX = offset[0] + imageSize[0] / 2;
+                const centerY = offset[1] + imageSize[1] / 2;
+                
+                setMainViewState(prev => ({
+                    ...prev,
+                    target: [centerX, centerY, 0]
+                }));
+                return;
+            }
+        }
+
+        // Fallback to original behavior: pan to clicked position
         // Calculate total world bounds for all samples
         let totalLeft = Infinity;
         let totalRight = -Infinity;
@@ -771,10 +845,6 @@ export const SampleViewer = ({
         const totalWidth = totalRight - totalLeft;
         const totalHeight = totalBottom - totalTop;
 
-        const rect = minimapRef.current.getBoundingClientRect();
-        const x = (event.clientX - rect.left) / rect.width;
-        const y = (event.clientY - rect.top) / rect.height;
-
         // Convert relative coordinates to world coordinates
         const worldX = totalLeft + x * totalWidth;
         const worldY = totalTop + y * totalHeight;
@@ -784,7 +854,7 @@ export const SampleViewer = ({
             ...prev,
             target: [worldX, worldY, 0]
         }));
-    }, [selectedSamples, imageSizes, sampleOffsets]);
+    }, [selectedSamples, imageSizes, sampleOffsets, getSampleFromMinimapClick]);
 
     // Toggle minimap with fade animation
     const toggleMinimapVisible = useCallback(() => {
@@ -2570,21 +2640,71 @@ export const SampleViewer = ({
                                     const relativeHeight = (imageSize[1] / totalHeight) * 100;
 
                                     return (
-                                        <img
+                                        <div
                                             key={sample.id}
-                                            src={`/${sample.id}_full.jpg`}
-                                            alt={`Minimap ${sample.name}`}
                                             style={{
                                                 position: 'absolute',
                                                 left: `${relativeLeft}%`,
                                                 top: `${relativeTop}%`,
                                                 width: `${relativeWidth}%`,
                                                 height: `${relativeHeight}%`,
-                                                objectFit: 'cover',
-                                                display: 'block'
+                                                cursor: 'pointer',
+                                                border: '1px solid rgba(24, 144, 255, 0.3)',
+                                                borderRadius: '2px',
+                                                overflow: 'hidden',
+                                                transition: 'all 0.2s ease',
+                                                boxSizing: 'border-box'
                                             }}
-                                            draggable={false}
-                                        />
+                                            onMouseEnter={(e) => {
+                                                e.target.style.border = '2px solid #1890ff';
+                                                e.target.style.boxShadow = '0 2px 8px rgba(24, 144, 255, 0.4)';
+                                                e.target.style.transform = 'scale(1.02)';
+                                                e.target.style.zIndex = '3';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.target.style.border = '1px solid rgba(24, 144, 255, 0.3)';
+                                                e.target.style.boxShadow = 'none';
+                                                e.target.style.transform = 'scale(1)';
+                                                e.target.style.zIndex = '1';
+                                            }}
+                                            title={`Click to center on ${sample.name}`}
+                                        >
+                                            <img
+                                                src={`/${sample.id}_full.jpg`}
+                                                alt={`Minimap ${sample.name}`}
+                                                style={{
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    objectFit: 'cover',
+                                                    display: 'block',
+                                                    pointerEvents: 'none'
+                                                }}
+                                                draggable={false}
+                                            />
+                                            {/* Sample label overlay */}
+                                            <div
+                                                style={{
+                                                    position: 'absolute',
+                                                    bottom: '2px',
+                                                    left: '2px',
+                                                    right: '2px',
+                                                    fontSize: '8px',
+                                                    fontWeight: 'bold',
+                                                    color: 'white',
+                                                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                                    padding: '1px 3px',
+                                                    borderRadius: '2px',
+                                                    textAlign: 'center',
+                                                    textShadow: '1px 1px 1px rgba(0, 0, 0, 0.8)',
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    pointerEvents: 'none'
+                                                }}
+                                            >
+                                                {sample.name || sample.id}
+                                            </div>
+                                        </div>
                                     );
                                 });
                             })()}
@@ -2610,7 +2730,8 @@ export const SampleViewer = ({
                                         border: '2px solid #1890ff',
                                         backgroundColor: 'rgba(24, 144, 255, 0.2)',
                                         pointerEvents: 'none',
-                                        boxSizing: 'border-box'
+                                        boxSizing: 'border-box',
+                                        zIndex: 10
                                     }}
                                 />
                             );
