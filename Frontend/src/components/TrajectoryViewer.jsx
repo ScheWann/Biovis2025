@@ -5,7 +5,7 @@ import { LineChart } from "./LineChart";
 const { Option } = Select;
 
 // Main trajectory viewer component
-export const TrajectoryViewer = ({ sampleId }) => {
+export const TrajectoryViewer = ({ sampleId, kosaraDisplayEnabled, onKosaraDisplayToggle, onGeneSelection }) => {
     const [samples, setSamples] = useState([]);
     const [selectedSample, setSelectedSample] = useState(null);
     const [availableGenes, setAvailableGenes] = useState([]);
@@ -119,6 +119,11 @@ export const TrajectoryViewer = ({ sampleId }) => {
         setConfirmedGenes([...selectedGenes]);
         fetchTrajectoryData(selectedSample, selectedGenes);
         message.success(`Loading trajectory data for ${selectedGenes.length} gene(s)`);
+        
+        // Notify parent about gene selection for Kosara display
+        if (onGeneSelection && kosaraDisplayEnabled) {
+            onGeneSelection([...selectedGenes], selectedSample);
+        }
     };
 
     // Flatten sample options for Select component
@@ -155,14 +160,25 @@ export const TrajectoryViewer = ({ sampleId }) => {
                     flexWrap: "wrap",
                     flex: 1
                 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ fontSize: "12px", color: "#666" }}>Horizontal</span>
-                        <Switch
-                            size="small"
-                            checked={isVertical}
-                            onChange={setIsVertical}
-                        />
-                        <span style={{ fontSize: "12px", color: "#666" }}>Vertical</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "12px", color: "#666" }}>Horizontal</span>
+                            <Switch
+                                size="small"
+                                checked={isVertical}
+                                onChange={setIsVertical}
+                            />
+                            <span style={{ fontSize: "12px", color: "#666" }}>Vertical</span>
+                        </div>
+                        
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "12px", color: "#666" }}>Kosara Display:</span>
+                            <Switch
+                                size="small"
+                                checked={kosaraDisplayEnabled}
+                                onChange={onKosaraDisplayToggle}
+                            />
+                        </div>
                     </div>
                     <Select
                         size="small"

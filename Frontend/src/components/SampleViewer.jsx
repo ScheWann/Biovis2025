@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
 import { CellSettings } from './CellList';
-import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Spin } from "antd";
+import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Spin, Switch } from "antd";
 import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
@@ -21,7 +21,10 @@ export const SampleViewer = ({
     umapLoading,
     setUmapLoading,
     hoveredCluster,
-    onImagesLoaded
+    onImagesLoaded,
+    kosaraDisplayEnabled = true,
+    trajectoryGenes = [],
+    trajectoryGenesSample = null
 }) => {
     const containerRef = useRef(null);
     const [mainViewState, setMainViewState] = useState(null);
@@ -34,6 +37,16 @@ export const SampleViewer = ({
         selectedSamples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {})
     );
 
+    // Previous modes for each sample when Kosara display is toggled off
+    const [previousModes, setPreviousModes] = useState(
+        selectedSamples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {})
+    );
+    
+    // Previous gene selections when Kosara display is toggled off
+    const [previousGeneSelections, setPreviousGeneSelections] = useState({});
+    const [previousGeneColorMaps, setPreviousGeneColorMaps] = useState({});
+    const [previousKosaraData, setPreviousKosaraData] = useState({});
+
     // Update radioCellGeneModes when selectedSamples changes
     useEffect(() => {
         setRadioCellGeneModes(prev => {
@@ -45,7 +58,172 @@ export const SampleViewer = ({
             });
             return newModes;
         });
+        
+        // Initialize previous modes for new samples
+        setPreviousModes(prev => {
+            const newPreviousModes = { ...prev };
+            selectedSamples.forEach(sample => {
+                if (!(sample.id in newPreviousModes)) {
+                    newPreviousModes[sample.id] = 'cellTypes';
+                }
+            });
+            return newPreviousModes;
+        });
+        
+        // Reset trajectory tracking when samples change to allow loading for new samples
+        lastLoadedTrajectoryRef.current = null;
     }, [selectedSamples]);
+
+    // Handle Kosara display toggle changes from parent
+    useEffect(() => {
+        if (!kosaraDisplayEnabled) {
+            // Reset trajectory tracking when kosara is disabled
+            lastLoadedTrajectoryRef.current = null;
+            
+            // When Kosara display is turned OFF, save current state and restore previous state
+            
+            // Save current gene selections and color maps  
+            setPreviousGeneSelections(prev => ({ ...prev, current: selectedGenes }));
+            setPreviousGeneColorMaps(prev => ({ ...prev, current: geneColorMap }));
+            setPreviousKosaraData(prev => ({ ...prev, current: kosaraDataBySample }));
+            
+            // Save current modes as previous modes for next time
+            setPreviousModes(radioCellGeneModes);
+            
+            // Restore previous state or default to cellTypes
+            const restoredModes = {};
+            selectedSamples.forEach(sample => {
+                restoredModes[sample.id] = previousModes[sample.id] || 'cellTypes';
+            });
+            setRadioCellGeneModes(restoredModes);
+            
+            // Clear current gene displays when kosara is disabled
+            setSelectedGenes([]);
+            setGeneColorMap({});
+            setKosaraDataBySample({});
+        } else {
+            // When Kosara display is turned ON, restore saved current state
+            
+            // Save current state as previous
+            setPreviousModes(radioCellGeneModes);
+            
+            // Restore the "current" state that was saved when we turned off Kosara
+            if (previousGeneSelections.current) {
+                setSelectedGenes(previousGeneSelections.current);
+            }
+            if (previousGeneColorMaps.current) {
+                setGeneColorMap(previousGeneColorMaps.current);
+            }
+            if (previousKosaraData.current) {
+                setKosaraDataBySample(previousKosaraData.current);
+                
+                // Set modes back to genes if there was kosara data
+                const restoredModes = {};
+                selectedSamples.forEach(sample => {
+                    if (previousKosaraData.current[sample.id]?.length > 0) {
+                        restoredModes[sample.id] = 'genes';
+                    } else {
+                        restoredModes[sample.id] = radioCellGeneModes[sample.id];
+                    }
+                });
+                setRadioCellGeneModes(restoredModes);
+            }
+        }
+    }, [kosaraDisplayEnabled]);
+
+    // Track the last loaded trajectory gene combination to prevent redundant API calls
+    const lastLoadedTrajectoryRef = useRef(null);
+
+    // Handle trajectory gene selection changes
+    useEffect(() => {
+        if (kosaraDisplayEnabled && trajectoryGenes.length > 0 && trajectoryGenesSample) {
+            // Create a key to track the current trajectory selection
+            const currentTrajectoryKey = `${trajectoryGenesSample}:${trajectoryGenes.sort().join(',')}`;
+            
+            // Only proceed if this is a new trajectory selection
+            if (lastLoadedTrajectoryRef.current === currentTrajectoryKey) {
+                return; // Skip if we've already loaded this exact combination
+            }
+            
+            // Check if the trajectory genes sample matches any of our selected samples
+            const matchingSample = selectedSamples.find(sample => sample.id === trajectoryGenesSample);
+            if (matchingSample) {
+                // Update the tracking reference
+                lastLoadedTrajectoryRef.current = currentTrajectoryKey;
+                
+                // Update available genes and selected genes for the trajectory sample
+                setAvailableGenes(trajectoryGenes);
+                setSelectedGenes(trajectoryGenes);
+                
+                // Assign colors to genes if not already assigned
+                const newGeneColorMap = { ...geneColorMap };
+                let colorsChanged = false;
+                trajectoryGenes.forEach((gene, index) => {
+                    if (!newGeneColorMap[gene]) {
+                        newGeneColorMap[gene] = COLOR_PALETTE[index % COLOR_PALETTE.length];
+                        colorsChanged = true;
+                    }
+                });
+                if (colorsChanged) {
+                    setGeneColorMap(newGeneColorMap);
+                }
+                
+                // Load Kosara data for the trajectory sample
+                loadKosaraDataForSample(trajectoryGenesSample, trajectoryGenes);
+            }
+        }
+    }, [trajectoryGenes, trajectoryGenesSample, kosaraDisplayEnabled, selectedSamples]);
+
+    // Function to load Kosara data for a specific sample
+    const loadKosaraDataForSample = async (sampleId, genes) => {
+        if (!genes || genes.length === 0) return;
+        
+        // Check if this sample is already loading to prevent duplicate requests
+        if (kosaraLoadingSamples[sampleId]) {
+            return;
+        }
+        
+        try {
+            setIsKosaraLoading(true);
+            setKosaraLoadingSamples(prev => ({ ...prev, [sampleId]: true }));
+            
+            const response = await fetch('/api/get_kosara_data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sample_ids: [sampleId],
+                    gene_list: genes
+                })
+            });
+            
+            if (!response.ok) {
+                console.error('Failed to fetch Kosara data:', response.status, response.statusText);
+                return;
+            }
+            
+            const data = await response.json();
+            if (data && data[sampleId]) {
+                setKosaraDataBySample(prev => ({
+                    ...prev,
+                    [sampleId]: Array.isArray(data[sampleId]) ? data[sampleId] : []
+                }));
+                
+                // Set the sample to gene mode
+                setRadioCellGeneModes(prev => ({ ...prev, [sampleId]: 'genes' }));
+            }
+        } catch (err) {
+            console.error('Error fetching Kosara data:', err);
+        } finally {
+            setKosaraLoadingSamples(prev => {
+                const next = { ...prev };
+                delete next[sampleId];
+                if (Object.keys(next).length === 0) {
+                    setIsKosaraLoading(false);
+                }
+                return next;
+            });
+        }
+    };
 
     // Kosara gene expression data per sample returned from backend
     const [kosaraDataBySample, setKosaraDataBySample] = useState({}); // { sampleId: [ { id, cell_x, cell_y, cell_type, total_expression, angles:{}, radius:{}, ratios:{} }, ... ] }
@@ -175,9 +353,14 @@ export const SampleViewer = ({
         }, {});
     }, [selectedSamples, coordinatesData, sampleOffsets]);
 
+
+
     // Change cell/gene mode for a sample
     const changeCellGeneMode = (sampleId, e) => {
         const newMode = e.target.value;
+
+        // Update previous modes when manually changing mode
+        setPreviousModes(prev => ({ ...prev, [sampleId]: radioCellGeneModes[sampleId] }));
 
         // If switching TO genes with existing kosara data, show spinner first, then defer the expensive mode switch
         if (newMode === 'genes' && kosaraDataBySample[sampleId]?.length) {
@@ -1234,7 +1417,8 @@ export const SampleViewer = ({
         selectedSamples.forEach(sample => {
             const sampleId = sample.id;
             const mode = radioCellGeneModes[sampleId];
-            if (mode === 'genes' && selectedGenes.length > 0 && (kosaraDataBySample[sampleId]?.length > 0)) {
+            // Only generate kosara polygons if Kosara display is enabled
+            if (kosaraDisplayEnabled && mode === 'genes' && selectedGenes.length > 0 && (kosaraDataBySample[sampleId]?.length > 0)) {
                 const offset = sampleOffsets[sampleId] || [0, 0];
                 const optimizedPathData = kosaraDataBySample[sampleId].flatMap(d => {
                     const angles = Object.entries(d.angles || {});
@@ -1260,7 +1444,7 @@ export const SampleViewer = ({
             }
         });
         return result;
-    }, [selectedSamples, radioCellGeneModes, selectedGenes, geneColorMap, kosaraDataBySample, sampleOffsets, generateKosaraPath]);
+    }, [selectedSamples, radioCellGeneModes, selectedGenes, geneColorMap, kosaraDataBySample, sampleOffsets, generateKosaraPath, kosaraDisplayEnabled]);
 
     // Precompute hovered ID sets per sample for efficient matching
     const hoveredIdsSetBySample = useMemo(() => {
@@ -1273,8 +1457,8 @@ export const SampleViewer = ({
             const sampleId = sample.id;
             const mode = radioCellGeneModes[sampleId];
 
-            // If in gene mode and kosara data available, draw kosara polygons + optional highlight overlay
-            if (mode === 'genes' && kosaraPolygonsBySample[sampleId]?.length > 0) {
+            // If in gene mode and kosara data available and Kosara display is enabled, draw kosara polygons + optional highlight overlay
+            if (kosaraDisplayEnabled && mode === 'genes' && kosaraPolygonsBySample[sampleId]?.length > 0) {
                 const optimizedPathData = kosaraPolygonsBySample[sampleId];
                 const layers = [new PolygonLayer({
                     id: `kosara-polygons-${sampleId}`,
@@ -1411,7 +1595,7 @@ export const SampleViewer = ({
                 }
             })];
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, mainViewState]);
+    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, mainViewState, kosaraDisplayEnabled]);
 
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {

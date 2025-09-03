@@ -54,6 +54,13 @@ function App() {
   // Trajectory hover state
   const [hoveredTrajectory, setHoveredTrajectory] = useState(null); // {path: ['Cluster 1', 'Cluster 2', ...], adata_umap_title: string, sampleId: string}
 
+  // Kosara display toggle state
+  const [kosaraDisplayEnabled, setKosaraDisplayEnabled] = useState(true);
+
+  // Gene selection from TrajectoryViewer for Kosara display
+  const [trajectoryGenes, setTrajectoryGenes] = useState([]);
+  const [trajectoryGenesSample, setTrajectoryGenesSample] = useState(null);
+
   useEffect(() => {
     fetchSamplesOption();
   }, []);
@@ -254,6 +261,22 @@ function App() {
     );
   };
 
+  // Handler for gene selection from TrajectoryViewer
+  const handleTrajectoryGeneSelection = (genes, sampleId) => {
+    setTrajectoryGenes(genes);
+    setTrajectoryGenesSample(sampleId);
+  };
+
+  // Handler for Kosara display toggle with trajectory gene clearing
+  const handleKosaraDisplayToggle = (enabled) => {
+    setKosaraDisplayEnabled(enabled);
+    // Clear trajectory genes when kosara display is turned off
+    if (!enabled) {
+      setTrajectoryGenes([]);
+      setTrajectoryGenesSample(null);
+    }
+  };
+
   return (
     <ConfigProvider theme={customTheme}>
       <div className="App">
@@ -392,6 +415,9 @@ function App() {
                       setUmapLoading={setUmapLoading}
                       hoveredCluster={hoveredCluster}
                       onImagesLoaded={onImagesLoaded}
+                      kosaraDisplayEnabled={kosaraDisplayEnabled}
+                      trajectoryGenes={trajectoryGenes}
+                      trajectoryGenesSample={trajectoryGenesSample}
                     />
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="40%" min="40%" max="50%">
@@ -404,7 +430,12 @@ function App() {
                       >
                         <div style={{ height: "100%", overflow: "auto" }}>
                           {selectedSamples.length > 0 || sampleDataLoading ? (
-                            <TrajectoryViewer sampleId={selectedSamples.length > 0 ? selectedSamples[0].id : null} />
+                            <TrajectoryViewer 
+                              sampleId={selectedSamples.length > 0 ? selectedSamples[0].id : null}
+                              kosaraDisplayEnabled={kosaraDisplayEnabled}
+                              onKosaraDisplayToggle={handleKosaraDisplayToggle}
+                              onGeneSelection={handleTrajectoryGeneSelection}
+                            />
                           ) : (
                             <div style={{
                               display: "flex",
