@@ -1016,7 +1016,10 @@ export const PseudotimeGlyph = ({
                         index: i,
                         name: traj.name || `Trajectory ${i + 1}`,
                         color: tc[i % tc.length],
-                        sequence: Array.isArray(traj.path) ? traj.path.join(' \u2192 ') : ''
+                        sequence: Array.isArray(traj.path) ? traj.path.join(' \u2192 ') : '',
+                        coverage: traj.coverage || 0,
+                        validCells: traj.valid_cells || 0,
+                        totalCells: traj.total_cells || 0
                     }));
                 })();
 
@@ -1124,7 +1127,12 @@ export const PseudotimeGlyph = ({
                                 style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', cursor: 'pointer' }}
                             >
                                 <div style={{ width: 8, height: 8, backgroundColor: item.color, flexShrink: 0 }} />
-                                <Tooltip placement="left" title={`Clusters: ${item.sequence}`}>
+                                <Tooltip placement="left" title={
+                                    <div>
+                                        <div>Clusters: {item.sequence}</div>
+                                        <div>Coverage: {(item.coverage * 100).toFixed(1)}% ({item.validCells}/{item.totalCells} cells)</div>
+                                    </div>
+                                }>
                                     <span style={{ fontSize: '10px', color: '#333', fontWeight: item.index === selectedTrajectory ? 600 : 400 }}>
                                         {item.name}
                                     </span>

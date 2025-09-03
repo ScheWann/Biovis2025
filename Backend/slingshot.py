@@ -898,9 +898,9 @@ def direct_slingshot_analysis(
             
             trajectory_info[traj_name] = {
                 "pseudotime_column": pt_col,
-                "valid_cells": valid_cells,
-                "total_cells": len(result_adata),
-                "coverage": valid_cells / len(result_adata)
+                "valid_cells": int(valid_cells),
+                "total_cells": int(len(result_adata)),
+                "coverage": float(valid_cells / len(result_adata))
             }
             
             print(f"{traj_name}: {valid_cells} cells ({trajectory_info[traj_name]['coverage']:.1%} coverage)")
@@ -986,7 +986,7 @@ def direct_slingshot_analysis(
         
         for traj_name, traj_data in cluster_transitions.items():
             if "ordered_clusters" in traj_data and "cluster_statistics" in traj_data:
-                path = traj_data["ordered_clusters"]
+                path = [int(cluster) for cluster in traj_data["ordered_clusters"]]
                 cluster_stats = traj_data["cluster_statistics"]
                 
                 # Extract mean pseudotime for each cluster in the path
@@ -997,7 +997,7 @@ def direct_slingshot_analysis(
                         # Convert cluster to string for lookup since mean_dict keys are strings
                         cluster_str = str(cluster)
                         if cluster_str in mean_dict:
-                            pseudotime.append(mean_dict[cluster_str])
+                            pseudotime.append(float(mean_dict[cluster_str]))
                         else:
                             pseudotime.append(None)
                 else:
@@ -1012,7 +1012,7 @@ def direct_slingshot_analysis(
                             cluster_statistics=cluster_stats,
                             method='confidence_aware'
                         )
-                        corrected_pseudotime = correction_result['corrected_pseudotime']
+                        corrected_pseudotime = [float(pt) for pt in correction_result['corrected_pseudotime']]
                         
                         print(f"{traj_name}: Applied confidence aware correction")
                         print(f"  Original pseudotime: {[f'{pt:.3f}' if pt is not None else 'None' for pt in pseudotime]}")
@@ -1021,26 +1021,44 @@ def direct_slingshot_analysis(
                         print(f"  Total deviation: {correction_result['total_deviation']:.3f}")
                         print(f"  Is monotonic: {correction_result['is_monotonic']}")
                         
+                        # Get coverage info for this trajectory
+                        traj_info = trajectory_info.get(traj_name, {})
+                        
                         result_array.append({
                             "path": path,
                             "pseudotime": corrected_pseudotime,
-                            "original_pseudotime": pseudotime,
-                            "correction_info": correction_result
+                            "original_pseudotime": [float(pt) if pt is not None else None for pt in pseudotime],
+                            "correction_info": correction_result,
+                            "coverage": traj_info.get("coverage", 0),
+                            "valid_cells": traj_info.get("valid_cells", 0),
+                            "total_cells": traj_info.get("total_cells", 0)
                         })
                     except Exception as e:
                         print(f"Warning: Pseudotime correction failed for {traj_name}: {e}")
+                        # Get coverage info for this trajectory
+                        traj_info = trajectory_info.get(traj_name, {})
+                        
                         result_array.append({
                             "path": path,
-                            "pseudotime": pseudotime,
-                            "original_pseudotime": pseudotime,
-                            "correction_info": {"error": str(e)}
+                            "pseudotime": [float(pt) if pt is not None else None for pt in pseudotime],
+                            "original_pseudotime": [float(pt) if pt is not None else None for pt in pseudotime],
+                            "correction_info": {"error": str(e)},
+                            "coverage": traj_info.get("coverage", 0),
+                            "valid_cells": traj_info.get("valid_cells", 0),
+                            "total_cells": traj_info.get("total_cells", 0)
                         })
                 else:
+                    # Get coverage info for this trajectory
+                    traj_info = trajectory_info.get(traj_name, {})
+                    
                     result_array.append({
                         "path": path,
-                        "pseudotime": pseudotime,
-                        "original_pseudotime": pseudotime,
-                        "correction_info": {"note": "No correction applied - insufficient data or single cluster"}
+                        "pseudotime": [float(pt) if pt is not None else None for pt in pseudotime],
+                        "original_pseudotime": [float(pt) if pt is not None else None for pt in pseudotime],
+                        "correction_info": {"note": "No correction applied - insufficient data or single cluster"},
+                        "coverage": traj_info.get("coverage", 0),
+                        "valid_cells": traj_info.get("valid_cells", 0),
+                        "total_cells": traj_info.get("total_cells", 0)
                     })
         
         return result_adata, result_array
