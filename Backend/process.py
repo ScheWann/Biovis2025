@@ -175,7 +175,7 @@ def get_hires_image_size(sample_ids):
     return tissue_image_size
 
 
-def _get_single_sample_coordinates(sample_id, cell_ids=None, return_format='dataframe', include_legacy_check=True):
+def _get_single_sample_coordinates(sample_id, cell_ids=None, return_format='dataframe'):
     """
     Internal helper function to get coordinates for a single sample.
     
@@ -183,82 +183,75 @@ def _get_single_sample_coordinates(sample_id, cell_ids=None, return_format='data
     - sample_id: Single sample ID
     - cell_ids: Optional list of specific cell IDs to filter for
     - return_format: 'dataframe' or 'records' (for dict format)
-    - include_legacy_check: Whether to check for legacy format samples
     
     Returns:
     - DataFrame or list of records with coordinates and cell types
     """
-    # Handle new format: sample_id_scale
-    if "_" in sample_id:
-        base_sample_id, scale = sample_id.rsplit("_", 1)
-        if base_sample_id in SAMPLES:
-            sample_info = SAMPLES[base_sample_id]
-            if "scales" in sample_info and scale in sample_info["scales"]:
-                scale_info = sample_info["scales"][scale]
-                if "adata_path" in scale_info:
-                    try:
-                        adata = get_cached_adata(sample_id)
-                        
-                        # Build coordinate DataFrame with standard column names
-                        if 'spatial_cropped_150_buffer' in adata.obsm:
-                            # Use base_sample_id for spatial data access
-                            scalef = adata.uns['spatial'][base_sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
-                            coords_array = adata.obsm['spatial_cropped_150_buffer'] * scalef
-                            coords_df = pd.DataFrame(
-                                coords_array,
-                                columns=['cell_x', 'cell_y'],
-                                index=adata.obs_names
-                            )
-                        else:
-                            print(f"Warning: No spatial coordinates found for sample {sample_id}")
-                            coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'], index=adata.obs_names if hasattr(adata, 'obs_names') else [])
+    base_sample_id, scale = sample_id.rsplit("_", 1)
+    if base_sample_id in SAMPLES:
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" in sample_info and scale in sample_info["scales"]:
+            scale_info = sample_info["scales"][scale]
+            if "adata_path" in scale_info:
+                try:
+                    adata = get_cached_adata(sample_id)
+                    
+                    # Build coordinate DataFrame with standard column names
+                    if 'spatial_cropped_150_buffer' in adata.obsm:
+                        # Use base_sample_id for spatial data access
+                        scalef = adata.uns['spatial'][base_sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
+                        coords_array = adata.obsm['spatial_cropped_150_buffer'] * scalef
+                        coords_df = pd.DataFrame(
+                            coords_array,
+                            columns=['cell_x', 'cell_y'],
+                            index=adata.obs_names
+                        )
+                    else:
+                        print(f"Warning: No spatial coordinates found for sample {sample_id}")
+                        coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'], index=adata.obs_names if hasattr(adata, 'obs_names') else [])
 
-                        # Determine cell label column preference
-                        if hasattr(adata, 'obs') and len(adata.obs) > 0:
-                            if 'predicted_labels' in adata.obs.columns:
-                                cell_labels = adata.obs['predicted_labels'].astype(str)
-                            elif 'cell_type' in adata.obs.columns:
-                                cell_labels = adata.obs['cell_type'].astype(str)
+                    # Determine cell label column preference
+                    if hasattr(adata, 'obs') and len(adata.obs) > 0:
+                        if 'predicted_labels' in adata.obs.columns:
+                            cell_labels = adata.obs['predicted_labels'].astype(str)
+                        elif 'cell_type' in adata.obs.columns:
+                            cell_labels = adata.obs['cell_type'].astype(str)
+                        else:
+                            leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
+                            if leiden_cols:
+                                lc = leiden_cols[0]
+                                cell_labels = adata.obs[lc].astype(str).map(lambda v: f'Cluster {v}')
                             else:
-                                leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
-                                if leiden_cols:
-                                    lc = leiden_cols[0]
-                                    cell_labels = adata.obs[lc].astype(str).map(lambda v: f'Cluster {v}')
-                                else:
-                                    cell_labels = pd.Series(['Unknown'] * adata.n_obs, index=adata.obs_names)
-                        else:
-                            cell_labels = pd.Series(['Unknown'] * len(coords_df), index=coords_df.index)
+                                cell_labels = pd.Series(['Unknown'] * adata.n_obs, index=adata.obs_names)
+                    else:
+                        cell_labels = pd.Series(['Unknown'] * len(coords_df), index=coords_df.index)
 
-                        coords_df['cell_type'] = cell_labels
-                        coords_df['id'] = coords_df.index
+                    coords_df['cell_type'] = cell_labels
+                    coords_df['id'] = coords_df.index
+                    
+                    # Filter to specific cell IDs if provided
+                    if cell_ids is not None:
+                        coords_df = coords_df.loc[coords_df.index.isin(cell_ids)]
+                    
+                    if return_format == 'records':
+                        coords_df = coords_df.reset_index(drop=True)
+                        return coords_df.to_dict(orient="records")
+                    else:
+                        return coords_df
                         
-                        # Filter to specific cell IDs if provided
-                        if cell_ids is not None:
-                            coords_df = coords_df.loc[coords_df.index.isin(cell_ids)]
-                        
-                        if return_format == 'records':
-                            coords_df = coords_df.reset_index(drop=True)
-                            return coords_df.to_dict(orient="records")
-                        else:
-                            return coords_df
-                            
-                    except Exception as e:
-                        print(f"Error loading adata coordinates for sample {sample_id}: {e}")
-                        empty_df = pd.DataFrame(columns=['cell_x', 'cell_y', 'cell_type', 'id'])
-                        return [] if return_format == 'records' else empty_df
-                else:
-                    print(f"Warning: No coordinate data available for sample {sample_id}")
+                except Exception as e:
+                    print(f"Error loading adata coordinates for sample {sample_id}: {e}")
                     empty_df = pd.DataFrame(columns=['cell_x', 'cell_y', 'cell_type', 'id'])
                     return [] if return_format == 'records' else empty_df
             else:
-                print(f"No scale {scale} found for sample {base_sample_id}")
+                print(f"Warning: No coordinate data available for sample {sample_id}")
                 empty_df = pd.DataFrame(columns=['cell_x', 'cell_y', 'cell_type', 'id'])
                 return [] if return_format == 'records' else empty_df
         else:
+            print(f"No scale {scale} found for sample {base_sample_id}")
             empty_df = pd.DataFrame(columns=['cell_x', 'cell_y', 'cell_type', 'id'])
             return [] if return_format == 'records' else empty_df
     else:
-        # Sample not found
         empty_df = pd.DataFrame(columns=['cell_x', 'cell_y', 'cell_type', 'id'])
         return [] if return_format == 'records' else empty_df
 
@@ -468,20 +461,15 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
     def filter_and_merge(cell_ids, gene_names, sample_ids):
         results = {}
         for sample_id in sample_ids:
-            if "_" in sample_id:
-                base_sample_id, scale = sample_id.rsplit("_", 1)
-                if base_sample_id not in SAMPLES:
-                    raise ValueError(f"Sample {base_sample_id} not found.")
-                
-                sample_info = SAMPLES[base_sample_id]
-                if "scales" not in sample_info or scale not in sample_info["scales"]:
-                    raise ValueError(f"Scale {scale} not found for sample {base_sample_id}.")
-                
-                adata = get_cached_adata(sample_id)
-            elif sample_id in SAMPLES:
-                adata = get_cached_adata(sample_id)
-            else:
-                raise ValueError(f"Sample {sample_id} not found.")
+            base_sample_id, scale = sample_id.rsplit("_", 1)
+            if base_sample_id not in SAMPLES:
+                raise ValueError(f"Sample {base_sample_id} not found.")
+            
+            sample_info = SAMPLES[base_sample_id]
+            if "scales" not in sample_info or scale not in sample_info["scales"]:
+                raise ValueError(f"Scale {scale} not found for sample {base_sample_id}.")
+            
+            adata = get_cached_adata(sample_id)
 
             if not cell_ids:
                 valid_cell_ids = adata.obs_names.tolist()
@@ -660,7 +648,7 @@ def get_coordinates_for_single_gene(sample_id, cell_ids):
     """
     Helper function to get coordinates for single gene visualization
     """
-    return _get_single_sample_coordinates(sample_id, cell_ids=cell_ids, return_format='dataframe', include_legacy_check=False).reset_index(drop=True)
+    return _get_single_sample_coordinates(sample_id, cell_ids=cell_ids, return_format='dataframe').reset_index(drop=True)
 
 
 def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutions=1, adata_umap_title=None):
@@ -949,8 +937,6 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
     - n_pcas: Number of principal components to use (default: 30)
     - resolutions: Resolution parameter for Leiden clustering (default: 1)
     """
-    # Handle new format: sample_id_scale
-    # if "_" in sample_id:
     base_sample_id, scale = sample_id.rsplit("_", 1)
     if base_sample_id not in SAMPLES:
         raise ValueError(f"Sample {base_sample_id} not found")
