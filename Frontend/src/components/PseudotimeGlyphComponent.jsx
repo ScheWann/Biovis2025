@@ -246,24 +246,31 @@ export const PseudotimeGlyphComponent = ({
         });
     }, [pseudotimeDataSets]);
 
-    // Automatically unhide glyphs when new pseudotime data becomes available
-    // This ensures that when user clicks "Run Slingshot" and gets cached data,
-    // the glyph becomes visible again even if it was previously closed
+    // Track previous loading states to detect when specific analyses complete
+    const prevLoadingStatesRef = useRef({});
+    
+    // Automatically unhide glyphs when specific pseudotime analysis completes
+    // This ensures that when user clicks "Run Slingshot", only the target glyph becomes visible
     useEffect(() => {
-        const currentKeys = Object.keys(pseudotimeDataSets || {});
-        if (currentKeys.length > 0) {
+        const currentLoadingStates = pseudotimeLoadingStates || {};
+        const prevLoadingStates = prevLoadingStatesRef.current;
+        
+        // Find keys where loading state changed from true to false (analysis completed)
+        const completedAnalyses = Object.keys(currentLoadingStates).filter(key => {
+            return prevLoadingStates[key] === true && currentLoadingStates[key] === false;
+        });
+        
+        if (completedAnalyses.length > 0) {
             setHiddenGlyphs((prev) => {
                 const next = new Set(prev);
                 let hasChanges = false;
                 
-                // For each available dataset, if it's currently hidden and we have actual data (not just loading),
-                // unhide it to show the results
-                currentKeys.forEach((key) => {
-                    const dataset = pseudotimeDataSets[key];
-                    const isLoading = pseudotimeLoadingStates?.[key];
+                // Only unhide glyphs for analyses that just completed and have actual data
+                completedAnalyses.forEach((key) => {
+                    const dataset = pseudotimeDataSets?.[key];
                     
-                    // Only unhide if we have actual data and it's not currently loading
-                    if (dataset && !isLoading && prev.has(key)) {
+                    // Only unhide if we have actual data and it was previously hidden
+                    if (dataset && prev.has(key)) {
                         next.delete(key);
                         hasChanges = true;
                     }
@@ -272,7 +279,10 @@ export const PseudotimeGlyphComponent = ({
                 return hasChanges ? next : prev;
             });
         }
-    }, [pseudotimeDataSets, pseudotimeLoadingStates]);
+        
+        // Update the previous loading states for next comparison
+        prevLoadingStatesRef.current = { ...currentLoadingStates };
+    }, [pseudotimeLoadingStates, pseudotimeDataSets]);
 
     // Helper function to extract UMAP parameters from adata_umap_title
     const extractUmapParameters = (adataUmapTitle) => {
