@@ -185,7 +185,7 @@ export const TrajectoryViewer = ({ sampleId }) => {
                         size="small"
                         mode="multiple"
                         placeholder="Select Genes"
-                        style={{ width: "200px", minWidth: "150px" }}
+                        style={{ width: "150px", minWidth: "80px" }}
                         value={selectedGenes}
                         onChange={setSelectedGenes}
                         disabled={!selectedSample || geneListLoading}
