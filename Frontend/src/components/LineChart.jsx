@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
-import { COLOR_BREWER2_PALETTE_4 } from "./Utils";
+import { COLOR_BREWER2_PALETTE } from "./Utils";
 
-const COLORS = COLOR_BREWER2_PALETTE_4;
+const COLORS = COLOR_BREWER2_PALETTE;
 
 export const LineChart = ({
   data,

@@ -2,9 +2,9 @@ import React, { useRef, useEffect, useState, useMemo } from "react";
 import * as d3 from "d3";
 import { GOAnalysisWindow } from "./GOAnalysisWindow";
 import { UmapSettingsPopup } from "./UmapSettingsPopup";
-import { COLOR_BREWER2_PALETTE_4 } from "./Utils";
+import { COLOR_BREWER2_PALETTE } from "./Utils";
 
-const COLORS = COLOR_BREWER2_PALETTE_4;
+const COLORS = COLOR_BREWER2_PALETTE;
 
 export const ScatterplotUmap = ({
   data,

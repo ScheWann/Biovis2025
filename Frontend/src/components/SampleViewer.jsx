@@ -32,7 +32,7 @@ export const SampleViewer = ({
     const [imageSizes, setImageSizes] = useState({});
     const [availableGenes, setAvailableGenes] = useState([]); // All genes that have been added to the list
     const [selectedGenes, setSelectedGenes] = useState([]); // Currently selected (checked) genes
-    const [geneColorMap, setGeneColorMap] = useState({}); // { geneName: '#RRGGBB' }
+
     const [radioCellGeneModes, setRadioCellGeneModes] = useState(
         selectedSamples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {})
     );
@@ -41,10 +41,10 @@ export const SampleViewer = ({
     const [previousModes, setPreviousModes] = useState(
         selectedSamples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {})
     );
-    
+
     // Previous gene selections when Kosara display is toggled off
     const [previousGeneSelections, setPreviousGeneSelections] = useState({});
-    const [previousGeneColorMaps, setPreviousGeneColorMaps] = useState({});
+
     const [previousKosaraData, setPreviousKosaraData] = useState({});
 
     // Update radioCellGeneModes when selectedSamples changes
@@ -58,7 +58,7 @@ export const SampleViewer = ({
             });
             return newModes;
         });
-        
+
         // Initialize previous modes for new samples
         setPreviousModes(prev => {
             const newPreviousModes = { ...prev };
@@ -69,7 +69,7 @@ export const SampleViewer = ({
             });
             return newPreviousModes;
         });
-        
+
         // Reset trajectory tracking when samples change to allow loading for new samples
         lastLoadedTrajectoryRef.current = null;
     }, [selectedSamples]);
@@ -79,24 +79,23 @@ export const SampleViewer = ({
         if (!kosaraDisplayEnabled) {
             // Reset trajectory tracking when kosara is disabled
             lastLoadedTrajectoryRef.current = null;
-            
+
             // When Kosara display is turned OFF, save current state and restore previous state
-            
-            // Save current gene selections and color maps  
+
+            // Save current gene selections
             setPreviousGeneSelections(prev => ({ ...prev, current: selectedGenes }));
-            setPreviousGeneColorMaps(prev => ({ ...prev, current: geneColorMap }));
             setPreviousKosaraData(prev => ({ ...prev, current: kosaraDataBySample }));
-            
+
             // Save current modes as previous modes for next time
             setPreviousModes(radioCellGeneModes);
-            
+
             // Restore previous state or default to cellTypes
             const restoredModes = {};
             selectedSamples.forEach(sample => {
                 restoredModes[sample.id] = previousModes[sample.id] || 'cellTypes';
             });
             setRadioCellGeneModes(restoredModes);
-            
+
             // Clear current gene displays when kosara is disabled
             setSelectedGenes([]);
             setGeneColorMap({});
@@ -104,20 +103,18 @@ export const SampleViewer = ({
             setSingleGeneDataBySample({});
         } else {
             // When Kosara display is turned ON, restore saved current state
-            
+
             // Save current state as previous
             setPreviousModes(radioCellGeneModes);
-            
+
             // Restore the "current" state that was saved when we turned off Kosara
             if (previousGeneSelections.current) {
                 setSelectedGenes(previousGeneSelections.current);
             }
-            if (previousGeneColorMaps.current) {
-                setGeneColorMap(previousGeneColorMaps.current);
-            }
+
             if (previousKosaraData.current) {
                 setKosaraDataBySample(previousKosaraData.current);
-                
+
                 // Set modes back to genes if there was kosara data
                 const restoredModes = {};
                 selectedSamples.forEach(sample => {
@@ -140,35 +137,24 @@ export const SampleViewer = ({
         if (kosaraDisplayEnabled && trajectoryGenes.length > 0 && trajectoryGenesSample) {
             // Create a key to track the current trajectory selection
             const currentTrajectoryKey = `${trajectoryGenesSample}:${trajectoryGenes.sort().join(',')}`;
-            
+
             // Only proceed if this is a new trajectory selection
             if (lastLoadedTrajectoryRef.current === currentTrajectoryKey) {
                 return; // Skip if we've already loaded this exact combination
             }
-            
+
             // Check if the trajectory genes sample matches any of our selected samples
             const matchingSample = selectedSamples.find(sample => sample.id === trajectoryGenesSample);
             if (matchingSample) {
                 // Update the tracking reference
                 lastLoadedTrajectoryRef.current = currentTrajectoryKey;
-                
+
                 // Update available genes and selected genes for the trajectory sample
                 setAvailableGenes(trajectoryGenes);
                 setSelectedGenes(trajectoryGenes);
-                
-                // Assign colors to genes if not already assigned
-                const newGeneColorMap = { ...geneColorMap };
-                let colorsChanged = false;
-                trajectoryGenes.forEach((gene, index) => {
-                    if (!newGeneColorMap[gene]) {
-                        newGeneColorMap[gene] = COLOR_PALETTE[index % COLOR_PALETTE.length];
-                        colorsChanged = true;
-                    }
-                });
-                if (colorsChanged) {
-                    setGeneColorMap(newGeneColorMap);
-                }
-                
+
+
+
                 // Load data for the trajectory sample - use single gene mode if only one gene
                 if (trajectoryGenes.length === 1) {
                     loadSingleGeneDataForSample(trajectoryGenesSample, trajectoryGenes[0]);
@@ -182,16 +168,16 @@ export const SampleViewer = ({
     // Function to load Kosara data for a specific sample
     const loadKosaraDataForSample = async (sampleId, genes) => {
         if (!genes || genes.length === 0) return;
-        
+
         // Check if this sample is already loading to prevent duplicate requests
         if (kosaraLoadingSamples[sampleId]) {
             return;
         }
-        
+
         try {
             setIsKosaraLoading(true);
             setKosaraLoadingSamples(prev => ({ ...prev, [sampleId]: true }));
-            
+
             const response = await fetch('/api/get_kosara_data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -200,19 +186,19 @@ export const SampleViewer = ({
                     gene_list: genes
                 })
             });
-            
+
             if (!response.ok) {
                 console.error('Failed to fetch Kosara data:', response.status, response.statusText);
                 return;
             }
-            
+
             const data = await response.json();
             if (data && data[sampleId]) {
                 setKosaraDataBySample(prev => ({
                     ...prev,
                     [sampleId]: Array.isArray(data[sampleId]) ? data[sampleId] : []
                 }));
-                
+
                 // Set the sample to gene mode
                 setRadioCellGeneModes(prev => ({ ...prev, [sampleId]: 'genes' }));
             }
@@ -233,11 +219,11 @@ export const SampleViewer = ({
     // Function to load single gene expression data for sequential coloring
     const loadSingleGeneDataForSample = async (sampleId, geneName) => {
         if (!geneName) return;
-        
+
         try {
             setIsKosaraLoading(true);
             setKosaraLoadingSamples(prev => ({ ...prev, [sampleId]: true }));
-            
+
             const response = await fetch('/api/get_single_gene_expression', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -246,19 +232,19 @@ export const SampleViewer = ({
                     gene_name: geneName
                 })
             });
-            
+
             if (!response.ok) {
                 console.error('Failed to fetch single gene expression data:', response.status, response.statusText);
                 return;
             }
-            
+
             const data = await response.json();
             if (data && data[sampleId]) {
                 setSingleGeneDataBySample(prev => ({
                     ...prev,
                     [sampleId]: data[sampleId]
                 }));
-                
+
                 // Set the sample to gene mode
                 setRadioCellGeneModes(prev => ({ ...prev, [sampleId]: 'genes' }));
             }
@@ -465,7 +451,7 @@ export const SampleViewer = ({
                 return updated;
             });
         }
-        
+
         setRadioCellGeneModes(prev => ({ ...prev, [sampleId]: 'genes' }));
         // Mark this sample's request complete
         setKosaraLoadingSamples(prev => {
@@ -851,7 +837,7 @@ export const SampleViewer = ({
         for (const sample of selectedSamples) {
             const imageSize = imageSizes[sample.id];
             const offset = sampleOffsets[sample.id] || [0, 0];
-            
+
             if (!imageSize) continue;
 
             // Calculate relative position and size within the total bounds
@@ -880,16 +866,16 @@ export const SampleViewer = ({
 
         // First, check if we clicked on a specific sample
         const clickedSample = getSampleFromMinimapClick(x, y);
-        
+
         if (clickedSample) {
             // Center the view on the clicked sample
             const imageSize = imageSizes[clickedSample.id];
             const offset = sampleOffsets[clickedSample.id] || [0, 0];
-            
+
             if (imageSize) {
                 const centerX = offset[0] + imageSize[0] / 2;
                 const centerY = offset[1] + imageSize[1] / 2;
-                
+
                 setMainViewState(prev => ({
                     ...prev,
                     target: [centerX, centerY, 0]
@@ -1380,8 +1366,7 @@ export const SampleViewer = ({
                         setAvailableGenes={setAvailableGenes}
                         selectedGenes={selectedGenes}
                         setSelectedGenes={setSelectedGenes}
-                        geneColorMap={geneColorMap}
-                        setGeneColorMap={setGeneColorMap}
+
                         onKosaraData={handleKosaraData}
                         onKosaraLoadingStart={handleKosaraLoadingStart}
                     />
@@ -1590,7 +1575,7 @@ export const SampleViewer = ({
             }
         });
         return result;
-    }, [selectedSamples, radioCellGeneModes, selectedGenes, geneColorMap, kosaraDataBySample, sampleOffsets, generateKosaraPath, kosaraDisplayEnabled]);
+    }, [selectedSamples, radioCellGeneModes, selectedGenes, kosaraDataBySample, sampleOffsets, generateKosaraPath, kosaraDisplayEnabled]);
 
     // Precompute hovered ID sets per sample for efficient matching
     const hoveredIdsSetBySample = useMemo(() => {
@@ -1624,18 +1609,20 @@ export const SampleViewer = ({
                     getRadius: dynamicRadius,
                     getFillColor: d => {
                         const color = getSequentialColor(
-                            d.expression, 
-                            singleGeneData.min_expression, 
+                            d.expression,
+                            singleGeneData.min_expression,
                             singleGeneData.max_expression
                         );
-                        return [...color, 255];
+                        // Binary opacity: low for zero expression, high for any expression
+                        const opacity = d.expression === 0 ? 0 : 255;
+                        return [...color, opacity];
                     },
                     pickable: true,
                     stroked: false,
                     radiusUnits: 'pixels',
                     parameters: { depthTest: false, blend: true },
-                    updateTriggers: { 
-                        data: [singleGeneData, sampleId], 
+                    updateTriggers: {
+                        data: [singleGeneData, sampleId],
                         getFillColor: [singleGeneData.min_expression, singleGeneData.max_expression],
                         getRadius: [sampleId, mainViewState?.zoom]
                     },
@@ -1680,13 +1667,10 @@ export const SampleViewer = ({
                     data: optimizedPathData,
                     getPolygon: d => d.points,
                     getFillColor: d => {
-                        // if this polygon corresponds to a gene slice, color via map/palette; otherwise use fixed color
+                        // if this polygon corresponds to a gene slice, use palette color; otherwise use fixed color
                         if (d.gene) {
-                            const hex = geneColorMap[d.gene] || (() => {
-                                const pos = selectedGenes.indexOf(d.gene);
-                                const fallback = COLOR_PALETTE[(pos >= 0 ? pos : 0) % COLOR_PALETTE.length];
-                                return fallback;
-                            })();
+                            const pos = selectedGenes.indexOf(d.gene);
+                            const hex = COLOR_PALETTE[(pos >= 0 ? pos : 0) % COLOR_PALETTE.length];
                             const rgbColor = convertHEXToRGB(hex);
                             return [...rgbColor, 255];
                         }
@@ -1696,7 +1680,7 @@ export const SampleViewer = ({
                     pickable: true,
                     stroked: false,
                     parameters: { depthTest: false, blend: true },
-                    updateTriggers: { data: [kosaraPolygonsBySample[sampleId], sampleId], getFillColor: [geneColorMap, selectedGenes] },
+                    updateTriggers: { data: [kosaraPolygonsBySample[sampleId], sampleId], getFillColor: [selectedGenes] },
                     transitions: {
                         getPolygon: 0,
                         getFillColor: 0
@@ -2498,10 +2482,10 @@ export const SampleViewer = ({
                 )}
 
                 {/* Sample controls */}
-                <div style={{ 
-                    position: 'absolute', 
-                    top: minimapVisible ? 170 : 10, 
-                    left: 10, 
+                <div style={{
+                    position: 'absolute',
+                    top: minimapVisible ? 170 : 10,
+                    left: 10,
                     zIndex: 20,
                     transition: 'top 0.3s ease-in-out'
                 }}>

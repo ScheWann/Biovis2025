@@ -40,37 +40,7 @@ export const COLOR_PALETTE = [
     "#9edae5",
 ];
 
-export const COLOR_BREWER2_PALETTE_1 = [
-    "#7fc97f",
-    "#beaed4",
-    "#fdc086",
-    "#ffff99",
-    "#386cb0",
-    "#f0027f",
-    "#bf5b17",
-];
-
-export const COLOR_BREWER2_PALETTE_2 = [
-    "#1b9e77",
-    "#d95f02",
-    "#7570b3",
-    "#e7298a",
-    "#66a61e",
-    "#e6ab02",
-    "#a6761d",
-];
-
-export const COLOR_BREWER2_PALETTE_3 = [
-    "#a6cee3",
-    "#1f78b4",
-    "#b2df8a",
-    "#33a02c",
-    "#fb9a99",
-    "#e31a1c",
-    "#fdbf6f",
-];
-
-export const COLOR_BREWER2_PALETTE_4 = [
+export const COLOR_BREWER2_PALETTE = [
     "#a6cee3",
     "#b15928",
     "#33a02c",
@@ -106,17 +76,21 @@ export const interpolateColor = (color1, color2, factor) => {
     return [r, g, b];
 };
 
-// Generate sequential color scale for gene expression (light to dark)
-export const getSequentialColor = (value, minValue, maxValue, baseColor = "#2166ac") => {
+// Generate sequential color scale for gene expression (white to dark with enhanced contrast)
+export const getSequentialColor = (value, minValue, maxValue, baseColor = "#b30000") => {
     if (maxValue === minValue) {
         // If all values are the same, return a middle color
-        return interpolateColor("#f7f7f7", baseColor, 0.5);
+        return interpolateColor("#ffffff", baseColor, 0.5);
     }
     
     // Normalize value between 0 and 1
     const normalizedValue = (value - minValue) / (maxValue - minValue);
     
-    // Interpolate from light gray to the base color
-    const lightColor = "#f7f7f7"; // Light gray for low expression
-    return interpolateColor(lightColor, baseColor, normalizedValue);
+    // Apply a power transformation to enhance contrast for small changes
+    // This makes the color transition more pronounced for smaller expression differences
+    const enhancedValue = Math.pow(normalizedValue, 0.2);
+    
+    // Use pure white as the starting color and a more vibrant red for high expression
+    const lightColor = "#ffffff";
+    return interpolateColor(lightColor, baseColor, enhancedValue);
 };
