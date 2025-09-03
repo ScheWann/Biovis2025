@@ -1109,9 +1109,9 @@ export const PseudotimeGlyph = ({
                         top: '30px',
                         right: '5px',
                         zIndex: 999,
-                        backgroundColor: 'rgba(255, 255, 255, 0.85)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.7)',
                         borderRadius: '4px',
-                        padding: '6px',
+                        padding: '3px 6px',
                         boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                         maxWidth: '48%'
                     }}>
@@ -1123,9 +1123,9 @@ export const PseudotimeGlyph = ({
                                 onClick={() => setSelectedTrajectory(item.index)}
                                 style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', cursor: 'pointer' }}
                             >
-                                <div style={{ width: 10, height: 10, backgroundColor: item.color, border: '1px solid #aaa', flexShrink: 0 }} />
+                                <div style={{ width: 8, height: 8, backgroundColor: item.color, flexShrink: 0 }} />
                                 <Tooltip placement="left" title={`Clusters: ${item.sequence}`}>
-                                    <span style={{ fontSize: '11px', color: '#333', fontWeight: item.index === selectedTrajectory ? 600 : 400 }}>
+                                    <span style={{ fontSize: '10px', color: '#333', fontWeight: item.index === selectedTrajectory ? 600 : 400 }}>
                                         {item.name}
                                     </span>
                                 </Tooltip>
