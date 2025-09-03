@@ -118,7 +118,6 @@ export const TrajectoryViewer = ({ sampleId, kosaraDisplayEnabled, onKosaraDispl
 
         setConfirmedGenes([...selectedGenes]);
         fetchTrajectoryData(selectedSample, selectedGenes);
-        message.success(`Loading trajectory data for ${selectedGenes.length} gene(s)`);
         
         // Notify parent about gene selection for Kosara display
         if (onGeneSelection && kosaraDisplayEnabled) {
