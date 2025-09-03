@@ -83,14 +83,12 @@ export const getSequentialColor = (value, minValue, maxValue, baseColor = "#b300
         return interpolateColor("#ffffff", baseColor, 0.5);
     }
     
-    // Normalize value between 0 and 1
+    // Normalize value
     const normalizedValue = (value - minValue) / (maxValue - minValue);
-    
-    // Apply a power transformation to enhance contrast for small changes
-    // This makes the color transition more pronounced for smaller expression differences
+
+    // Makes the color transition more pronounced for smaller expression differences
     const enhancedValue = Math.pow(normalizedValue, 0.2);
-    
-    // Use pure white as the starting color and a more vibrant red for high expression
+
     const lightColor = "#ffffff";
     return interpolateColor(lightColor, baseColor, enhancedValue);
 };

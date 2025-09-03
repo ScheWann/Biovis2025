@@ -75,6 +75,15 @@ export const SampleViewer = ({
         lastLoadedTrajectoryRef.current = null;
     }, [selectedSamples]);
 
+    // Clear gene expression data when no genes are selected
+    useEffect(() => {
+        if (selectedGenes.length === 0) {
+            // Clear both single gene and kosara data when no genes are selected
+            setSingleGeneDataBySample({});
+            setKosaraDataBySample({});
+        }
+    }, [selectedGenes]);
+
     // Handle Kosara display toggle changes from parent
     useEffect(() => {
         if (!kosaraDisplayEnabled) {
@@ -1736,6 +1745,11 @@ export const SampleViewer = ({
 
             const hoveredSet = hoveredIdsSetBySample[sampleId] || null;
 
+            const hasConfirmedGeneData = (singleGeneDataBySample[sampleId]?.cells?.length > 0) || (kosaraDataBySample[sampleId]?.length > 0);
+            const isGeneModeWithoutSelection = mode === 'genes' && (!selectedGenes || selectedGenes.length === 0);
+            const isGeneModeWithoutConfirmedData = mode === 'genes' && selectedGenes.length > 0 && !hasConfirmedGeneData;
+            const shouldShowCellTypes = mode === 'cellTypes' || isGeneModeWithoutSelection || isGeneModeWithoutConfirmedData;
+
             return [new ScatterplotLayer({
                 id: `cells-${sampleId}`,
                 data: cellData,
@@ -1750,14 +1764,18 @@ export const SampleViewer = ({
                 },
                 getFillColor: d => {
                     const cellType = d.cell_type;
-                    const sampleSelectedCellTypes = selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [];
-                    if (cellType && sampleSelectedCellTypes.includes(cellType)) {
-                        const color = cellTypeColors[cellType];
-                        if (color) {
-                            const rgb = color.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [100, 100, 100];
-                            return [...rgb, 200];
+
+                    if (shouldShowCellTypes) {
+                        const sampleSelectedCellTypes = selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [];
+                        if (cellType && sampleSelectedCellTypes.includes(cellType)) {
+                            const color = cellTypeColors[cellType];
+                            if (color) {
+                                const rgb = color.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [100, 100, 100];
+                                return [...rgb, 200];
+                            }
                         }
                     }
+                    
                     const localId = d.id ?? d.cell_id;
                     if (hoveredSet && hoveredSet.has(String(localId))) {
                         return [255, 215, 0, 200];
@@ -1791,9 +1809,9 @@ export const SampleViewer = ({
                 pickable: true,
                 radiusUnits: 'pixels',
                 stroked: true,
-                filled: (!!hoveredSet) || (selectedCellTypes && selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
+                filled: (!!hoveredSet) || (shouldShowCellTypes && selectedCellTypes && selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
                 updateTriggers: {
-                    getFillColor: [hoveredCluster, selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [], cellTypeColors, sampleId],
+                    getFillColor: [hoveredCluster, selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [], cellTypeColors, sampleId, shouldShowCellTypes],
                     getLineColor: [hoveredCluster, sampleId],
                     getRadius: [sampleId, mainViewState?.zoom, hoveredCluster],
                     getLineWidth: [hoveredCluster, sampleId],
