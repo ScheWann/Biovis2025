@@ -246,6 +246,34 @@ export const PseudotimeGlyphComponent = ({
         });
     }, [pseudotimeDataSets]);
 
+    // Automatically unhide glyphs when new pseudotime data becomes available
+    // This ensures that when user clicks "Run Slingshot" and gets cached data,
+    // the glyph becomes visible again even if it was previously closed
+    useEffect(() => {
+        const currentKeys = Object.keys(pseudotimeDataSets || {});
+        if (currentKeys.length > 0) {
+            setHiddenGlyphs((prev) => {
+                const next = new Set(prev);
+                let hasChanges = false;
+                
+                // For each available dataset, if it's currently hidden and we have actual data (not just loading),
+                // unhide it to show the results
+                currentKeys.forEach((key) => {
+                    const dataset = pseudotimeDataSets[key];
+                    const isLoading = pseudotimeLoadingStates?.[key];
+                    
+                    // Only unhide if we have actual data and it's not currently loading
+                    if (dataset && !isLoading && prev.has(key)) {
+                        next.delete(key);
+                        hasChanges = true;
+                    }
+                });
+                
+                return hasChanges ? next : prev;
+            });
+        }
+    }, [pseudotimeDataSets, pseudotimeLoadingStates]);
+
     // Helper function to extract UMAP parameters from adata_umap_title
     const extractUmapParameters = (adataUmapTitle) => {
         if (!adataUmapTitle || typeof adataUmapTitle !== 'string') {
