@@ -114,68 +114,7 @@ def clear_processed_cache():
     print("Processed trajectory cache cleared")
 
 
-def get_samples_option():
-    """
-    Return a list of tissue samples for selector, group by scale.
-
-    Returns:
-    - List of tissue samples grouped by scale
-    """
-    groups = defaultdict(list)
-
-    for sample_id, sample in SAMPLES.items():
-        if "scales" in sample:
-            for scale in sample["scales"].keys():
-                scale_key = f"{sample_id}_{scale}"
-                groups[scale].append(
-                    {"value": scale_key, "label": f"{sample['name']} ({scale})"}
-                )
-        else:
-            print("No found for sample", sample_id)
-
-    return [
-        {"label": group, "title": group, "options": options}
-        for group, options in groups.items()
-    ]
-
-
-def get_hires_image_size(sample_ids):
-    """
-    Get the size of high-resolution images for the given sample IDs.
-
-    Parameters:
-    - sample_ids: List of sample IDs
-
-    Returns:
-    - Dictionary containing image size for each sample
-    """
-    tissue_image_size = {}
-
-    for sample_id in sample_ids:
-        base_sample_id, scale = sample_id.rsplit("_", 1)
-        if base_sample_id in SAMPLES:
-            sample_info = SAMPLES[base_sample_id]
-            if "scales" in sample_info and scale in sample_info["scales"]:
-                scale_info = sample_info["scales"][scale]
-                if "image_tif_path" in scale_info:
-                    try:
-                        image = Image.open(scale_info["image_tif_path"])
-                        tissue_image_size[sample_id] = image.size
-                        image.close()  # Close the image to free memory
-                    except Exception as e:
-                        print(f"Error loading image for sample {sample_id}: {e}")
-                        tissue_image_size[sample_id] = (0, 0)
-                else:
-                    print(f"No image path found for sample {sample_id}")
-                    tissue_image_size[sample_id] = (0, 0)
-            else:
-                print(f"No scale {scale} found for sample {base_sample_id}")
-                tissue_image_size[sample_id] = (0, 0)
-
-    return tissue_image_size
-
-
-def _get_single_sample_coordinates(sample_id, cell_ids=None, return_format='dataframe'):
+def single_sample_coordinates(sample_id, cell_ids=None, return_format='dataframe'):
     """
     Internal helper function to get coordinates for a single sample.
     
@@ -256,6 +195,67 @@ def _get_single_sample_coordinates(sample_id, cell_ids=None, return_format='data
         return [] if return_format == 'records' else empty_df
 
 
+def get_samples_option():
+    """
+    Return a list of tissue samples for selector, group by scale.
+
+    Returns:
+    - List of tissue samples grouped by scale
+    """
+    groups = defaultdict(list)
+
+    for sample_id, sample in SAMPLES.items():
+        if "scales" in sample:
+            for scale in sample["scales"].keys():
+                scale_key = f"{sample_id}_{scale}"
+                groups[scale].append(
+                    {"value": scale_key, "label": f"{sample['name']} ({scale})"}
+                )
+        else:
+            print("No found for sample", sample_id)
+
+    return [
+        {"label": group, "title": group, "options": options}
+        for group, options in groups.items()
+    ]
+
+
+def get_hires_image_size(sample_ids):
+    """
+    Get the size of high-resolution images for the given sample IDs.
+
+    Parameters:
+    - sample_ids: List of sample IDs
+
+    Returns:
+    - Dictionary containing image size for each sample
+    """
+    tissue_image_size = {}
+
+    for sample_id in sample_ids:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id in SAMPLES:
+            sample_info = SAMPLES[base_sample_id]
+            if "scales" in sample_info and scale in sample_info["scales"]:
+                scale_info = sample_info["scales"][scale]
+                if "image_tif_path" in scale_info:
+                    try:
+                        image = Image.open(scale_info["image_tif_path"])
+                        tissue_image_size[sample_id] = image.size
+                        image.close()  # Close the image to free memory
+                    except Exception as e:
+                        print(f"Error loading image for sample {sample_id}: {e}")
+                        tissue_image_size[sample_id] = (0, 0)
+                else:
+                    print(f"No image path found for sample {sample_id}")
+                    tissue_image_size[sample_id] = (0, 0)
+            else:
+                print(f"No scale {scale} found for sample {base_sample_id}")
+                tissue_image_size[sample_id] = (0, 0)
+
+    return tissue_image_size
+
+
 def get_coordinates(sample_ids):
     """
     Get cell coordinates for the given sample IDs.
@@ -269,7 +269,7 @@ def get_coordinates(sample_ids):
     cell_coordinate_result = {}
 
     for sample_id in sample_ids:
-        cell_coordinate_result[sample_id] = _get_single_sample_coordinates(sample_id, return_format='records')
+        cell_coordinate_result[sample_id] = single_sample_coordinates(sample_id, return_format='records')
 
     return cell_coordinate_result
 
@@ -512,7 +512,7 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
 
             expr_df = expr_df[["id"] + gene_names]
 
-            coord_df = _get_single_sample_coordinates(sample_id, return_format='dataframe').reset_index(drop=True)
+            coord_df = single_sample_coordinates(sample_id, return_format='dataframe').reset_index(drop=True)
 
             merged_df = pd.merge(expr_df, coord_df, on="id", how="inner")
 
@@ -648,7 +648,7 @@ def get_coordinates_for_single_gene(sample_id, cell_ids):
     """
     Helper function to get coordinates for single gene visualization
     """
-    return _get_single_sample_coordinates(sample_id, cell_ids=cell_ids, return_format='dataframe').reset_index(drop=True)
+    return single_sample_coordinates(sample_id, cell_ids=cell_ids, return_format='dataframe').reset_index(drop=True)
 
 
 def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutions=1, adata_umap_title=None):
