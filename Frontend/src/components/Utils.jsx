@@ -93,3 +93,30 @@ export const debounce = (func, delay) => {
         timeoutId = setTimeout(() => func.apply(null, args), delay);
     };
 };
+
+// Interpolate between two colors
+export const interpolateColor = (color1, color2, factor) => {
+    const rgb1 = convertHEXToRGB(color1);
+    const rgb2 = convertHEXToRGB(color2);
+    
+    const r = Math.round(rgb1[0] + factor * (rgb2[0] - rgb1[0]));
+    const g = Math.round(rgb1[1] + factor * (rgb2[1] - rgb1[1]));
+    const b = Math.round(rgb1[2] + factor * (rgb2[2] - rgb1[2]));
+    
+    return [r, g, b];
+};
+
+// Generate sequential color scale for gene expression (light to dark)
+export const getSequentialColor = (value, minValue, maxValue, baseColor = "#2166ac") => {
+    if (maxValue === minValue) {
+        // If all values are the same, return a middle color
+        return interpolateColor("#f7f7f7", baseColor, 0.5);
+    }
+    
+    // Normalize value between 0 and 1
+    const normalizedValue = (value - minValue) / (maxValue - minValue);
+    
+    // Interpolate from light gray to the base color
+    const lightColor = "#f7f7f7"; // Light gray for low expression
+    return interpolateColor(lightColor, baseColor, normalizedValue);
+};

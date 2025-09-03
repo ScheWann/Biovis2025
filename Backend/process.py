@@ -601,6 +601,136 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
     return results
 
 
+def get_single_gene_expression_data(sample_ids, gene_name, cell_list=None):
+    """
+    Get single gene expression data for coloring cells based on expression values.
+    
+    Parameters:
+    - sample_ids: List of sample IDs
+    - gene_name: Single gene name
+    - cell_list: List of cell IDs (optional)
+    
+    Returns:
+    - Dictionary containing expression data for each sample with min/max values for normalization
+    """
+    results = {}
+    
+    for sample_id in sample_ids:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id not in SAMPLES:
+            raise ValueError(f"Sample {base_sample_id} not found.")
+        
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" not in sample_info or scale not in sample_info["scales"]:
+            raise ValueError(f"Scale {scale} not found for sample {base_sample_id}.")
+        
+        adata = get_cached_adata(sample_id)
+
+        if not cell_list:
+            valid_cell_ids = adata.obs_names.tolist()
+        else:
+            # Convert cell_ids to regular Python strings to avoid numpy string issues
+            if hasattr(cell_list, '__iter__') and not isinstance(cell_list, str):
+                cell_list = [str(cell_id) for cell_id in cell_list]
+            else:
+                cell_list = [str(cell_list)]
+            
+            valid_cell_ids = [
+                cell for cell in cell_list if cell in adata.obs_names
+            ]
+
+        # Check if gene exists in the data
+        if gene_name not in adata.var_names:
+            # Return empty data if gene not found
+            results[sample_id] = {
+                "cells": [],
+                "min_expression": 0,
+                "max_expression": 0
+            }
+            continue
+
+        # Extract expression data for the single gene
+        filtered_adata = adata[valid_cell_ids, [gene_name]].copy()
+        if issparse(filtered_adata.X):
+            expr_data = filtered_adata.X.toarray().flatten()
+        else:
+            expr_data = filtered_adata.X.flatten()
+        
+        # Get coordinate data
+        coord_df = get_coordinates_for_single_gene(sample_id, valid_cell_ids)
+        
+        # Create result data
+        cell_data = []
+        for i, cell_id in enumerate(valid_cell_ids):
+            if i < len(coord_df):
+                coord_row = coord_df.iloc[i]
+                cell_data.append({
+                    "id": cell_id,
+                    "cell_x": coord_row.get("cell_x", 0),
+                    "cell_y": coord_row.get("cell_y", 0),
+                    "cell_type": coord_row.get("cell_type", "Unknown"),
+                    "expression": float(expr_data[i])
+                })
+        
+        # Calculate min and max expression values for normalization
+        expression_values = [cell["expression"] for cell in cell_data]
+        min_expr = min(expression_values) if expression_values else 0
+        max_expr = max(expression_values) if expression_values else 0
+        
+        results[sample_id] = {
+            "cells": cell_data,
+            "min_expression": min_expr,
+            "max_expression": max_expr
+        }
+    
+    return results
+
+
+def get_coordinates_for_single_gene(sample_id, cell_ids):
+    """
+    Helper function to get coordinates for single gene visualization
+    """
+    # Handle new format: sample_id_scale
+    if "_" in sample_id:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id in SAMPLES:
+            adata = get_cached_adata(sample_id)
+            # Build coordinate DataFrame with standard column names
+            if 'spatial_cropped_150_buffer' in adata.obsm:
+                # Use base_sample_id for spatial data access
+                scalef = adata.uns['spatial'][base_sample_id]['scalefactors']['tissue_0.5_mpp_150_buffer_scalef']
+                coords_array = adata.obsm['spatial_cropped_150_buffer'] * scalef
+                coords_df = pd.DataFrame(
+                    coords_array,
+                    columns=['cell_x', 'cell_y'],
+                    index=adata.obs_names
+                )
+            else:
+                coords_df = pd.DataFrame(columns=['cell_x', 'cell_y'], index=adata.obs_names)
+
+            # Determine cell label column preference
+            if 'predicted_labels' in adata.obs.columns:
+                cell_labels = adata.obs['predicted_labels'].astype(str)
+            elif 'cell_type' in adata.obs.columns:
+                cell_labels = adata.obs['cell_type'].astype(str)
+            else:
+                leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden_')]
+                if leiden_cols:
+                    lc = leiden_cols[0]
+                    cell_labels = adata.obs[lc].astype(str).map(lambda v: f'Cluster {v}')
+                else:
+                    cell_labels = pd.Series(['Unknown'] * adata.n_obs, index=adata.obs_names)
+
+            coords_df['cell_type'] = cell_labels
+        else:
+            coords_df = pd.DataFrame(columns=['cell_x', 'cell_y', 'cell_type'])
+    else:
+        coords_df = pd.DataFrame(columns=['cell_x', 'cell_y', 'cell_type'])
+    
+    # Filter to only the requested cell IDs
+    return coords_df.loc[coords_df.index.isin(cell_ids)].reset_index(drop=True)
+
+
 def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutions=1, adata_umap_title=None):
     """
     Generate UMAP data from gene expression data.

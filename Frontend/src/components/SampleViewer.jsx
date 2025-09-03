@@ -6,7 +6,7 @@ import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Spin, Switch
 import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
-import { convertHEXToRGB, COLOR_PALETTE } from './Utils';
+import { convertHEXToRGB, COLOR_PALETTE, getSequentialColor } from './Utils';
 
 
 export const SampleViewer = ({
@@ -101,6 +101,7 @@ export const SampleViewer = ({
             setSelectedGenes([]);
             setGeneColorMap({});
             setKosaraDataBySample({});
+            setSingleGeneDataBySample({});
         } else {
             // When Kosara display is turned ON, restore saved current state
             
@@ -168,8 +169,12 @@ export const SampleViewer = ({
                     setGeneColorMap(newGeneColorMap);
                 }
                 
-                // Load Kosara data for the trajectory sample
-                loadKosaraDataForSample(trajectoryGenesSample, trajectoryGenes);
+                // Load data for the trajectory sample - use single gene mode if only one gene
+                if (trajectoryGenes.length === 1) {
+                    loadSingleGeneDataForSample(trajectoryGenesSample, trajectoryGenes[0]);
+                } else {
+                    loadKosaraDataForSample(trajectoryGenesSample, trajectoryGenes);
+                }
             }
         }
     }, [trajectoryGenes, trajectoryGenesSample, kosaraDisplayEnabled, selectedSamples]);
@@ -225,6 +230,52 @@ export const SampleViewer = ({
         }
     };
 
+    // Function to load single gene expression data for sequential coloring
+    const loadSingleGeneDataForSample = async (sampleId, geneName) => {
+        if (!geneName) return;
+        
+        try {
+            setIsKosaraLoading(true);
+            setKosaraLoadingSamples(prev => ({ ...prev, [sampleId]: true }));
+            
+            const response = await fetch('/api/get_single_gene_expression', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sample_ids: [sampleId],
+                    gene_name: geneName
+                })
+            });
+            
+            if (!response.ok) {
+                console.error('Failed to fetch single gene expression data:', response.status, response.statusText);
+                return;
+            }
+            
+            const data = await response.json();
+            if (data && data[sampleId]) {
+                setSingleGeneDataBySample(prev => ({
+                    ...prev,
+                    [sampleId]: data[sampleId]
+                }));
+                
+                // Set the sample to gene mode
+                setRadioCellGeneModes(prev => ({ ...prev, [sampleId]: 'genes' }));
+            }
+        } catch (err) {
+            console.error('Error fetching single gene expression data:', err);
+        } finally {
+            setKosaraLoadingSamples(prev => {
+                const next = { ...prev };
+                delete next[sampleId];
+                if (Object.keys(next).length === 0) {
+                    setIsKosaraLoading(false);
+                }
+                return next;
+            });
+        }
+    };
+
     // Kosara gene expression data per sample returned from backend
     const [kosaraDataBySample, setKosaraDataBySample] = useState({}); // { sampleId: [ { id, cell_x, cell_y, cell_type, total_expression, angles:{}, radius:{}, ratios:{} }, ... ] }
 
@@ -236,6 +287,9 @@ export const SampleViewer = ({
     const kosaraLoadingSamplesRef = useRef({});
     useEffect(() => { kosaraLoadingSamplesRef.current = kosaraLoadingSamples; }, [kosaraLoadingSamples]);
     const spinnerFallbackTimeoutRef = useRef(null);
+
+    // Single gene expression data per sample for sequential coloring
+    const [singleGeneDataBySample, setSingleGeneDataBySample] = useState({}); // { sampleId: { cells: [...], min_expression: ..., max_expression: ... } }
 
     // Drawing state
     const [isDrawing, setIsDrawing] = useState(false);
@@ -384,12 +438,34 @@ export const SampleViewer = ({
         }
     };
 
-    // Receive kosara data from GeneList and store & switch to gene mode
-    const handleKosaraData = useCallback((sampleId, dataArray) => {
-        setKosaraDataBySample(prev => ({
-            ...prev,
-            [sampleId]: Array.isArray(dataArray) ? dataArray : []
-        }));
+    // Receive data from GeneList and store & switch to gene mode
+    const handleKosaraData = useCallback((sampleId, dataArray, dataType = 'kosara') => {
+        if (dataType === 'single_gene') {
+            // Handle single gene expression data
+            setSingleGeneDataBySample(prev => ({
+                ...prev,
+                [sampleId]: dataArray
+            }));
+            // Clear kosara data for this sample since we're using single gene mode
+            setKosaraDataBySample(prev => {
+                const updated = { ...prev };
+                delete updated[sampleId];
+                return updated;
+            });
+        } else {
+            // Handle kosara data
+            setKosaraDataBySample(prev => ({
+                ...prev,
+                [sampleId]: Array.isArray(dataArray) ? dataArray : []
+            }));
+            // Clear single gene data for this sample since we're using kosara mode
+            setSingleGeneDataBySample(prev => {
+                const updated = { ...prev };
+                delete updated[sampleId];
+                return updated;
+            });
+        }
+        
         setRadioCellGeneModes(prev => ({ ...prev, [sampleId]: 'genes' }));
         // Mark this sample's request complete
         setKosaraLoadingSamples(prev => {
@@ -1527,8 +1603,77 @@ export const SampleViewer = ({
             const sampleId = sample.id;
             const mode = radioCellGeneModes[sampleId];
 
+            // If in gene mode and single gene data available, draw single gene expression visualization
+            if (kosaraDisplayEnabled && mode === 'genes' && singleGeneDataBySample[sampleId]?.cells?.length > 0) {
+                const singleGeneData = singleGeneDataBySample[sampleId];
+                const offset = sampleOffsets[sampleId] || [0, 0];
+                const baseRadius = 5;
+                const zoomFactor = mainViewState ? Math.pow(2, mainViewState.zoom * 0.8) : 1;
+                const dynamicRadius = baseRadius * zoomFactor;
+
+                const expressionData = singleGeneData.cells.map(cell => ({
+                    ...cell,
+                    x: (cell.cell_x || 0) + offset[0],
+                    y: (cell.cell_y || 0) + offset[1]
+                }));
+
+                const layers = [new ScatterplotLayer({
+                    id: `single-gene-expression-${sampleId}`,
+                    data: expressionData,
+                    getPosition: d => [d.x, d.y],
+                    getRadius: dynamicRadius,
+                    getFillColor: d => {
+                        const color = getSequentialColor(
+                            d.expression, 
+                            singleGeneData.min_expression, 
+                            singleGeneData.max_expression
+                        );
+                        return [...color, 255];
+                    },
+                    pickable: true,
+                    stroked: false,
+                    radiusUnits: 'pixels',
+                    parameters: { depthTest: false, blend: true },
+                    updateTriggers: { 
+                        data: [singleGeneData, sampleId], 
+                        getFillColor: [singleGeneData.min_expression, singleGeneData.max_expression],
+                        getRadius: [sampleId, mainViewState?.zoom]
+                    },
+                    transitions: {
+                        getPosition: 0,
+                        getFillColor: 0,
+                        getRadius: 0
+                    }
+                })];
+
+                // Add a highlight overlay for hovered cells
+                const hoveredSet = hoveredIdsSetBySample[sampleId] || null;
+                if (hoveredSet) {
+                    const highlightData = expressionData.filter(d => hoveredSet.has(String(d.id)));
+
+                    layers.push(new ScatterplotLayer({
+                        id: `single-gene-highlight-${sampleId}`,
+                        data: highlightData,
+                        getPosition: d => [d.x, d.y],
+                        getRadius: dynamicRadius * 1.6,
+                        getFillColor: [255, 215, 0, 220],
+                        getLineColor: [255, 140, 0, 255],
+                        getLineWidth: 2,
+                        lineWidthUnits: 'pixels',
+                        radiusUnits: 'pixels',
+                        pickable: false,
+                        stroked: true,
+                        updateTriggers: {
+                            getRadius: [sampleId, mainViewState?.zoom, hoveredCluster],
+                        },
+                        parameters: { depthTest: false }
+                    }));
+                }
+
+                return layers;
+            }
             // If in gene mode and kosara data available and Kosara display is enabled, draw kosara polygons + optional highlight overlay
-            if (kosaraDisplayEnabled && mode === 'genes' && kosaraPolygonsBySample[sampleId]?.length > 0) {
+            else if (kosaraDisplayEnabled && mode === 'genes' && kosaraPolygonsBySample[sampleId]?.length > 0) {
                 const optimizedPathData = kosaraPolygonsBySample[sampleId];
                 const layers = [new PolygonLayer({
                     id: `kosara-polygons-${sampleId}`,
@@ -1665,7 +1810,7 @@ export const SampleViewer = ({
                 }
             })];
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, mainViewState, kosaraDisplayEnabled]);
+    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, mainViewState, kosaraDisplayEnabled]);
 
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {
@@ -2269,6 +2414,17 @@ export const SampleViewer = ({
                                     cell_type,
                                     ratios,
                                     total_expression,
+                                    x: info.x,
+                                    y: info.y
+                                });
+                            } else if (layerId.startsWith('single-gene-expression-')) {
+                                const sampleId = layerId.replace('single-gene-expression-', '');
+                                const { id, cell_type, expression } = info.object || {};
+                                setHoveredCell({
+                                    id,
+                                    sampleId,
+                                    cell_type,
+                                    expression,
                                     x: info.x,
                                     y: info.y
                                 });

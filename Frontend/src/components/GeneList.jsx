@@ -44,29 +44,56 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
                 onKosaraLoadingStart(sampleId);
             }
 
-            const response = await fetch('/api/get_kosara_data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sample_ids: [sampleId],
-                    gene_list: selectedGenes
-                })
-            });
-            if (!response.ok) {
-                console.error('Failed to fetch Kosara data:', response.status, response.statusText);
-                if (onKosaraData) {
+            // Check if only one gene is selected for single gene visualization
+            if (selectedGenes.length === 1) {
+                const response = await fetch('/api/get_single_gene_expression', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sample_ids: [sampleId],
+                        gene_name: selectedGenes[0]
+                    })
+                });
+                if (!response.ok) {
+                    console.error('Failed to fetch single gene expression data:', response.status, response.statusText);
+                    if (onKosaraData) {
+                        onKosaraData(sampleId, []);
+                    }
+                    return;
+                }
+                const data = await response.json();
+                if (onKosaraData && data && data[sampleId]) {
+                    // Mark this as single gene data for proper handling
+                    onKosaraData(sampleId, data[sampleId], 'single_gene');
+                } else if (onKosaraData) {
                     onKosaraData(sampleId, []);
                 }
-                return;
-            }
-            const data = await response.json();
-            if (onKosaraData && data && data[sampleId]) {
-                onKosaraData(sampleId, data[sampleId]);
-            } else if (onKosaraData) {
-                onKosaraData(sampleId, []);
+            } else {
+                // Multiple genes selected, use Kosara visualization
+                const response = await fetch('/api/get_kosara_data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sample_ids: [sampleId],
+                        gene_list: selectedGenes
+                    })
+                });
+                if (!response.ok) {
+                    console.error('Failed to fetch Kosara data:', response.status, response.statusText);
+                    if (onKosaraData) {
+                        onKosaraData(sampleId, []);
+                    }
+                    return;
+                }
+                const data = await response.json();
+                if (onKosaraData && data && data[sampleId]) {
+                    onKosaraData(sampleId, data[sampleId], 'kosara');
+                } else if (onKosaraData) {
+                    onKosaraData(sampleId, []);
+                }
             }
         } catch (err) {
-            console.error('Error fetching Kosara data:', err);
+            console.error('Error fetching gene data:', err);
             if (onKosaraData) {
                 onKosaraData(sampleId, []);
             }

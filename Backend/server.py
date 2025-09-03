@@ -10,6 +10,7 @@ from process import (
     get_gene_list,
     get_cell_types_data,
     get_kosara_data,
+    get_single_gene_expression_data,
     get_umap_data,
     perform_go_analysis,
     get_trajectory_data,
@@ -166,6 +167,18 @@ def get_kosara_data_route():
     gene_list = request.json["gene_list"]
 
     return jsonify(get_kosara_data(sample_ids, gene_list))
+
+
+@app.route("/api/get_single_gene_expression", methods=["POST"])
+def get_single_gene_expression_route():
+    """
+    Get single gene expression data for sequential coloring
+    """
+    sample_ids = request.json["sample_ids"]
+    gene_name = request.json["gene_name"]
+    cell_list = request.json.get("cell_list", None)
+
+    return jsonify(get_single_gene_expression_data(sample_ids, gene_name, cell_list))
 
 
 @app.route("/api/get_umap_data", methods=["POST"])
