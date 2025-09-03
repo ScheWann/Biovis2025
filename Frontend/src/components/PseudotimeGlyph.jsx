@@ -995,7 +995,7 @@ export const PseudotimeGlyph = ({
                 position: 'absolute',
                 top: '5px',
                 left: '5px',
-                zIndex: 1000,
+                zIndex: 999,
                 backgroundColor: 'rgba(255, 255, 255, 0.8)',
                 borderRadius: '4px',
                 padding: '2px'
@@ -1108,7 +1108,7 @@ export const PseudotimeGlyph = ({
                         position: 'absolute',
                         top: '30px',
                         right: '5px',
-                        zIndex: 1000,
+                        zIndex: 999,
                         backgroundColor: 'rgba(255, 255, 255, 0.85)',
                         borderRadius: '4px',
                         padding: '6px',

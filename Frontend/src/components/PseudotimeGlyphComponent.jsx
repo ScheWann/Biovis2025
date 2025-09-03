@@ -644,9 +644,9 @@ export const PseudotimeGlyphComponent = ({
                         display: 'grid',
                         gridTemplateColumns: visibleCount === 1 ? 'minmax(0, 1fr)' :
                             'repeat(2, minmax(0, 1fr))',
-                        gridAutoRows: '1fr',
+                        gridAutoRows: visibleCount <= 2 ? '1fr' : '100%',
                         gap: '5px',
-                        overflow: 'hidden',
+                        overflow: visibleCount <= 2 ? 'hidden' : 'auto',
                         boxSizing: 'border-box'
                     }}>
                 {visibleIndices.map((index) => {
