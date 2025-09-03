@@ -643,8 +643,7 @@ export const PseudotimeGlyphComponent = ({
                         height: `calc(100% - 35px)`,
                         display: 'grid',
                         gridTemplateColumns: visibleCount === 1 ? 'minmax(0, 1fr)' :
-                            visibleCount === 2 ? 'repeat(2, minmax(0, 1fr))' :
-                                'repeat(3, minmax(0, 1fr))',
+                            'repeat(2, minmax(0, 1fr))',
                         gridAutoRows: '1fr',
                         gap: '5px',
                         overflow: 'hidden',
