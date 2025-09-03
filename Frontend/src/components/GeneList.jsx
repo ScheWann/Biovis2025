@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Checkbox, AutoComplete } from "antd";
+import { Button, Checkbox, AutoComplete, ColorPicker } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
-import { debounce } from './Utils';
+import { COLOR_PALETTE, debounce } from './Utils';
 
-export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes, onKosaraData, onKosaraLoadingStart }) => {
+export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, selectedGenes, setSelectedGenes, geneColorMap, setGeneColorMap, onKosaraData, onKosaraLoadingStart }) => {
     const [searchText, setSearchText] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -152,6 +152,27 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
         searchGenes(searchText);
     }, [searchText, searchGenes]);
 
+    // Initialize default colors for genes using COLOR_PALETTE
+    useEffect(() => {
+        setGeneColorMap(prev => {
+            const next = { ...prev };
+            // Add defaults for new genes
+            availableGenes.forEach((gene, idx) => {
+                if (!next[gene]) {
+                    const position = selectedGenes.includes(gene)
+                        ? selectedGenes.indexOf(gene)
+                        : idx;
+                    next[gene] = COLOR_PALETTE[position % COLOR_PALETTE.length];
+                }
+            });
+            // Remove entries for removed genes
+            Object.keys(next).forEach(g => {
+                if (!availableGenes.includes(g)) delete next[g];
+            });
+            return next;
+        });
+    }, [availableGenes, selectedGenes]);
+
 
 
     return (
@@ -189,7 +210,15 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
                                     onChange={() => toggleGeneSelection(gene)}
                                     style={{ marginRight: 8 }}
                                 />
-
+                                <ColorPicker
+                                    size="small"
+                                    value={geneColorMap[gene]}
+                                    onChange={(color) => {
+                                        const hex = color.toHexString();
+                                        setGeneColorMap(prev => ({ ...prev, [gene]: hex }));
+                                    }}
+                                    style={{ marginRight: 8 }}
+                                />
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                                     <span style={{ fontSize: 12, color: selectedGenes.includes(gene) ? '#000' : '#999' }}>
                                         {gene}

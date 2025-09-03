@@ -32,6 +32,7 @@ export const SampleViewer = ({
     const [imageSizes, setImageSizes] = useState({});
     const [availableGenes, setAvailableGenes] = useState([]); // All genes that have been added to the list
     const [selectedGenes, setSelectedGenes] = useState([]); // Currently selected (checked) genes
+    const [geneColorMap, setGeneColorMap] = useState({}); // { geneName: '#RRGGBB' }
 
     const [radioCellGeneModes, setRadioCellGeneModes] = useState(
         selectedSamples.reduce((acc, sample) => ({ ...acc, [sample.id]: 'cellTypes' }), {})
@@ -1366,7 +1367,8 @@ export const SampleViewer = ({
                         setAvailableGenes={setAvailableGenes}
                         selectedGenes={selectedGenes}
                         setSelectedGenes={setSelectedGenes}
-
+                        geneColorMap={geneColorMap}
+                        setGeneColorMap={setGeneColorMap}
                         onKosaraData={handleKosaraData}
                         onKosaraLoadingStart={handleKosaraLoadingStart}
                     />
@@ -1575,7 +1577,7 @@ export const SampleViewer = ({
             }
         });
         return result;
-    }, [selectedSamples, radioCellGeneModes, selectedGenes, kosaraDataBySample, sampleOffsets, generateKosaraPath, kosaraDisplayEnabled]);
+    }, [selectedSamples, radioCellGeneModes, selectedGenes, geneColorMap, kosaraDataBySample, sampleOffsets, generateKosaraPath, kosaraDisplayEnabled]);
 
     // Precompute hovered ID sets per sample for efficient matching
     const hoveredIdsSetBySample = useMemo(() => {
@@ -1608,10 +1610,15 @@ export const SampleViewer = ({
                     getPosition: d => [d.x, d.y],
                     getRadius: dynamicRadius,
                     getFillColor: d => {
+                        // Get the selected gene and its color from the color map
+                        const selectedGene = selectedGenes[0]; // For single gene mode
+                        const baseColor = geneColorMap[selectedGene] || "#d73027";
+
                         const color = getSequentialColor(
                             d.expression,
                             singleGeneData.min_expression,
-                            singleGeneData.max_expression
+                            singleGeneData.max_expression,
+                            baseColor
                         );
                         // Binary opacity: low for zero expression, high for any expression
                         const opacity = d.expression === 0 ? 0 : 255;
@@ -1623,7 +1630,7 @@ export const SampleViewer = ({
                     parameters: { depthTest: false, blend: true },
                     updateTriggers: {
                         data: [singleGeneData, sampleId],
-                        getFillColor: [singleGeneData.min_expression, singleGeneData.max_expression],
+                        getFillColor: [singleGeneData.min_expression, singleGeneData.max_expression, geneColorMap],
                         getRadius: [sampleId, mainViewState?.zoom]
                     },
                     transitions: {
@@ -1667,10 +1674,13 @@ export const SampleViewer = ({
                     data: optimizedPathData,
                     getPolygon: d => d.points,
                     getFillColor: d => {
-                        // if this polygon corresponds to a gene slice, use palette color; otherwise use fixed color
+                        // if this polygon corresponds to a gene slice, color via map/palette; otherwise use fixed color
                         if (d.gene) {
-                            const pos = selectedGenes.indexOf(d.gene);
-                            const hex = COLOR_PALETTE[(pos >= 0 ? pos : 0) % COLOR_PALETTE.length];
+                            const hex = geneColorMap[d.gene] || (() => {
+                                const pos = selectedGenes.indexOf(d.gene);
+                                const fallback = COLOR_PALETTE[(pos >= 0 ? pos : 0) % COLOR_PALETTE.length];
+                                return fallback;
+                            })();
                             const rgbColor = convertHEXToRGB(hex);
                             return [...rgbColor, 255];
                         }
@@ -1680,7 +1690,7 @@ export const SampleViewer = ({
                     pickable: true,
                     stroked: false,
                     parameters: { depthTest: false, blend: true },
-                    updateTriggers: { data: [kosaraPolygonsBySample[sampleId], sampleId], getFillColor: [selectedGenes] },
+                    updateTriggers: { data: [kosaraPolygonsBySample[sampleId], sampleId], getFillColor: [geneColorMap, selectedGenes] },
                     transitions: {
                         getPolygon: 0,
                         getFillColor: 0
