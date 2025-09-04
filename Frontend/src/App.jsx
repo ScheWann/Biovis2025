@@ -547,6 +547,8 @@ function App() {
                                       }
                                       onUmapLoadingStart={() => handleUmapLoadingStart(dataset.id)}
                                       isUpdating={dataset.isUpdating || false}
+                                      areaColor={dataset.areaColor}
+                                      areaName={dataset.areaName}
                                     />
                                   </div>
                                 );

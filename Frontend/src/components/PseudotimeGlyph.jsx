@@ -15,6 +15,8 @@ export const PseudotimeGlyph = ({
     clusterColors = null,
     trajectoryIndex,
     umapParameters = null,
+    areaColor,
+    areaName,
 }) => {
     const containerRef = useRef();
     const svgRef = useRef(null);
@@ -990,10 +992,27 @@ export const PseudotimeGlyph = ({
 
     return (
         <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative", boxSizing: 'border-box' }}>
+            {/* Color bar for area selection */}
+            {areaColor && (
+                <div
+                    style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: "4px",
+                        backgroundColor: areaColor,
+                        zIndex: 10,
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                    }}
+                    title={areaName ? `Region: ${areaName}` : "Selected Region"}
+                />
+            )}
+            
             {/* Checkbox in upper left corner */}
             <div style={{
                 position: 'absolute',
-                top: '5px',
+                top: areaColor ? '9px' : '5px', // Adjust position if color bar is present
                 left: '5px',
                 zIndex: 999,
                 backgroundColor: 'rgba(255, 255, 255, 0.8)',
@@ -1109,7 +1128,7 @@ export const PseudotimeGlyph = ({
                 return (
                     <div style={{
                         position: 'absolute',
-                        top: '30px',
+                        top: areaColor ? '34px' : '30px', // Adjust position if color bar is present
                         right: '5px',
                         zIndex: 999,
                         backgroundColor: 'rgba(255, 255, 255, 0.7)',

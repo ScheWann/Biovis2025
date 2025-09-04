@@ -31,7 +31,9 @@ export const ScatterplotUmap = ({
   pseudotimeDataSets,
   pseudotimeLoadingStates,
   onUmapDataUpdate,
-  onUmapLoadingStart
+  onUmapLoadingStart,
+  areaColor,
+  areaName
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -435,12 +437,27 @@ export const ScatterplotUmap = ({
   return (
     <div
       ref={containerRef}
-      style={{ width: "100%", height: "100%" }}
+      style={{ width: "100%", height: "100%", position: "relative" }}
       onMouseLeave={() => {
         clearHoverState();
       }}
     >
-
+      {/* Color bar for area selection */}
+      {areaColor && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "4px",
+            backgroundColor: areaColor,
+            zIndex: 10,
+            boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
+          }}
+          title={areaName ? `Region: ${areaName}` : "Selected Region"}
+        />
+      )}
 
       <svg ref={svgRef}></svg>
       <GOAnalysisWindow

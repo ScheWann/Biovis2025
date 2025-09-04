@@ -26,7 +26,9 @@ export const UmapComponent = ({
   pseudotimeLoadingStates,
   onUmapDataUpdate,
   onUmapLoadingStart,
-  isUpdating = false
+  isUpdating = false,
+  areaColor,
+  areaName
 }) => {
   return (
     <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -75,6 +77,8 @@ export const UmapComponent = ({
           pseudotimeLoadingStates={pseudotimeLoadingStates}
           onUmapDataUpdate={onUmapDataUpdate}
           onUmapLoadingStart={onUmapLoadingStart}
+          areaColor={areaColor}
+          areaName={areaName}
         />
       ) : null}
     </div>

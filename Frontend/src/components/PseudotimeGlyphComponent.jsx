@@ -789,6 +789,11 @@ export const PseudotimeGlyphComponent = ({
                                             }
                                         }
 
+                                        // Find the corresponding UMAP dataset to get area color information
+                                        const correspondingUmapDataset = umapDataSets?.find(dataset => 
+                                            dataset.adata_umap_title === trajectoryData.source_title
+                                        );
+
                                         return (
                                             <PseudotimeGlyph
                                                 adata_umap_title={trajectoryData.display_title}
@@ -803,6 +808,8 @@ export const PseudotimeGlyphComponent = ({
                                                 trajectoryIndex={index}
                                                 source_title={trajectoryData.source_title || adata_umap_title}
                                                 umapParameters={trajectoryData.umapParameters}
+                                                areaColor={correspondingUmapDataset?.areaColor}
+                                                areaName={correspondingUmapDataset?.areaName}
                                             />
                                         );
                                     } catch (error) {

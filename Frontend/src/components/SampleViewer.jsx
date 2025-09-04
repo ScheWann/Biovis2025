@@ -1108,6 +1108,32 @@ export const SampleViewer = ({
                     }
                     : area
             ));
+
+            // Update corresponding UMAP datasets with new area color and name
+            setUmapDataSets(prev => prev.map(dataset => {
+                // Check if this dataset corresponds to the edited area by matching the original area name and sample
+                if (dataset.areaName === selectedAreaForEdit.name && 
+                    dataset.sampleId === selectedAreaForEdit.sampleId) {
+                    
+                    // If the area name changed, we need to update the adata_umap_title as well
+                    let newAdataUmapTitle = dataset.adata_umap_title;
+                    if (editAreaName !== selectedAreaForEdit.name) {
+                        // Extract the current adata_umap_title and replace the name part
+                        const oldFormattedName = selectedAreaForEdit.name.split(' ').join('_');
+                        const newFormattedName = editAreaName.split(' ').join('_');
+                        newAdataUmapTitle = dataset.adata_umap_title.replace(oldFormattedName, newFormattedName);
+                    }
+                    
+                    return {
+                        ...dataset,
+                        areaColor: editAreaColor,
+                        areaName: editAreaName,
+                        adata_umap_title: newAdataUmapTitle,
+                        title: `${editAreaName} (${dataset.sampleId})` // Update display title too
+                    };
+                }
+                return dataset;
+            }));
         }
         handleAreaEditCancel();
     };
@@ -1333,7 +1359,9 @@ export const SampleViewer = ({
                 data: [],
                 loading: true,
                 sampleId: selectedAreaForEdit.sampleId,
-                areaPoints: selectedAreaForEdit.points
+                areaPoints: selectedAreaForEdit.points,
+                areaColor: selectedAreaForEdit.color,
+                areaName: selectedAreaForEdit.name
             }
         ]);
 
