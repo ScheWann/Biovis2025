@@ -440,14 +440,6 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
             )
         return result - (a * np.pi * radius_val**2)
 
-    def initial_guess(a, d, special_value):
-        if a <= special_value:
-            return d + 0.01
-        elif a > 0.95:
-            return 8
-        else:
-            return a * 10 - 1.5
-
     def calculate_radius_vectorized(originaldf, radius_val):
         """
         Vectorized calculate_radius for better performance.
