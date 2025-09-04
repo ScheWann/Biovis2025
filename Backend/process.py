@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import json
+import os
 from collections import defaultdict
 from scipy.optimize import fsolve
 import scanpy as sc
@@ -29,7 +30,9 @@ SEED = 42
 random.seed(SEED)
 np.random.seed(SEED)
 
-JSON_PATH = "./samples_list.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+JSON_PATH = os.path.join(BASE_DIR, "samples_list.json")
+
 """
     Load sample list from a JSON file.
 """
