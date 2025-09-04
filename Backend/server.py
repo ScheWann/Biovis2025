@@ -18,7 +18,7 @@ from process import (
     get_trajectory_gene_list,
     load_adata_to_cache,
     clear_adata_cache,
-    # get_pseudotime_data,
+    clear_kosara_cache,
     get_trajectory_gene_expression,
     get_direct_slingshot_data,
 )

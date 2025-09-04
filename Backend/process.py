@@ -1,20 +1,16 @@
 import numpy as np
 import pandas as pd
 import json
-import io
 from collections import defaultdict
 from scipy.optimize import fsolve
 import scanpy as sc
 from PIL import Image
 import gseapy as gp
 from scipy.sparse import issparse
-import networkx as nx
 import random
 import squidpy as sq
-from slingshot import (
-    analyze_gene_expression_along_trajectories,
-    direct_slingshot_analysis
-)
+from multiprocessing import Pool, cpu_count
+from slingshot import direct_slingshot_analysis
 
 # Disable the PIL image limit entirely
 Image.MAX_IMAGE_PIXELS = None
@@ -24,6 +20,9 @@ ADATA_CACHE = {}
 
 # Global cache for processed trajectory data
 PROCESSED_ADATA_CACHE = {}
+
+# Global cache for Kosara calculations (memoization for expensive fsolve calls)
+KOSARA_CALCULATION_CACHE = {}
 
 # Set random seed for reproducibility
 SEED = 42
@@ -112,6 +111,27 @@ def clear_processed_cache():
     global PROCESSED_ADATA_CACHE
     PROCESSED_ADATA_CACHE.clear()
     print("Processed trajectory cache cleared")
+
+
+def clear_kosara_cache():
+    """Clear the Kosara calculation cache to free memory"""
+    global KOSARA_CALCULATION_CACHE
+    KOSARA_CALCULATION_CACHE.clear()
+
+
+def ensure_json_serializable(value):
+    """Convert numpy types to native Python types for JSON serialization"""
+    if isinstance(value, (np.floating, np.complexfloating)):
+        if np.isnan(value) or np.isinf(value):
+            return 0.0
+        return float(value)
+    elif isinstance(value, (np.integer)):
+        return int(value)
+    elif isinstance(value, np.ndarray):
+        return value.tolist()
+    elif hasattr(value, 'item'):  # Handle numpy scalars
+        return value.item()
+    return value
 
 
 def single_sample_coordinates(sample_id, cell_ids=None, return_format='dataframe'):
@@ -391,6 +411,7 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
     radius = 5
     d = np.sqrt(2) * radius
 
+    # Pre-calculate constants
     special_r, special_d = np.sqrt(2) * radius, np.sqrt(2) * radius
     special_angle1 = np.degrees(
         np.arccos((special_r**2 + d**2 - radius**2) / (2 * special_r * d))
@@ -427,34 +448,70 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
         else:
             return a * 10 - 1.5
 
-    def calculate_radius(originaldf, radius_val):
-        originaldf["radius"] = radius_val
+    def calculate_radius_vectorized(originaldf, radius_val):
+        """
+        Vectorized calculate_radius for better performance.
+        Uses numpy operations and optimized solving instead of nested loops.
+        """
         result_df = originaldf.copy()
-        for index, row in originaldf.iterrows():
-            for col in gene_list:
-                a_value = row[col + "_original_ratio"]
-                if a_value == 0:
-                    cal_radius = 0
-                    angle = 0
-                else:
-                    try:
-                        guess = initial_guess(a_value, d, special_value)
-                        cal_radius = fsolve(
-                            equation,
-                            guess,
-                            args=(d, a_value, radius_val, special_value),
-                        )[0]
-                        angle = np.degrees(
-                            np.arccos(
-                                (cal_radius**2 + d**2 - radius_val**2)
-                                / (2 * cal_radius * d)
+        result_df["radius"] = radius_val
+        
+        # Process all genes at once using vectorized operations
+        for col in gene_list:
+            ratio_col = col + "_original_ratio"
+            a_values = result_df[ratio_col].values
+            
+            # Initialize output arrays
+            cal_radii = np.zeros_like(a_values, dtype=float)
+            angles = np.zeros_like(a_values, dtype=float)
+            
+            # Handle zero values efficiently
+            zero_mask = (a_values == 0)
+            cal_radii[zero_mask] = 0
+            angles[zero_mask] = 0
+            
+            # Process non-zero values
+            nonzero_mask = ~zero_mask
+            if np.any(nonzero_mask):
+                nonzero_a_values = a_values[nonzero_mask]
+                
+                # Vectorized initial guesses
+                guesses = np.where(nonzero_a_values <= special_value, d + 0.01, np.where(nonzero_a_values > 0.95, 8, nonzero_a_values * 10 - 1.5))
+                
+                # Solve for each non-zero value with caching
+                for i, (a_val, guess) in enumerate(zip(nonzero_a_values, guesses)):
+                    # Create cache key for memoization
+                    cache_key = (round(a_val, 6), round(d, 6), round(radius_val, 6), round(special_value, 6))
+                    
+                    if cache_key in KOSARA_CALCULATION_CACHE:
+                        cal_radius, angle = KOSARA_CALCULATION_CACHE[cache_key]
+                    else:
+                        try:
+                            cal_radius = fsolve(
+                                equation,
+                                guess,
+                                args=(d, a_val, radius_val, special_value),
+                            )[0]
+                            angle = np.degrees(
+                                np.arccos(
+                                    (cal_radius**2 + d**2 - radius_val**2)
+                                    / (2 * cal_radius * d)
+                                )
                             )
-                        )
-                    except ValueError as e:
-                        cal_radius = np.nan
-                        angle = np.nan
-                result_df.loc[index, f"{col}_radius"] = cal_radius
-                result_df.loc[index, f"{col}_angle"] = angle
+                            # Cache the result
+                            KOSARA_CALCULATION_CACHE[cache_key] = (cal_radius, angle)
+                        except (ValueError, RuntimeWarning) as e:
+                            cal_radius, angle = np.nan, np.nan
+                            KOSARA_CALCULATION_CACHE[cache_key] = (cal_radius, angle)
+                    
+                    # Find the original index in the full array
+                    original_idx = np.where(nonzero_mask)[0][i]
+                    cal_radii[original_idx] = cal_radius
+                    angles[original_idx] = angle
+            
+            # Assign results efficiently
+            result_df[f"{col}_radius"] = cal_radii
+            result_df[f"{col}_angle"] = angles
 
         return result_df
 
@@ -529,32 +586,65 @@ def get_kosara_data(sample_ids, gene_list, cell_list=None):
 
         return results
 
+    def process_single_sample(sample_data):
+        """Helper function to process a single sample for parallel execution"""
+        sample_id, merged_df = sample_data
+        kosara_df = calculate_radius_vectorized(merged_df, radius)
+        
+        # Vectorized data formatting (avoid iterrows)
+        formatted_results = []
+        n_rows = len(kosara_df)
+        
+        # Extract common columns once
+        ids = kosara_df["id"].values
+        cell_x = kosara_df["cell_x"].values
+        cell_y = kosara_df["cell_y"].values
+        cell_types = kosara_df["cell_type"].values
+        total_expressions = kosara_df["total_expression"].values
+        
+        # Pre-extract gene-specific columns
+        gene_angles = {}
+        gene_radii = {}
+        gene_ratios = {}
+        
+        for gene in gene_list:
+            gene_angles[gene] = kosara_df.get(f"{gene}_angle", pd.Series([0] * n_rows)).values
+            gene_radii[gene] = kosara_df.get(f"{gene}_radius", pd.Series([0] * n_rows)).values
+            gene_ratios[gene] = kosara_df.get(f"{gene}_original_ratio", pd.Series([0] * n_rows)).values
+        
+        # Build result list efficiently with JSON-safe conversions
+        for i in range(n_rows):
+            transformed_entry = {
+                "id": str(ids[i]),  # Convert to string for JSON safety
+                "cell_x": ensure_json_serializable(cell_x[i]),
+                "cell_y": ensure_json_serializable(cell_y[i]),
+                "cell_type": str(cell_types[i]),
+                "total_expression": ensure_json_serializable(total_expressions[i]),
+                "angles": {gene: ensure_json_serializable(gene_angles[gene][i]) for gene in gene_list},
+                "radius": {gene: ensure_json_serializable(gene_radii[gene][i]) for gene in gene_list},
+                "ratios": {gene: ensure_json_serializable(gene_ratios[gene][i]) for gene in gene_list},
+            }
+            formatted_results.append(transformed_entry)
+        
+        return sample_id, formatted_results
+
     position_cell_ratios_dict = filter_and_merge(cell_list, gene_list, sample_ids)
     results = {}
 
-    for sample_id, merged_df in position_cell_ratios_dict.items():
-        kosara_df = calculate_radius(merged_df, radius)
-        formatted_results = []
-        for _, row in kosara_df.iterrows():
-            transformed_entry = {
-                "id": row["id"],
-                "cell_x": row["cell_x"],
-                "cell_y": row["cell_y"],
-                "cell_type": row["cell_type"],
-                "total_expression": row["total_expression"],
-                "angles": {},
-                "radius": {},
-                "ratios": {},
-            }
-
-            for gene in gene_list:
-                transformed_entry["angles"][gene] = row.get(f"{gene}_angle", 0)
-                transformed_entry["radius"][gene] = row.get(f"{gene}_radius", 0)
-                transformed_entry["ratios"][gene] = row.get(f"{gene}_original_ratio", 0)
-
-            formatted_results.append(transformed_entry)
-
-        results[sample_id] = formatted_results
+    # Use parallel processing for multiple samples if beneficial
+    if len(sample_ids) > 1 and len(position_cell_ratios_dict) > 1:
+        # Parallel processing for multiple samples
+        with Pool(processes=min(cpu_count(), len(sample_ids))) as pool:
+            sample_results = pool.map(process_single_sample, position_cell_ratios_dict.items())
+        
+        # Convert to dictionary
+        for sample_id, formatted_results in sample_results:
+            results[sample_id] = formatted_results
+    else:
+        # Sequential processing for single sample or small datasets
+        for sample_id, merged_df in position_cell_ratios_dict.items():
+            sample_id, formatted_results = process_single_sample((sample_id, merged_df))
+            results[sample_id] = formatted_results
 
     return results
 
