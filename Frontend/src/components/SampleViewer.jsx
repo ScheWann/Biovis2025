@@ -27,6 +27,13 @@ export const SampleViewer = ({
     trajectoryGenesSample = null
 }) => {
     const containerRef = useRef(null);
+    const lastLoadedTrajectoryRef = useRef(null); // Track the last loaded trajectory gene combination to prevent redundant API calls
+    const viewStatePendingRef = useRef(null);
+    const viewStateRafRef = useRef(null);
+    const kosaraLoadingSamplesRef = useRef({});
+    const fetchingImages = useRef(new Set()); // Track which images are currently being fetched
+    const imagesLoadedCallbackCalled = useRef(false); // Track if callback has been called for current samples
+
     const [mainViewState, setMainViewState] = useState(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [imageSizes, setImageSizes] = useState({});
@@ -48,132 +55,131 @@ export const SampleViewer = ({
 
     const [previousKosaraData, setPreviousKosaraData] = useState({});
 
-    // Update radioCellGeneModes when selectedSamples changes
-    useEffect(() => {
-        setRadioCellGeneModes(prev => {
-            const newModes = { ...prev };
-            selectedSamples.forEach(sample => {
-                if (!(sample.id in newModes)) {
-                    newModes[sample.id] = 'cellTypes';
-                }
-            });
-            return newModes;
+    // Kosara gene expression data per sample returned from backend
+    const [kosaraDataBySample, setKosaraDataBySample] = useState({}); // { sampleId: [ { id, cell_x, cell_y, cell_type, total_expression, angles:{}, radius:{}, ratios:{} }, ... ] }
+
+    // Loading state for gene mode switching
+    const [isKosaraLoading, setIsKosaraLoading] = useState(false);
+
+    // Track which samples currently have an in-flight kosara request
+    const [kosaraLoadingSamples, setKosaraLoadingSamples] = useState({}); // { sampleId: true }
+
+    // Single gene expression data per sample for sequential coloring
+    const [singleGeneDataBySample, setSingleGeneDataBySample] = useState({}); // { sampleId: { cells: [...], min_expression: ..., max_expression: ... } }
+
+    // Drawing state
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [drawingPoints, setDrawingPoints] = useState([]);
+    const [customAreas, setCustomAreas] = useState([]);
+    const [currentDrawingSample, setCurrentDrawingSample] = useState(null);
+    const [mousePosition, setMousePosition] = useState(null);
+    const [hoveredCell, setHoveredCell] = useState(null);
+
+    // Area customization tooltip state
+    const [isAreaTooltipVisible, setIsAreaTooltipVisible] = useState(false);
+    const [pendingArea, setPendingArea] = useState(null);
+    const [areaName, setAreaName] = useState('');
+    const [areaColor, setAreaColor] = useState('#f72585');
+    const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+
+    // Area edit/delete popup state
+    const [isAreaEditPopupVisible, setIsAreaEditPopupVisible] = useState(false);
+    const [selectedAreaForEdit, setSelectedAreaForEdit] = useState(null);
+    const [editAreaName, setEditAreaName] = useState('');
+    const [editAreaColor, setEditAreaColor] = useState('#f72585');
+    const [editPopupPosition, setEditPopupPosition] = useState({ x: 0, y: 0 });
+    const [editNeighbors, setEditNeighbors] = useState(10);
+    const [editNPcas, setEditNPcas] = useState(30);
+    const [editResolutions, setEditResolutions] = useState(1);
+
+    // Minimap state
+    const [minimapVisible, setMinimapVisible] = useState(true);
+    const [minimapAnimating, setMinimapAnimating] = useState(false);
+    const minimapRef = useRef(null);
+
+    // High-definition magnifying glass state
+    const [magnifierVisible, setMagnifierVisible] = useState(false);
+    const [magnifierData, setMagnifierData] = useState(null);
+    const [magnifierViewport, setMagnifierViewport] = useState({ x: 0.5, y: 0.5, size: 200 });
+    const [magnifierMousePos, setMagnifierMousePos] = useState({ x: 0, y: 0 });
+    const [keyPressed, setKeyPressed] = useState(false);
+
+    const magnifierRef = useRef(null);
+
+    // Track previous image URL to only reset loading state when it truly changes
+    const prevMagnifierUrlRef = useRef(null);
+    // Track if current magnifier image has finished loading
+    const [magnifierImageLoaded, setMagnifierImageLoaded] = useState(false);
+    const [magnifierImageVersion, setMagnifierImageVersion] = useState(0);
+
+    // Add state for preloaded high-res images
+    const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
+
+
+    const radioOptions = [
+        {
+            label: 'Cell Type',
+            value: 'cellTypes',
+        },
+        {
+            label: 'Genes',
+            value: 'genes',
+        },
+    ];
+
+    // Main view
+    const mainView = useMemo(() => new OrthographicView({
+        id: 'main',
+        controller: true
+    }), []);
+
+    // Stable controller instance to avoid re-initialization flashes
+    const deckController = useMemo(() => {
+        if (isAreaTooltipVisible || isAreaEditPopupVisible) return false;
+        if (!isDrawing) {
+            // Use DeckGL defaults to avoid controller re-inits that may cause flashes
+            return true;
+        }
+        return {
+            dragPan: false,
+            dragRotate: false,
+            doubleClickZoom: false,
+            scrollZoom: true
+        };
+    }, [isAreaTooltipVisible, isAreaEditPopupVisible, isDrawing]);
+
+    // Calculate sample offsets based on image sizes
+    const sampleOffsets = useMemo(() => {
+        if (selectedSamples.length <= 1) return {};
+
+        const offsets = {};
+        let currentX = 0;
+
+        selectedSamples.forEach((sample) => {
+            offsets[sample.id] = [currentX, 0];
+            if (imageSizes[sample.id]) {
+                currentX += imageSizes[sample.id][0] + 500; // 500px gap between samples
+            }
         });
 
-        // Initialize previous modes for new samples
-        setPreviousModes(prev => {
-            const newPreviousModes = { ...prev };
-            selectedSamples.forEach(sample => {
-                if (!(sample.id in newPreviousModes)) {
-                    newPreviousModes[sample.id] = 'cellTypes';
-                }
-            });
-            return newPreviousModes;
-        });
+        return offsets;
+    }, [selectedSamples, imageSizes]);
 
-        // Reset trajectory tracking when samples change to allow loading for new samples
-        lastLoadedTrajectoryRef.current = null;
-    }, [selectedSamples]);
+    // Filter cell data for scatter plots
+    const filteredCellData = useMemo(() => {
+        return selectedSamples.reduce((acc, sample) => {
+            const cellData = coordinatesData && coordinatesData[sample.id] ? coordinatesData[sample.id] : [];
+            const offset = sampleOffsets && sampleOffsets[sample.id] ? sampleOffsets[sample.id] : [0, 0];
 
-    // Clear gene expression data when no genes are selected
-    useEffect(() => {
-        if (selectedGenes.length === 0) {
-            // Clear both single gene and kosara data when no genes are selected
-            setSingleGeneDataBySample({});
-            setKosaraDataBySample({});
-        }
-    }, [selectedGenes]);
+            acc[sample.id] = cellData.map(cell => ({
+                ...cell,
+                x: cell.cell_x + offset[0],
+                y: cell.cell_y + offset[1]
+            }));
 
-    // Handle Kosara display toggle changes from parent
-    useEffect(() => {
-        if (!kosaraDisplayEnabled) {
-            // Reset trajectory tracking when kosara is disabled
-            lastLoadedTrajectoryRef.current = null;
-
-            // When Kosara display is turned OFF, save current state and restore previous state
-
-            // Save current gene selections
-            setPreviousGeneSelections(prev => ({ ...prev, current: selectedGenes }));
-            setPreviousKosaraData(prev => ({ ...prev, current: kosaraDataBySample }));
-
-            // Save current modes as previous modes for next time
-            setPreviousModes(radioCellGeneModes);
-
-            // Restore previous state or default to cellTypes
-            const restoredModes = {};
-            selectedSamples.forEach(sample => {
-                restoredModes[sample.id] = previousModes[sample.id] || 'cellTypes';
-            });
-            setRadioCellGeneModes(restoredModes);
-
-            // Clear current gene displays when kosara is disabled
-            setSelectedGenes([]);
-            setGeneColorMap({});
-            setKosaraDataBySample({});
-            setSingleGeneDataBySample({});
-        } else {
-            // When Kosara display is turned ON, restore saved current state
-
-            // Save current state as previous
-            setPreviousModes(radioCellGeneModes);
-
-            // Restore the "current" state that was saved when we turned off Kosara
-            if (previousGeneSelections.current) {
-                setSelectedGenes(previousGeneSelections.current);
-            }
-
-            if (previousKosaraData.current) {
-                setKosaraDataBySample(previousKosaraData.current);
-
-                // Set modes back to genes if there was kosara data
-                const restoredModes = {};
-                selectedSamples.forEach(sample => {
-                    if (previousKosaraData.current[sample.id]?.length > 0) {
-                        restoredModes[sample.id] = 'genes';
-                    } else {
-                        restoredModes[sample.id] = radioCellGeneModes[sample.id];
-                    }
-                });
-                setRadioCellGeneModes(restoredModes);
-            }
-        }
-    }, [kosaraDisplayEnabled]);
-
-    // Track the last loaded trajectory gene combination to prevent redundant API calls
-    const lastLoadedTrajectoryRef = useRef(null);
-
-    // Handle trajectory gene selection changes
-    useEffect(() => {
-        if (kosaraDisplayEnabled && trajectoryGenes.length > 0 && trajectoryGenesSample) {
-            // Create a key to track the current trajectory selection
-            const currentTrajectoryKey = `${trajectoryGenesSample}:${trajectoryGenes.sort().join(',')}`;
-
-            // Only proceed if this is a new trajectory selection
-            if (lastLoadedTrajectoryRef.current === currentTrajectoryKey) {
-                return; // Skip if we've already loaded this exact combination
-            }
-
-            // Check if the trajectory genes sample matches any of our selected samples
-            const matchingSample = selectedSamples.find(sample => sample.id === trajectoryGenesSample);
-            if (matchingSample) {
-                // Update the tracking reference
-                lastLoadedTrajectoryRef.current = currentTrajectoryKey;
-
-                // Update available genes and selected genes for the trajectory sample
-                setAvailableGenes(trajectoryGenes);
-                setSelectedGenes(trajectoryGenes);
-
-
-
-                // Load data for the trajectory sample - use single gene mode if only one gene
-                if (trajectoryGenes.length === 1) {
-                    loadSingleGeneDataForSample(trajectoryGenesSample, trajectoryGenes[0]);
-                } else {
-                    loadKosaraDataForSample(trajectoryGenesSample, trajectoryGenes);
-                }
-            }
-        }
-    }, [trajectoryGenes, trajectoryGenesSample, kosaraDisplayEnabled, selectedSamples]);
+            return acc;
+        }, {});
+    }, [selectedSamples, coordinatesData, sampleOffsets]);
 
     // Function to load Kosara data for a specific sample
     const loadKosaraDataForSample = async (sampleId, genes) => {
@@ -271,139 +277,6 @@ export const SampleViewer = ({
             });
         }
     };
-
-    // Kosara gene expression data per sample returned from backend
-    const [kosaraDataBySample, setKosaraDataBySample] = useState({}); // { sampleId: [ { id, cell_x, cell_y, cell_type, total_expression, angles:{}, radius:{}, ratios:{} }, ... ] }
-
-    // Loading state for gene mode switching
-    const [isKosaraLoading, setIsKosaraLoading] = useState(false);
-
-    // Track which samples currently have an in-flight kosara request
-    const [kosaraLoadingSamples, setKosaraLoadingSamples] = useState({}); // { sampleId: true }
-    const kosaraLoadingSamplesRef = useRef({});
-    useEffect(() => { kosaraLoadingSamplesRef.current = kosaraLoadingSamples; }, [kosaraLoadingSamples]);
-    const spinnerFallbackTimeoutRef = useRef(null);
-
-    // Single gene expression data per sample for sequential coloring
-    const [singleGeneDataBySample, setSingleGeneDataBySample] = useState({}); // { sampleId: { cells: [...], min_expression: ..., max_expression: ... } }
-
-    // Drawing state
-    const [isDrawing, setIsDrawing] = useState(false);
-    const [drawingPoints, setDrawingPoints] = useState([]);
-    const [customAreas, setCustomAreas] = useState([]);
-    const [currentDrawingSample, setCurrentDrawingSample] = useState(null);
-    const [mousePosition, setMousePosition] = useState(null);
-    const [hoveredCell, setHoveredCell] = useState(null);
-
-    // Area customization tooltip state
-    const [isAreaTooltipVisible, setIsAreaTooltipVisible] = useState(false);
-    const [pendingArea, setPendingArea] = useState(null);
-    const [areaName, setAreaName] = useState('');
-    const [areaColor, setAreaColor] = useState('#f72585');
-    const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-
-    // Area edit/delete popup state
-    const [isAreaEditPopupVisible, setIsAreaEditPopupVisible] = useState(false);
-    const [selectedAreaForEdit, setSelectedAreaForEdit] = useState(null);
-    const [editAreaName, setEditAreaName] = useState('');
-    const [editAreaColor, setEditAreaColor] = useState('#f72585');
-    const [editPopupPosition, setEditPopupPosition] = useState({ x: 0, y: 0 });
-    const [editNeighbors, setEditNeighbors] = useState(10);
-    const [editNPcas, setEditNPcas] = useState(30);
-    const [editResolutions, setEditResolutions] = useState(1);
-
-    // Minimap state
-    const [minimapVisible, setMinimapVisible] = useState(true);
-    const [minimapAnimating, setMinimapAnimating] = useState(false);
-    const minimapRef = useRef(null);
-
-    // High-definition magnifying glass state
-    const [magnifierVisible, setMagnifierVisible] = useState(false);
-    const [magnifierData, setMagnifierData] = useState(null);
-    const [magnifierViewport, setMagnifierViewport] = useState({ x: 0.5, y: 0.5, size: 200 });
-    const [magnifierMousePos, setMagnifierMousePos] = useState({ x: 0, y: 0 });
-    const [keyPressed, setKeyPressed] = useState(false);
-
-    const magnifierRef = useRef(null);
-
-    // Track previous image URL to only reset loading state when it truly changes
-    const prevMagnifierUrlRef = useRef(null);
-    // Track if current magnifier image has finished loading
-    const [magnifierImageLoaded, setMagnifierImageLoaded] = useState(false);
-    const [magnifierImageVersion, setMagnifierImageVersion] = useState(0);
-
-    // Add state for preloaded high-res images
-    const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
-    const fetchingImages = useRef(new Set()); // Track which images are currently being fetched
-    const imagesLoadedCallbackCalled = useRef(false); // Track if callback has been called for current samples
-
-
-    const radioOptions = [
-        {
-            label: 'Cell Type',
-            value: 'cellTypes',
-        },
-        {
-            label: 'Genes',
-            value: 'genes',
-        },
-    ];
-
-    // Main view
-    const mainView = useMemo(() => new OrthographicView({
-        id: 'main',
-        controller: true
-    }), []);
-
-    // Stable controller instance to avoid re-initialization flashes
-    const deckController = useMemo(() => {
-        if (isAreaTooltipVisible || isAreaEditPopupVisible) return false;
-        if (!isDrawing) {
-            // Use DeckGL defaults to avoid controller re-inits that may cause flashes
-            return true;
-        }
-        return {
-            dragPan: false,
-            dragRotate: false,
-            doubleClickZoom: false,
-            scrollZoom: true
-        };
-    }, [isAreaTooltipVisible, isAreaEditPopupVisible, isDrawing]);
-
-    // Calculate sample offsets based on image sizes
-    const sampleOffsets = useMemo(() => {
-        if (selectedSamples.length <= 1) return {};
-
-        const offsets = {};
-        let currentX = 0;
-
-        selectedSamples.forEach((sample) => {
-            offsets[sample.id] = [currentX, 0];
-            if (imageSizes[sample.id]) {
-                currentX += imageSizes[sample.id][0] + 500; // 500px gap between samples
-            }
-        });
-
-        return offsets;
-    }, [selectedSamples, imageSizes]);
-
-    // Filter cell data for scatter plots
-    const filteredCellData = useMemo(() => {
-        return selectedSamples.reduce((acc, sample) => {
-            const cellData = coordinatesData && coordinatesData[sample.id] ? coordinatesData[sample.id] : [];
-            const offset = sampleOffsets && sampleOffsets[sample.id] ? sampleOffsets[sample.id] : [0, 0];
-
-            acc[sample.id] = cellData.map(cell => ({
-                ...cell,
-                x: cell.cell_x + offset[0],
-                y: cell.cell_y + offset[1]
-            }));
-
-            return acc;
-        }, {});
-    }, [selectedSamples, coordinatesData, sampleOffsets]);
-
-
 
     // Change cell/gene mode for a sample
     const changeCellGeneMode = (sampleId, e) => {
@@ -503,9 +376,7 @@ export const SampleViewer = ({
         });
     };
 
-    // =========================
-    // Kosara path generation utilities (ported from MultiSampleViewer)
-    // =========================
+    // Kosara path generation utilities
     const generateCirclePoints = useCallback((cx, cy, r, steps = 50) => {
         const points = [];
         const angleStep = (2 * Math.PI) / steps;
@@ -1386,8 +1257,6 @@ export const SampleViewer = ({
         )
     }));
 
-    const viewStatePendingRef = useRef(null);
-    const viewStateRafRef = useRef(null);
     const handleViewStateChange = useCallback(({ viewState, viewId }) => {
         if (viewId !== 'main') return;
         // Throttle setState to animation frames to avoid flicker during zoom
@@ -2027,6 +1896,132 @@ export const SampleViewer = ({
     // Stable viewState wrapper to avoid creating a new object on every render
     const deckViewState = useMemo(() => ({ main: mainViewState }), [mainViewState]);
 
+    useEffect(() => { kosaraLoadingSamplesRef.current = kosaraLoadingSamples; }, [kosaraLoadingSamples]);
+
+    // Update radioCellGeneModes when selectedSamples changes
+    useEffect(() => {
+        setRadioCellGeneModes(prev => {
+            const newModes = { ...prev };
+            selectedSamples.forEach(sample => {
+                if (!(sample.id in newModes)) {
+                    newModes[sample.id] = 'cellTypes';
+                }
+            });
+            return newModes;
+        });
+
+        // Initialize previous modes for new samples
+        setPreviousModes(prev => {
+            const newPreviousModes = { ...prev };
+            selectedSamples.forEach(sample => {
+                if (!(sample.id in newPreviousModes)) {
+                    newPreviousModes[sample.id] = 'cellTypes';
+                }
+            });
+            return newPreviousModes;
+        });
+
+        // Reset trajectory tracking when samples change to allow loading for new samples
+        lastLoadedTrajectoryRef.current = null;
+    }, [selectedSamples]);
+
+    // Clear gene expression data when no genes are selected
+    useEffect(() => {
+        if (selectedGenes.length === 0) {
+            // Clear both single gene and kosara data when no genes are selected
+            setSingleGeneDataBySample({});
+            setKosaraDataBySample({});
+        }
+    }, [selectedGenes]);
+
+    // Handle Kosara display toggle changes from parent
+    useEffect(() => {
+        if (!kosaraDisplayEnabled) {
+            // Reset trajectory tracking when kosara is disabled
+            lastLoadedTrajectoryRef.current = null;
+
+            // When Kosara display is turned OFF, save current state and restore previous state
+
+            // Save current gene selections
+            setPreviousGeneSelections(prev => ({ ...prev, current: selectedGenes }));
+            setPreviousKosaraData(prev => ({ ...prev, current: kosaraDataBySample }));
+
+            // Save current modes as previous modes for next time
+            setPreviousModes(radioCellGeneModes);
+
+            // Restore previous state or default to cellTypes
+            const restoredModes = {};
+            selectedSamples.forEach(sample => {
+                restoredModes[sample.id] = previousModes[sample.id] || 'cellTypes';
+            });
+            setRadioCellGeneModes(restoredModes);
+
+            // Clear current gene displays when kosara is disabled
+            setSelectedGenes([]);
+            setGeneColorMap({});
+            setKosaraDataBySample({});
+            setSingleGeneDataBySample({});
+        } else {
+            // When Kosara display is turned ON, restore saved current state
+
+            // Save current state as previous
+            setPreviousModes(radioCellGeneModes);
+
+            // Restore the "current" state that was saved when we turned off Kosara
+            if (previousGeneSelections.current) {
+                setSelectedGenes(previousGeneSelections.current);
+            }
+
+            if (previousKosaraData.current) {
+                setKosaraDataBySample(previousKosaraData.current);
+
+                // Set modes back to genes if there was kosara data
+                const restoredModes = {};
+                selectedSamples.forEach(sample => {
+                    if (previousKosaraData.current[sample.id]?.length > 0) {
+                        restoredModes[sample.id] = 'genes';
+                    } else {
+                        restoredModes[sample.id] = radioCellGeneModes[sample.id];
+                    }
+                });
+                setRadioCellGeneModes(restoredModes);
+            }
+        }
+    }, [kosaraDisplayEnabled]);
+
+    // Handle trajectory gene selection changes
+    useEffect(() => {
+        if (kosaraDisplayEnabled && trajectoryGenes.length > 0 && trajectoryGenesSample) {
+            // Create a key to track the current trajectory selection
+            const currentTrajectoryKey = `${trajectoryGenesSample}:${trajectoryGenes.sort().join(',')}`;
+
+            // Only proceed if this is a new trajectory selection
+            if (lastLoadedTrajectoryRef.current === currentTrajectoryKey) {
+                return; // Skip if we've already loaded this exact combination
+            }
+
+            // Check if the trajectory genes sample matches any of our selected samples
+            const matchingSample = selectedSamples.find(sample => sample.id === trajectoryGenesSample);
+            if (matchingSample) {
+                // Update the tracking reference
+                lastLoadedTrajectoryRef.current = currentTrajectoryKey;
+
+                // Update available genes and selected genes for the trajectory sample
+                setAvailableGenes(trajectoryGenes);
+                setSelectedGenes(trajectoryGenes);
+
+
+
+                // Load data for the trajectory sample - use single gene mode if only one gene
+                if (trajectoryGenes.length === 1) {
+                    loadSingleGeneDataForSample(trajectoryGenesSample, trajectoryGenes[0]);
+                } else {
+                    loadKosaraDataForSample(trajectoryGenesSample, trajectoryGenes);
+                }
+            }
+        }
+    }, [trajectoryGenes, trajectoryGenesSample, kosaraDisplayEnabled, selectedSamples]);
+
     // Preload high-res images for all selected samples
     useEffect(() => {
         let isMounted = true;
@@ -2306,9 +2301,7 @@ export const SampleViewer = ({
             Object.values(hiresImages).forEach(url => {
                 try { URL.revokeObjectURL(url); } catch (e) { }
             });
-            // Object.values(cellBoundaryImages).forEach(url => {
-            //     try { URL.revokeObjectURL(url); } catch (e) { }
-            // });
+
             if (viewStateRafRef.current) {
                 cancelAnimationFrame(viewStateRafRef.current);
                 viewStateRafRef.current = null;
