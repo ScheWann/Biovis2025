@@ -3422,7 +3422,7 @@ export const SampleViewer = ({
                 }}>
                     <Spin size="large" />
                     <div style={{ fontSize: '16px', color: '#666' }}>
-                        Loading Kosara visualization...
+                        {selectedGenes.length === 1 ? 'Loading gene expression...' : 'Loading Kosara visualization...'}
                     </div>
                 </div>
             )}
