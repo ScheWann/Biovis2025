@@ -912,6 +912,8 @@ def direct_slingshot_analysis(
         
         result_adata = run_slingshot(**slingshot_kwargs)
         
+        print(result_adata)
+
         if result_adata is None:
             print("Slingshot analysis failed.")
             return None
@@ -957,6 +959,13 @@ def direct_slingshot_analysis(
                 
                 # Find corresponding lineage path
                 lineage_key = f"Lineage{i+1}"  # Assuming lineages are numbered starting from 1
+                
+                # Check if lineage key exists before accessing it
+                if lineage_key not in lineage_paths:
+                    print(f"Warning: {lineage_key} not found in lineages data. Available lineages: {list(lineage_paths.keys())}")
+                    print(f"Skipping {traj_name} - no corresponding lineage path found")
+                    continue
+                    
                 cluster_path = lineage_paths[lineage_key]
                 
                 # Calculate cluster statistics for validation
