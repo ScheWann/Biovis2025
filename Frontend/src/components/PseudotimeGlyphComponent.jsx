@@ -397,6 +397,11 @@ export const PseudotimeGlyphComponent = ({
                 });
 
                 // Create a separate glyph entry for this UMAP dataset
+                // Extract original adata_umap_title for area color mapping
+                const originalAdataTitle = title.includes('_cluster_') 
+                    ? title.replace(/_cluster_\d+$/, '') 
+                    : title;
+                
                 allPseudotimeData.push({
                     mergedTrajectories: processedTrajectories,
                     source_title: title,
@@ -404,7 +409,8 @@ export const PseudotimeGlyphComponent = ({
                     isLoading: false,
                     isPlaceholder: false,
                     fullPseudotimeData: pseudotimeData,
-                    umapParameters: umapParameters
+                    umapParameters: umapParameters,
+                    originalAdataTitle: originalAdataTitle
                 });
             }
         });
@@ -415,22 +421,55 @@ export const PseudotimeGlyphComponent = ({
         // Add loading placeholders for UMAP datasets that are currently loading
         if (umapDataSets && Array.isArray(umapDataSets)) {
             umapDataSets.forEach((umapDataset) => {
-                const isThisDatasetLoading = pseudotimeLoadingStates[umapDataset.adata_umap_title];
+                // Check for loading states with both original key and cluster-specific keys
+                const baseKey = umapDataset.adata_umap_title;
+                const isBaseLoading = pseudotimeLoadingStates[baseKey];
                 
-                const hasDataForThisDataset = allPseudotimeData.some(data =>
-                    data.source_title === umapDataset.adata_umap_title
+                // Check for any cluster-specific loading states for this dataset
+                const isClusterSpecificLoading = Object.keys(pseudotimeLoadingStates).some(key => 
+                    key.startsWith(`${baseKey}_cluster_`) && pseudotimeLoadingStates[key]
                 );
+                
+                const isThisDatasetLoading = isBaseLoading || isClusterSpecificLoading;
+                
+                // Check specifically for the loading configuration we're interested in
+                let hasDataForThisConfiguration = false;
+                
+                if (isBaseLoading && !isClusterSpecificLoading) {
+                    // Loading auto mode - check if we have data for base key
+                    hasDataForThisConfiguration = allPseudotimeData.some(data => data.source_title === baseKey);
+                } else if (isClusterSpecificLoading) {
+                    // Loading cluster-specific mode - check if we have data for the specific cluster key(s)
+                    const clusterLoadingKeys = Object.keys(pseudotimeLoadingStates).filter(key => 
+                        key.startsWith(`${baseKey}_cluster_`) && pseudotimeLoadingStates[key]
+                    );
+                    
+                    hasDataForThisConfiguration = clusterLoadingKeys.some(clusterKey =>
+                        allPseudotimeData.some(data => data.source_title === clusterKey)
+                    );
+                }
 
-                // If pseudotime is loading and we don't have data for it yet, add a loading placeholder
-                if (isThisDatasetLoading && !hasDataForThisDataset) {
+                // If pseudotime is loading and we don't have data for this specific configuration, add a loading placeholder
+                if (isThisDatasetLoading && !hasDataForThisConfiguration) {
                     const consistentTitle = getConsistentDisplayTitle(umapDataset.adata_umap_title, umapDataSets);
                     const umapParams = extractUmapParameters(umapDataset.adata_umap_title);
+                    
+                    // Find the specific loading key to use as source_title
+                    let loadingKey = baseKey;
+                    if (isClusterSpecificLoading && !isBaseLoading) {
+                        // Find the cluster-specific key that's currently loading
+                        loadingKey = Object.keys(pseudotimeLoadingStates).find(key => 
+                            key.startsWith(`${baseKey}_cluster_`) && pseudotimeLoadingStates[key]
+                        ) || baseKey;
+                    }
+                    
                     allPseudotimeData.push({
-                        source_title: umapDataset.adata_umap_title,
+                        source_title: loadingKey,
                         display_title: consistentTitle,
                         isLoading: true,
                         isPlaceholder: true,
-                        umapParameters: umapParams
+                        umapParameters: umapParams,
+                        originalAdataTitle: baseKey // Keep track of original title for area color mapping
                     });
                 }
             });
@@ -790,8 +829,14 @@ export const PseudotimeGlyphComponent = ({
                                         }
 
                                         // Find the corresponding UMAP dataset to get area color information
+                                        // Extract the original adata_umap_title from cluster-specific cache keys
+                                        const originalAdataTitle = trajectoryData.originalAdataTitle || 
+                                            (trajectoryData.source_title && trajectoryData.source_title.includes('_cluster_') 
+                                                ? trajectoryData.source_title.replace(/_cluster_\d+$/, '') 
+                                                : trajectoryData.source_title);
+                                        
                                         const correspondingUmapDataset = umapDataSets?.find(dataset => 
-                                            dataset.adata_umap_title === trajectoryData.source_title
+                                            dataset.adata_umap_title === originalAdataTitle
                                         );
 
                                         return (
