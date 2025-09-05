@@ -294,9 +294,25 @@ export const LineChart = ({
       }
 
       if (onMouseLeave) {
+        // Leaving the overlay (inner plotting area)
         overlay.on("mouseleave", function() {
           guideline.style("opacity", 0);
           onMouseLeave();
+        });
+
+        // Also handle leaving the entire SVG (e.g., moving into margins or outside the component)
+        svg.on("mouseleave", function() {
+          guideline.style("opacity", 0);
+          onMouseLeave();
+        });
+
+        // Defensive: handle cases where the pointer leaves the document/window rapidly
+        svg.on("mouseout", function(event) {
+          const related = event.relatedTarget;
+          if (!related || !(this.contains && this.contains(related))) {
+            guideline.style("opacity", 0);
+            onMouseLeave();
+          }
         });
       }
     }
