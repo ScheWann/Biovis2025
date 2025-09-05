@@ -1797,6 +1797,15 @@ export const SampleViewer = ({
             return [];
         }
 
+        // Get cell data for the target sample
+        const cellData = filteredCellData[trajectoryGuideline.sampleId] || [];
+        const rawCellData = coordinatesData && coordinatesData[trajectoryGuideline.sampleId] ? coordinatesData[trajectoryGuideline.sampleId] : [];
+        
+        if (cellData.length === 0 || rawCellData.length === 0) {
+            return [];
+        }
+
+        // Calculate bounds based on actual cell positions
         const imageSize = imageSizes[trajectoryGuideline.sampleId];
         const offset = sampleOffsets[trajectoryGuideline.sampleId] || [0, 0];
 
@@ -1804,19 +1813,35 @@ export const SampleViewer = ({
             return [];
         }
 
+        // Find min/max cell coordinates in the raw data (before offset adjustment)
+        const xCoords = rawCellData.map(cell => cell.cell_x);
+        const yCoords = rawCellData.map(cell => cell.cell_y);
+        const minX = Math.min(...xCoords);
+        const maxX = Math.max(...xCoords);
+        const minY = Math.min(...yCoords);
+        const maxY = Math.max(...yCoords);
+
         // Calculate the line position based on orientation
         let lineStart, lineEnd;
         
         if (trajectoryGuideline.isVertical) {
             // Chart is vertical, so show horizontal line in SampleViewer
-            const yPosition = offset[1] + (trajectoryGuideline.position * imageSize[1]);
-            lineStart = [offset[0], yPosition];
-            lineEnd = [offset[0] + imageSize[0], yPosition];
+            // Map trajectory position to cell coordinate space for Y position
+            const cellYRange = maxY - minY;
+            const yPositionInCells = minY + (trajectoryGuideline.position * cellYRange);
+            const yPosition = offset[1] + yPositionInCells;
+            // Use cell bounds for horizontal extent, adjusted with offset
+            lineStart = [offset[0] + minX, yPosition];
+            lineEnd = [offset[0] + maxX, yPosition];
         } else {
             // Chart is horizontal, so show vertical line in SampleViewer
-            const xPosition = offset[0] + (trajectoryGuideline.position * imageSize[0]);
-            lineStart = [xPosition, offset[1]];
-            lineEnd = [xPosition, offset[1] + imageSize[1]];
+            // Map trajectory position to cell coordinate space for X position
+            const cellXRange = maxX - minX;
+            const xPositionInCells = minX + (trajectoryGuideline.position * cellXRange);
+            const xPosition = offset[0] + xPositionInCells;
+            // Use cell bounds for vertical extent, adjusted with offset
+            lineStart = [xPosition, offset[1] + minY];
+            lineEnd = [xPosition, offset[1] + maxY];
         }
 
         return [new LineLayer({
@@ -1832,7 +1857,7 @@ export const SampleViewer = ({
             widthUnits: 'pixels',
             pickable: false,
         })];
-    }, [trajectoryGuideline, selectedSamples, imageSizes, sampleOffsets]);
+    }, [trajectoryGuideline, selectedSamples, imageSizes, sampleOffsets, filteredCellData, coordinatesData]);
 
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {
