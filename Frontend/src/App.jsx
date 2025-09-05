@@ -55,11 +55,14 @@ function App() {
   const [hoveredTrajectory, setHoveredTrajectory] = useState(null); // {path: ['Cluster 1', 'Cluster 2', ...], adata_umap_title: string, sampleId: string}
 
   // Kosara display toggle state
-  const [kosaraDisplayEnabled, setKosaraDisplayEnabled] = useState(true);
+  const [kosaraDisplayEnabled, setKosaraDisplayEnabled] = useState(false);
 
   // Gene selection from TrajectoryViewer for Kosara display
   const [trajectoryGenes, setTrajectoryGenes] = useState([]);
   const [trajectoryGenesSample, setTrajectoryGenesSample] = useState(null);
+
+  // Trajectory guideline state
+  const [trajectoryGuideline, setTrajectoryGuideline] = useState(null);
 
   useEffect(() => {
     fetchSamplesOption();
@@ -267,6 +270,11 @@ function App() {
     setTrajectoryGenesSample(sampleId);
   };
 
+  // Handler for trajectory guideline changes
+  const handleTrajectoryGuidelineChange = (guidelineData) => {
+    setTrajectoryGuideline(guidelineData);
+  };
+
   // Handler for Kosara display toggle with trajectory gene clearing
   const handleKosaraDisplayToggle = (enabled) => {
     setKosaraDisplayEnabled(enabled);
@@ -419,6 +427,7 @@ function App() {
                       kosaraDisplayEnabled={kosaraDisplayEnabled}
                       trajectoryGenes={trajectoryGenes}
                       trajectoryGenesSample={trajectoryGenesSample}
+                      trajectoryGuideline={trajectoryGuideline}
                     />
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="40%" min="40%" max="50%">
@@ -437,6 +446,7 @@ function App() {
                               kosaraDisplayEnabled={kosaraDisplayEnabled}
                               onKosaraDisplayToggle={handleKosaraDisplayToggle}
                               onGeneSelection={handleTrajectoryGeneSelection}
+                              onTrajectoryGuidelineChange={handleTrajectoryGuidelineChange}
                             />
                           ) : (
                             <div style={{

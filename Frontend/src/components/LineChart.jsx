@@ -16,6 +16,8 @@ export const LineChart = ({
   errorBandOpacity = 0.3,
   lineColor = "#1d72b8",
   showLegend = false,
+  onMouseMove,
+  onMouseLeave,
 }) => {
   const svgRef = useRef();
   const containerRef = useRef();
@@ -252,6 +254,50 @@ export const LineChart = ({
           .attr("font-size", 10)
           .text(dataset.label || `Dataset ${index + 1}`);
       });
+    }
+
+    // Add invisible overlay for mouse interaction
+    if (onMouseMove || onMouseLeave) {
+      const overlay = g.append("rect")
+        .attr("class", "overlay")
+        .attr("width", innerWidth)
+        .attr("height", innerHeight)
+        .style("fill", "none")
+        .style("pointer-events", "all");
+
+      // Add vertical guideline
+      const guideline = g.append("line")
+        .attr("class", "guideline")
+        .style("stroke", "#666")
+        .style("stroke-width", 1)
+        .style("stroke-dasharray", "3,3")
+        .style("opacity", 0);
+
+      if (onMouseMove) {
+        overlay.on("mousemove", function(event) {
+          const [mouseX] = d3.pointer(event);
+          const xValue = xScale.invert(mouseX);
+          
+          // Update guideline position
+          guideline
+            .attr("x1", mouseX)
+            .attr("x2", mouseX)
+            .attr("y1", 0)
+            .attr("y2", innerHeight)
+            .style("opacity", 1);
+
+          // Call parent callback with normalized position (0-1)
+          const normalizedPosition = mouseX / innerWidth;
+          onMouseMove(normalizedPosition, xValue);
+        });
+      }
+
+      if (onMouseLeave) {
+        overlay.on("mouseleave", function() {
+          guideline.style("opacity", 0);
+          onMouseLeave();
+        });
+      }
     }
   }, [allDatasets, dimensions, margin, showErrorBands, errorBandOpacity, showLegend]);
 

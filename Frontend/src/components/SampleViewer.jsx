@@ -25,7 +25,8 @@ export const SampleViewer = ({
     onImagesLoaded,
     kosaraDisplayEnabled = true,
     trajectoryGenes = [],
-    trajectoryGenesSample = null
+    trajectoryGenesSample = null,
+    trajectoryGuideline = null
 }) => {
     const containerRef = useRef(null);
     const lastLoadedTrajectoryRef = useRef(null); // Track the last loaded trajectory gene combination to prevent redundant API calls
@@ -1784,6 +1785,55 @@ export const SampleViewer = ({
         }).filter(Boolean);
     }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, mainViewState, kosaraDisplayEnabled]);
 
+    // Generate trajectory guideline layer
+    const generateTrajectoryGuidelineLayer = useCallback(() => {
+        if (!trajectoryGuideline || !trajectoryGuideline.visible || !trajectoryGuideline.sampleId) {
+            return [];
+        }
+
+        // Find the sample that matches the trajectory guideline
+        const targetSample = selectedSamples.find(sample => sample.id === trajectoryGuideline.sampleId);
+        if (!targetSample) {
+            return [];
+        }
+
+        const imageSize = imageSizes[trajectoryGuideline.sampleId];
+        const offset = sampleOffsets[trajectoryGuideline.sampleId] || [0, 0];
+
+        if (!imageSize) {
+            return [];
+        }
+
+        // Calculate the line position based on orientation
+        let lineStart, lineEnd;
+        
+        if (trajectoryGuideline.isVertical) {
+            // Chart is vertical, so show horizontal line in SampleViewer
+            const yPosition = offset[1] + (trajectoryGuideline.position * imageSize[1]);
+            lineStart = [offset[0], yPosition];
+            lineEnd = [offset[0] + imageSize[0], yPosition];
+        } else {
+            // Chart is horizontal, so show vertical line in SampleViewer
+            const xPosition = offset[0] + (trajectoryGuideline.position * imageSize[0]);
+            lineStart = [xPosition, offset[1]];
+            lineEnd = [xPosition, offset[1] + imageSize[1]];
+        }
+
+        return [new LineLayer({
+            id: 'trajectory-guideline',
+            data: [{
+                sourcePosition: lineStart,
+                targetPosition: lineEnd
+            }],
+            getSourcePosition: d => d.sourcePosition,
+            getTargetPosition: d => d.targetPosition,
+            getColor: [255, 140, 0, 200], // Orange color
+            getWidth: 3,
+            widthUnits: 'pixels',
+            pickable: false,
+        })];
+    }, [trajectoryGuideline, selectedSamples, imageSizes, sampleOffsets]);
+
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {
         const layers = [];
@@ -1981,8 +2031,9 @@ export const SampleViewer = ({
         const imgLayers = generateImageLayers();
         const cellLayers = generateCellLayers();
         const areaLayers = generateCustomAreaLayers();
-        return [...imgLayers, ...cellLayers, ...areaLayers];
-    }, [generateImageLayers, generateCellLayers, generateCustomAreaLayers]);
+        const guidelineLayers = generateTrajectoryGuidelineLayer();
+        return [...imgLayers, ...cellLayers, ...areaLayers, ...guidelineLayers];
+    }, [generateImageLayers, generateCellLayers, generateCustomAreaLayers, generateTrajectoryGuidelineLayer]);
 
     // Stable viewState wrapper to avoid creating a new object on every render
     const deckViewState = useMemo(() => ({ main: mainViewState }), [mainViewState]);

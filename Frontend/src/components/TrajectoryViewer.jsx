@@ -5,7 +5,7 @@ import { LineChart } from "./LineChart";
 const { Option } = Select;
 
 // Main trajectory viewer component
-export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKosaraDisplayToggle, onGeneSelection }) => {
+export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKosaraDisplayToggle, onGeneSelection, onTrajectoryGuidelineChange }) => {
     const [samplesData, setSamplesData] = useState([]);
     const [selectedSample, setSelectedSample] = useState(null);
     const [availableGenes, setAvailableGenes] = useState([]);
@@ -132,6 +132,28 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
     };
 
     const chartHeight = getChartHeight();
+
+    // Handle mouse movement over trajectory chart
+    const handleTrajectoryMouseMove = (normalizedPosition, xValue) => {
+        if (onTrajectoryGuidelineChange && selectedSample) {
+            onTrajectoryGuidelineChange({
+                sampleId: selectedSample,
+                position: normalizedPosition,
+                xValue: xValue,
+                isVertical: isVertical,
+                visible: true
+            });
+        }
+    };
+
+    // Handle mouse leave from trajectory chart
+    const handleTrajectoryMouseLeave = () => {
+        if (onTrajectoryGuidelineChange) {
+            onTrajectoryGuidelineChange({
+                visible: false
+            });
+        }
+    };
 
 
     return (
@@ -277,6 +299,8 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
                                 margin={{ top: 30, right: 20, bottom: 50, left: 60 }}
                                 lineColor="#e74c3c"
                                 errorBandOpacity={0.3}
+                                onMouseMove={handleTrajectoryMouseMove}
+                                onMouseLeave={handleTrajectoryMouseLeave}
                             />
                         ) : (
                             // Multiple genes: combine into single chart
@@ -297,6 +321,8 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
                                 showLegend={true}
                                 margin={{ top: 30, right: 20, bottom: 40, left: 60 }}
                                 errorBandOpacity={0.3}
+                                onMouseMove={handleTrajectoryMouseMove}
+                                onMouseLeave={handleTrajectoryMouseLeave}
                             />
                         )}
                     </div>
