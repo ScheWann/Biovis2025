@@ -432,6 +432,7 @@ function App() {
                           {selectedSamples.length > 0 || sampleDataLoading ? (
                             <TrajectoryViewer 
                               sampleId={selectedSamples.length > 0 ? selectedSamples[0].id : null}
+                              samples={selectOptions}
                               kosaraDisplayEnabled={kosaraDisplayEnabled}
                               onKosaraDisplayToggle={handleKosaraDisplayToggle}
                               onGeneSelection={handleTrajectoryGeneSelection}

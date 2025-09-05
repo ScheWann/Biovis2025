@@ -5,8 +5,8 @@ import { LineChart } from "./LineChart";
 const { Option } = Select;
 
 // Main trajectory viewer component
-export const TrajectoryViewer = ({ sampleId, kosaraDisplayEnabled, onKosaraDisplayToggle, onGeneSelection }) => {
-    const [samples, setSamples] = useState([]);
+export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKosaraDisplayToggle, onGeneSelection }) => {
+    const [samplesData, setSamplesData] = useState([]);
     const [selectedSample, setSelectedSample] = useState(null);
     const [availableGenes, setAvailableGenes] = useState([]);
     const [selectedGenes, setSelectedGenes] = useState([]);
@@ -36,20 +36,15 @@ export const TrajectoryViewer = ({ sampleId, kosaraDisplayEnabled, onKosaraDispl
         return () => resizeObserver.disconnect();
     }, []);
 
-    // Fetch available samples on component mount
+    // Use passed samples and update selected sample when sampleId changes
     useEffect(() => {
-        fetch("/api/get_samples_option")
-            .then((response) => response.json())
-            .then((data) => {
-                setSamples(data);
-                if (sampleId) {
-                    setSelectedSample(sampleId);
-                }
-            })
-            .catch((error) => {
-                message.error("Get samples failed");
-            });
-    }, [sampleId]);
+        if (samples) {
+            setSamplesData(samples);
+        }
+        if (sampleId) {
+            setSelectedSample(sampleId);
+        }
+    }, [sampleId, samples]);
 
     // Fetch gene list when sample changes or orientation toggles
     useEffect(() => {
@@ -126,7 +121,7 @@ export const TrajectoryViewer = ({ sampleId, kosaraDisplayEnabled, onKosaraDispl
     };
 
     // Flatten sample options for Select component
-    const sampleOptions = samples.flatMap(group =>
+    const sampleOptions = samplesData.flatMap(group =>
         group.options || []
     );
 
