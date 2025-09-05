@@ -50,8 +50,13 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
     }, [sampleId, samples]);
 
     // Fetch gene list when sample changes or orientation toggles
+    // Also reset chart state to show Empty until user confirms new genes
     useEffect(() => {
         if (selectedSample) {
+            // Clear current selections and chart data immediately
+            setSelectedGenes([]);
+            setConfirmedGenes([]);
+            setTrajectoryData({});
             fetchGeneList(selectedSample);
         } else {
             setAvailableGenes([]);
