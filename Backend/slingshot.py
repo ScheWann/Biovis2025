@@ -4,7 +4,6 @@ Slingshot Trajectory and Gene Analysis Module
 
 import pandas as pd
 import numpy as np
-import scanpy as sc
 import subprocess
 from scipy import sparse
 import warnings
@@ -15,7 +14,6 @@ from rpy2.robjects.conversion import localconverter
 import tempfile
 import os
 from scipy import stats
-from scipy.stats import spearmanr
 
 warnings.filterwarnings("ignore")
 
@@ -34,10 +32,6 @@ def check_r_availability():
     
     # Check RPy2
     try:
-        import rpy2.robjects as ro
-        from rpy2.robjects.packages import importr
-        from rpy2.robjects import pandas2ri
-        from rpy2.robjects.conversion import localconverter
         availability["rpy2"] = True
     except ImportError:
         availability["errors"].append("RPy2 not installed. Install with: pip install rpy2")
