@@ -32,6 +32,7 @@ export const SampleViewer = ({
     const viewStatePendingRef = useRef(null);
     const viewStateRafRef = useRef(null);
     const kosaraLoadingSamplesRef = useRef({});
+    const spinnerFallbackTimeoutRef = useRef(null); // Timeout for fallback spinner hiding
     const fetchingImages = useRef(new Set()); // Track which images are currently being fetched
     const imagesLoadedCallbackCalled = useRef(false); // Track if callback has been called for current samples
 
@@ -2576,6 +2577,9 @@ export const SampleViewer = ({
                             <>
                                 <div><strong>Sample:</strong> {hoveredCell.sampleId}</div>
                                 <div><strong>Cell Type:</strong> {hoveredCell.cell_type}</div>
+                                {hoveredCell.expression !== undefined && (
+                                    <div><strong>Expression:</strong> {Number(hoveredCell.expression).toFixed(5)}</div>
+                                )}
                                 {hoveredCell.total_expression !== undefined && (
                                     <div><strong>Total Expression:</strong> {Number(hoveredCell.total_expression).toFixed(5)}</div>
                                 )}
