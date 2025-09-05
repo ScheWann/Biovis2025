@@ -73,17 +73,20 @@ export const UmapSettingsPopup = ({
       console.warn("Could not parse parameters from adata_umap_title, using defaults", error);
     }
 
-    // Check if data for this adata_umap_title already exists in cache
-    if (pseudotimeDataSets && pseudotimeDataSets[adata_umap_title]) {
+    // Create cache key that includes start cluster information to differentiate between auto and cluster-specific results
+    const cacheKey = clusterNumber ? `${adata_umap_title}_cluster_${clusterNumber}` : adata_umap_title;
+
+    // Check if data for this specific configuration already exists in cache
+    if (pseudotimeDataSets && pseudotimeDataSets[cacheKey]) {
       setPseudotimeLoadingStates(prevStates => ({
         ...prevStates,
-        [adata_umap_title]: true
+        [cacheKey]: true
       }));
       setPseudotimeDataSets(prevDataSets => ({ ...prevDataSets }));
       setTimeout(() => {
         setPseudotimeLoadingStates(prevStates => ({
           ...prevStates,
-          [adata_umap_title]: false
+          [cacheKey]: false
         }));
       }, 0);
       return;
@@ -92,7 +95,7 @@ export const UmapSettingsPopup = ({
     // Set loading state for this specific dataset
     setPseudotimeLoadingStates(prevStates => ({
       ...prevStates,
-      [adata_umap_title]: true
+      [cacheKey]: true
     }));
 
     try {
@@ -123,11 +126,11 @@ export const UmapSettingsPopup = ({
         return;
       }
 
-      // Add the new data to the datasets object with the adata_umap_title as key
+      // Add the new data to the datasets object with the cache key
       setPseudotimeDataSets(prevDataSets => {
         const newDataSets = {
           ...prevDataSets,
-          [adata_umap_title]: responseData
+          [cacheKey]: responseData
         };
         return newDataSets;
       });
@@ -137,7 +140,7 @@ export const UmapSettingsPopup = ({
       // Clear loading state for this specific dataset
       setPseudotimeLoadingStates(prevStates => ({
         ...prevStates,
-        [adata_umap_title]: false
+        [cacheKey]: false
       }));
     }
   };
@@ -145,8 +148,13 @@ export const UmapSettingsPopup = ({
   // Get loading state for direct slingshot
   const directSlingshotLoading = useMemo(() => {
     if (!pseudotimeLoadingStates || !adata_umap_title) return false;
-    return pseudotimeLoadingStates[adata_umap_title] || false;
-  }, [pseudotimeLoadingStates, adata_umap_title]);
+    
+    // Check loading state for both auto mode and cluster-specific mode
+    const clusterNumber = selectedStartCluster ? selectedStartCluster.toString().replace(/\D/g, '') : '';
+    const cacheKey = clusterNumber ? `${adata_umap_title}_cluster_${clusterNumber}` : adata_umap_title;
+    
+    return pseudotimeLoadingStates[cacheKey] || false;
+  }, [pseudotimeLoadingStates, adata_umap_title, selectedStartCluster]);
 
   // Initialize settings from current adata_umap_title when popup opens
   useEffect(() => {
