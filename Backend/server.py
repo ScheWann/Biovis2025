@@ -1,3 +1,15 @@
+import warnings
+
+# Configure Dask DataFrame to use new query-planning implementation
+import dask
+dask.config.set({"dataframe.query-planning": True})
+
+# Suppress specific FutureWarnings at the application level
+warnings.filterwarnings("ignore", category=FutureWarning, module="dask.dataframe")
+warnings.filterwarnings("ignore", category=FutureWarning, module="anndata")
+warnings.filterwarnings("ignore", message=".*legacy Dask DataFrame implementation.*")
+warnings.filterwarnings("ignore", message=".*Importing read_text from.*anndata.*")
+
 from flask import Flask, request, jsonify, send_file
 from process import SAMPLES
 from flask_cors import CORS

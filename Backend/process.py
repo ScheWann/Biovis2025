@@ -1073,8 +1073,7 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
             if 'trajectory_results' not in PROCESSED_ADATA_CACHE[sample_id]:
                 PROCESSED_ADATA_CACHE[sample_id]['trajectory_results'] = {}
             PROCESSED_ADATA_CACHE[sample_id]['trajectory_results'][adata_umap_title] = results
-            
-            print(adata_with_slingshot)
+
             # Get cluster order based on spatial enrichment analysis
             cluster_order = get_cluster_order_by_spatial_enrichment(adata_with_slingshot, adata_umap_title)
             
