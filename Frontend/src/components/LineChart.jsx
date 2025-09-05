@@ -271,6 +271,7 @@ export const LineChart = ({
         .style("stroke", "#666")
         .style("stroke-width", 1)
         .style("stroke-dasharray", "3,3")
+        .style("pointer-events", "none")
         .style("opacity", 0);
 
       if (onMouseMove) {

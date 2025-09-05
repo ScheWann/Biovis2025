@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { Select, Button, Row, Col, message, Spin, Empty, Switch } from "antd";
 import { LineChart } from "./LineChart";
 
@@ -17,6 +17,9 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
     const containerRef = useRef();
     const [containerHeight, setContainerHeight] = useState(400);
     const [isVertical, setIsVertical] = useState(false);
+
+    // Throttle mouse move events to prevent excessive updates
+    const lastMouseMoveRef = useRef({ time: 0, position: null, xValue: null });
 
     // Track container height for dynamic sizing
     useEffect(() => {
@@ -133,27 +136,80 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
 
     const chartHeight = getChartHeight();
 
-    // Handle mouse movement over trajectory chart
-    const handleTrajectoryMouseMove = (normalizedPosition, xValue) => {
-        if (onTrajectoryGuidelineChange && selectedSample) {
-            onTrajectoryGuidelineChange({
-                sampleId: selectedSample,
-                position: normalizedPosition,
-                xValue: xValue,
-                isVertical: isVertical,
-                visible: true
-            });
-        }
-    };
+    // Handle mouse movement over trajectory chart with throttling
+    const handleTrajectoryMouseMove = useCallback((normalizedPosition, xValue) => {
+        if (!onTrajectoryGuidelineChange || !selectedSample) return;
+
+        const now = Date.now();
+        const THROTTLE_MS = 16; // ~60fps
+        const lastMove = lastMouseMoveRef.current;
+
+        // Throttle updates to prevent excessive re-renders
+        if (now - lastMove.time < THROTTLE_MS) return;
+
+        // Only update if values have changed significantly (prevent floating point drift)
+        const positionChanged = Math.abs((lastMove.position || 0) - normalizedPosition) > 0.001;
+        const xValueChanged = Math.abs((lastMove.xValue || 0) - xValue) > 0.001;
+
+        if (!positionChanged && !xValueChanged) return;
+
+        // Update our tracking reference
+        lastMouseMoveRef.current = { time: now, position: normalizedPosition, xValue: xValue };
+
+        onTrajectoryGuidelineChange({
+            sampleId: selectedSample,
+            position: normalizedPosition,
+            xValue: xValue,
+            isVertical: isVertical,
+            visible: true
+        });
+    }, [onTrajectoryGuidelineChange, selectedSample, isVertical]);
 
     // Handle mouse leave from trajectory chart
-    const handleTrajectoryMouseLeave = () => {
+    const handleTrajectoryMouseLeave = useCallback(() => {
         if (onTrajectoryGuidelineChange) {
+            // Reset our tracking reference
+            lastMouseMoveRef.current = { time: 0, position: null, xValue: null };
             onTrajectoryGuidelineChange({
                 visible: false
             });
         }
-    };
+    }, [onTrajectoryGuidelineChange]);
+
+    // Memoize LineChart props to prevent unnecessary re-renders
+    const singleGeneChartProps = useMemo(() => ({
+        data: trajectoryData[confirmedGenes[0]]?.data,
+        xAccessor: d => d.x,
+        yAccessor: d => d.y,
+        showErrorBands: true,
+        yMinAccessor: d => d.ymin,
+        yMaxAccessor: d => d.ymax,
+        margin: { top: 30, right: 20, bottom: 50, left: 60 },
+        lineColor: "#e74c3c",
+        errorBandOpacity: 0.3,
+        onMouseMove: handleTrajectoryMouseMove,
+        onMouseLeave: handleTrajectoryMouseLeave
+    }), [trajectoryData, confirmedGenes, handleTrajectoryMouseMove, handleTrajectoryMouseLeave]);
+
+    const multiGeneChartProps = useMemo(() => ({
+        datasets: confirmedGenes
+            .filter(gene => trajectoryData[gene])
+            .map(gene => ({
+                data: trajectoryData[gene].data,
+                xAccessor: d => d.x,
+                yAccessor: d => d.y,
+                yMinAccessor: d => d.ymin,
+                yMaxAccessor: d => d.ymax,
+                label: gene,
+                lineColor: undefined
+            })),
+        showErrorBands: true,
+        showLegend: true,
+        margin: { top: 30, right: 20, bottom: 40, left: 60 },
+        errorBandOpacity: 0.3,
+        onMouseMove: handleTrajectoryMouseMove,
+        onMouseLeave: handleTrajectoryMouseLeave
+    }), [trajectoryData, confirmedGenes, handleTrajectoryMouseMove, handleTrajectoryMouseLeave]);
 
 
     return (
@@ -289,41 +345,10 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
                     >
                         {confirmedGenes.length === 1 ? (
                             // Single gene: use original approach
-                            <LineChart
-                                data={trajectoryData[confirmedGenes[0]].data}
-                                xAccessor={d => d.x}
-                                yAccessor={d => d.y}
-                                showErrorBands={true}
-                                yMinAccessor={d => d.ymin}
-                                yMaxAccessor={d => d.ymax}
-                                margin={{ top: 30, right: 20, bottom: 50, left: 60 }}
-                                lineColor="#e74c3c"
-                                errorBandOpacity={0.3}
-                                onMouseMove={handleTrajectoryMouseMove}
-                                onMouseLeave={handleTrajectoryMouseLeave}
-                            />
+                            <LineChart {...singleGeneChartProps} />
                         ) : (
                             // Multiple genes: combine into single chart
-                            <LineChart
-                                datasets={confirmedGenes
-                                    .filter(gene => trajectoryData[gene])
-                                    .map(gene => ({
-                                        data: trajectoryData[gene].data,
-                                        xAccessor: d => d.x,
-                                        yAccessor: d => d.y,
-                                        yMinAccessor: d => d.ymin,
-                                        yMaxAccessor: d => d.ymax,
-                                        label: gene,
-                                        lineColor: undefined // Let the chart choose colors automatically
-                                    }))
-                                }
-                                showErrorBands={true}
-                                showLegend={true}
-                                margin={{ top: 30, right: 20, bottom: 40, left: 60 }}
-                                errorBandOpacity={0.3}
-                                onMouseMove={handleTrajectoryMouseMove}
-                                onMouseLeave={handleTrajectoryMouseLeave}
-                            />
+                            <LineChart {...multiGeneChartProps} />
                         )}
                     </div>
                 )}
