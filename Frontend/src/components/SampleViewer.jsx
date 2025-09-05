@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
 import { CellSettings } from './CellList';
-import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Spin, Switch } from "antd";
+import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Spin, Switch, message } from "antd";
 import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
@@ -17,6 +17,7 @@ export const SampleViewer = ({
     setSelectedCellTypes,
     cellTypeColors,
     setCellTypeColors,
+    umapDataSets,
     setUmapDataSets,
     umapLoading,
     setUmapLoading,
@@ -1317,6 +1318,50 @@ export const SampleViewer = ({
         }
     }, [mainViewState]);
 
+    // Helper function to check if two areas are the same
+    const arePointsSimilar = (points1, points2, tolerance = 1) => {
+        if (!points1 || !points2 || points1.length !== points2.length) {
+            return false;
+        }
+        
+        // Check if all points are within tolerance distance
+        return points1.every((point1, index) => {
+            const point2 = points2[index];
+            const dx = point1[0] - point2[0];
+            const dy = point1[1] - point2[1];
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            return distance <= tolerance;
+        });
+    };
+
+    // Helper function to check for duplicate UMAP
+    const findDuplicateUmap = (sampleId, areaPoints, neighbors, nPcas, resolutions) => {
+        if (!umapDataSets || umapDataSets.length === 0) return null;
+        
+        return umapDataSets.find(dataset => {
+            // Check if sample ID matches
+            if (dataset.sampleId !== sampleId) return false;
+            
+            // Check if parameters match
+            const datasetTitle = dataset.adata_umap_title || '';
+            const titleParts = datasetTitle.split('_');
+            if (titleParts.length >= 3) {
+                const datasetNeighbors = parseInt(titleParts[titleParts.length - 3]) || 0;
+                const datasetNPcas = parseInt(titleParts[titleParts.length - 2]) || 0;
+                const datasetResolutions = parseFloat(titleParts[titleParts.length - 1]) || 0;
+                
+                if (datasetNeighbors !== neighbors || 
+                    datasetNPcas !== nPcas || 
+                    Math.abs(datasetResolutions - resolutions) > 0.001) {
+                    return false;
+                }
+            }
+            
+            // Check if area points are similar
+            return arePointsSimilar(dataset.areaPoints, areaPoints, 5); // 5 pixel tolerance
+        });
+    };
+
     const generateUmap = () => {
         if (!selectedAreaForEdit) return;
 
@@ -1337,7 +1382,24 @@ export const SampleViewer = ({
 
         // Check if we have any cells in the selected area
         if (cellIdsInArea.length === 0) {
-            alert('No cells found in the selected area');
+            message.warning('No cells found in the selected area');
+            return;
+        }
+
+        // Check for duplicate UMAP before generating
+        const duplicateUmap = findDuplicateUmap(
+            selectedAreaForEdit.sampleId,
+            selectedAreaForEdit.points,
+            editNeighbors,
+            editNPcas,
+            editResolutions
+        );
+
+        if (duplicateUmap) {
+            message.warning({
+                content: `A UMAP with the same parameters and area already exists. Please modify the parameters or select a different area.`,
+                duration: 6, // Show for 6 seconds since it's a longer message
+            });
             return;
         }
 

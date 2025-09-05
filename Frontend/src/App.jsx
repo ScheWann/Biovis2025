@@ -410,6 +410,7 @@ function App() {
                       setSelectedCellTypes={setSelectedCellTypes}
                       cellTypeColors={cellTypeColors}
                       setCellTypeColors={setCellTypeColors}
+                      umapDataSets={umapDataSets}
                       setUmapDataSets={setUmapDataSets}
                       umapLoading={umapLoading}
                       setUmapLoading={setUmapLoading}
