@@ -1067,12 +1067,16 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
             
             adata_with_slingshot, results = direct_slingshot_analysis(**analysis_kwargs)
             
-            PROCESSED_ADATA_CACHE[sample_id][adata_umap_title] = adata_with_slingshot
+            # Create cache key that matches frontend expectations
+            # For manual mode (with start_cluster), use the same key format as frontend
+            cache_key = f"{adata_umap_title}_cluster_{start_cluster}" if start_cluster is not None else adata_umap_title
+            
+            PROCESSED_ADATA_CACHE[sample_id][cache_key] = adata_with_slingshot
             
             # Store trajectory results in the cache for later use
             if 'trajectory_results' not in PROCESSED_ADATA_CACHE[sample_id]:
                 PROCESSED_ADATA_CACHE[sample_id]['trajectory_results'] = {}
-            PROCESSED_ADATA_CACHE[sample_id]['trajectory_results'][adata_umap_title] = results
+            PROCESSED_ADATA_CACHE[sample_id]['trajectory_results'][cache_key] = results
 
             # Get cluster order based on spatial enrichment analysis
             cluster_order = get_cluster_order_by_spatial_enrichment(adata_with_slingshot, adata_umap_title)
@@ -1106,10 +1110,25 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
     if sample_id not in PROCESSED_ADATA_CACHE:
         raise ValueError(f"No cached data found for sample '{sample_id}'. Please run get_direct_slingshot_data first. Available samples: {list(PROCESSED_ADATA_CACHE.keys())}")
     
-    if adata_umap_title not in PROCESSED_ADATA_CACHE[sample_id]:
+    # Look for the data using either the exact key or cluster-specific keys
+    adata = None
+    cache_key_used = None
+    
+    if adata_umap_title in PROCESSED_ADATA_CACHE[sample_id]:
+        adata = PROCESSED_ADATA_CACHE[sample_id][adata_umap_title]
+        cache_key_used = adata_umap_title
+    else:
+        # Look for cluster-specific keys that start with the adata_umap_title
+        for key in PROCESSED_ADATA_CACHE[sample_id].keys():
+            if key.startswith(f"{adata_umap_title}_cluster_"):
+                adata = PROCESSED_ADATA_CACHE[sample_id][key]
+                cache_key_used = key
+                break
+    
+    if adata is None:
         raise ValueError(f"No cached trajectory data found for key '{adata_umap_title}' in sample '{sample_id}'. Please run get_direct_slingshot_data first. Available keys: {list(PROCESSED_ADATA_CACHE[sample_id].keys())}")
     
-    adata = PROCESSED_ADATA_CACHE[sample_id][adata_umap_title]
+    print(f"Using cached data with key: {cache_key_used}")
     
     # Validate gene names
     if isinstance(gene_names, str):
@@ -1137,9 +1156,9 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
     
     # Try to get trajectory results from cache first (preferred method)
     trajectory_results = None
-    if 'trajectory_results' in PROCESSED_ADATA_CACHE[sample_id] and adata_umap_title in PROCESSED_ADATA_CACHE[sample_id]['trajectory_results']:
-        trajectory_results = PROCESSED_ADATA_CACHE[sample_id]['trajectory_results'][adata_umap_title]
-        print("Using cached trajectory results for pseudotime values")
+    if 'trajectory_results' in PROCESSED_ADATA_CACHE[sample_id] and cache_key_used in PROCESSED_ADATA_CACHE[sample_id]['trajectory_results']:
+        trajectory_results = PROCESSED_ADATA_CACHE[sample_id]['trajectory_results'][cache_key_used]
+        print(f"Using cached trajectory results for pseudotime values with key: {cache_key_used}")
     
     if trajectory_results and isinstance(trajectory_results, list) and len(trajectory_results) > 0:
         # Use the first trajectory result (you might want to make this configurable)
